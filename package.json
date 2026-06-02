@@ -1,0 +1,18 @@
+{
+  "name": "abyss-poker",
+  "version": "1.0.0",
+  "description": "Realtime heads-up Texas Hold'em web game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest --runInBand --coverage --forceExit"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "jest": "^30.1.3",
+    "socket.io-client": "^4.8.1"
+  }
+}

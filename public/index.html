@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>深渊德州</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="chip-fx-layer" class="chip-fx-layer"></div>
+    <div id="flash-allin" class="flash-overlay hidden">
+      <div class="allin-text">ALL IN</div>
+    </div>
+    <div id="result-banner" class="result-banner hidden"></div>
+    <div id="game-over-modal" class="game-over-modal hidden">
+      <div class="game-over-panel panel">
+        <h2 id="game-over-title">对局结束</h2>
+        <p id="game-over-msg"></p>
+        <button id="btn-back-lobby" type="button" class="btn btn-cyan">返回大厅</button>
+      </div>
+    </div>
+    <div id="hand-settle-modal" class="hand-settle-modal hidden" aria-live="polite">
+      <div class="hand-settle-scan"></div>
+      <div class="hand-settle-panel panel">
+        <p class="settle-kicker">ABYSS JUDGMENT</p>
+        <h2 id="settle-verdict" class="settle-verdict">审判中</h2>
+        <p id="settle-detail" class="settle-detail"></p>
+        <p id="settle-hand-name" class="settle-hand-name"></p>
+        <div class="settle-countdown-wrap">
+          <svg class="settle-countdown-ring" viewBox="0 0 72 72" aria-hidden="true">
+            <circle class="settle-countdown-track" cx="36" cy="36" r="30"></circle>
+            <circle id="settle-countdown-progress" class="settle-countdown-progress" cx="36" cy="36" r="30"></circle>
+          </svg>
+          <span id="settle-countdown-num" class="settle-countdown-num">5</span>
+        </div>
+        <p id="settle-next" class="settle-next">下一局即将开始</p>
+      </div>
+    </div>
+
+    <main class="app-shell">
+      <section id="screen-auth" class="screen active">
+        <div class="auth-hero">
+          <h1 class="brand-title">深渊德州</h1>
+          <p class="sub">实时联机双人德州扑克</p>
+          <p class="brand-kicker">ABYSS TABLE / NO LIMIT HEADS UP</p>
+          <div class="status-tags">
+            <span>REALTIME</span>
+            <span>HEADS UP</span>
+            <span>SERVER AUTHORITY</span>
+          </div>
+          <div class="intro-grid">
+            <div class="intro-card">
+              <h3>高压博弈</h3>
+              <p>在深渊霓虹牌桌中进行双人对抗，节奏紧凑，信息清晰。</p>
+            </div>
+            <div class="intro-card">
+              <h3>实时联机</h3>
+              <p>房间制快速开局，支持断线重连与服务端权威判定。</p>
+            </div>
+            <div class="intro-card">
+              <h3>演出化界面</h3>
+              <p>ALL IN 震屏、底池动效、操作高亮，更像电子游戏而非网页表单。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="auth-shell">
+          <div class="panel auth-panel">
+            <h3>创建房间</h3>
+            <label>你的昵称</label>
+            <input id="input-name" type="text" maxlength="16" placeholder="请输入昵称" />
+
+            <label>房间密码（可选）</label>
+            <input id="input-password" type="password" maxlength="16" placeholder="创建房间时可填" />
+
+            <button id="btn-create" class="btn btn-cyan">创建联机房间</button>
+            <button id="btn-solo" class="btn">单机模式测试（人机）</button>
+          </div>
+
+          <div class="panel auth-panel">
+            <h3>加入房间</h3>
+            <label>房间号</label>
+            <input id="input-room" type="text" maxlength="8" placeholder="例如 A3B7K9" />
+
+            <label>加入密码（可选）</label>
+            <input id="input-join-password" type="password" maxlength="16" placeholder="若房主设置了密码" />
+
+            <button id="btn-join" class="btn btn-magenta">加入对战</button>
+            <p class="tip">提示：单机测试不会消耗联机房间名额</p>
+          </div>
+        </div>
+
+        <div class="home-footer">VERSION 0.2 / ABYSS PROTOCOL ONLINE</div>
+      </section>
+
+      <section id="screen-wait" class="screen">
+        <div class="wait-shell panel">
+          <button type="button" id="btn-back-wait" class="btn btn-ghost back-btn">← 返回大厅</button>
+          <h2>等待对手加入</h2>
+          <p class="wait-sub">将房间号分享给好友后即可开局</p>
+          <div class="room-code">ROOM <strong id="wait-room-id">-</strong></div>
+          <button id="btn-copy-room" class="btn btn-cyan">复制房间号</button>
+        </div>
+      </section>
+
+      <section id="screen-game" class="screen">
+        <button type="button" id="btn-back-game" class="btn btn-ghost back-btn back-btn-game">← 返回大厅</button>
+        <div class="board">
+          <div class="board-ornament">ABYSS JUDGE TABLE</div>
+          <div class="player-area top" id="opponent-area">
+            <div class="player-header">
+              <div class="avatar"></div>
+              <div>
+                <div id="opponent-name">对手</div>
+                <div class="chips">筹码：<span id="opponent-chips">1000</span></div>
+              </div>
+            </div>
+            <div class="cards-row" id="opponent-cards"></div>
+          </div>
+
+          <div class="table-center">
+            <div class="community-row" id="community-cards"></div>
+            <div class="pots">
+              <span>底池：<strong id="pot-value">0</strong></span>
+              <span>当前注：<strong id="current-bet">0</strong></span>
+              <span>阶段：<strong id="phase-text">waiting</strong></span>
+            </div>
+            <div id="action-log" class="action-log"></div>
+          </div>
+
+          <div class="player-area bottom" id="self-area">
+            <div class="self-cards-wrap">
+              <div class="cards-row" id="self-cards"></div>
+              <button
+                type="button"
+                id="btn-toggle-cards"
+                class="eye-btn"
+                title="显示我的手牌"
+                aria-label="显示我的手牌"
+                aria-pressed="false"
+              >
+                <svg class="eye-icon eye-open" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 11a4 4 0 110-8 4 4 0 010 8z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <svg class="eye-icon eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-3.89-6-7-11-7-1.4 0-2.74.25-3.98.7l2.16 2.16A4.94 4.94 0 0112 7zM2 4.27l2.28 2.28.46.46A11.8 11.8 0 001 12c1.73 3.89 6 7 11 7 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55a3 3 0 004.6 4.6l1.55 1.55a5 5 0 00-7.7-7.7z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="player-header">
+              <div class="avatar"></div>
+              <div>
+                <div id="self-name">你</div>
+                <div class="chips">筹码：<span id="self-chips">1000</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-panel">
+          <button data-action="check" class="btn">CHECK</button>
+          <button data-action="call" class="btn">CALL</button>
+          <div class="raise-box">
+            <input id="raise-input" type="number" min="0" step="25" placeholder="加注总额" />
+            <button data-action="raise" class="btn btn-cyan">RAISE</button>
+          </div>
+          <button data-action="allin" class="btn btn-magenta">ALL IN</button>
+          <button data-action="fold" class="btn">FOLD</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="./client.js"></script>
+  </body>
+</html>
