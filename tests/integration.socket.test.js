@@ -22,12 +22,11 @@ async function setupRoom(baseUrl) {
   const c2 = new Client(baseUrl, { transports: ["websocket"] });
   await Promise.all([waitFor(c1, "connect"), waitFor(c2, "connect")]);
 
-  c1.emit("create_room", {});
-  const { roomId } = await waitFor(c1, "room_created");
-
   const p1Join = waitFor(c1, "room_joined");
-  c1.emit("join_room", { roomId, playerName: "A", playerId: "PA" });
+  c1.emit("create_room", { playerName: "A", playerId: "PA" });
+  await waitFor(c1, "room_created");
   const j1 = await p1Join;
+  const roomId = j1.roomId;
 
   const p2Join = waitFor(c2, "room_joined");
   const p1Cards = waitFor(c1, "your_cards");

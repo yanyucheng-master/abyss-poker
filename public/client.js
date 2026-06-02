@@ -1,11 +1,17 @@
 const socket = io();
 
-const savedPlayerId = localStorage.getItem("abyss_player_id");
-const savedReconnectToken = localStorage.getItem("abyss_reconnect_token");
+let initialPlayerId = sessionStorage.getItem("abyss_player_id");
+if (!initialPlayerId) {
+  initialPlayerId = `P${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+  sessionStorage.setItem("abyss_player_id", initialPlayerId);
+}
+
+const HAND_SETTLE_MS = 3000;
+const COUNTDOWN_CIRC = 188.5;
 
 const state = {
-  playerId: savedPlayerId || `P${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
-  reconnectToken: savedReconnectToken || "",
+  playerId: initialPlayerId,
+  reconnectToken: sessionStorage.getItem("abyss_reconnect_token") || "",
   roomId: "",
   myName: "",
   players: [],
@@ -29,11 +35,6 @@ const state = {
   handSettleTotalMs: HAND_SETTLE_MS,
   handSettleTimers: [],
 };
-
-const HAND_SETTLE_MS = 3000;
-const COUNTDOWN_CIRC = 188.5;
-
-localStorage.setItem("abyss_player_id", state.playerId);
 
 const el = {
   auth: document.getElementById("screen-auth"),
@@ -556,12 +557,30 @@ function emitJoin(roomId, password) {
   });
 }
 
+function persistSession() {
+  sessionStorage.setItem("abyss_player_id", state.playerId);
+  if (state.reconnectToken) sessionStorage.setItem("abyss_reconnect_token", state.reconnectToken);
+  if (state.roomId) sessionStorage.setItem("abyss_room_id", state.roomId);
+}
+
+function syncPlayersFromServer(players) {
+  if (!Array.isArray(players)) return;
+  state.players = players;
+  if (state.players.length >= 2 && !state.atLobby) showScreen("game");
+  renderState();
+}
+
 el.btnCreate.addEventListener("click", () => {
   const name = (el.inputName.value || "").trim();
   if (!name) return alert("请先输入昵称");
   state.myName = name;
   state.atLobby = false;
-  socket.emit("create_room", { password: (el.inputPwd.value || "").trim() || null });
+  socket.emit("create_room", {
+    password: (el.inputPwd.value || "").trim() || null,
+    playerName: name,
+    playerId: state.playerId,
+    reconnectToken: state.reconnectToken || undefined,
+  });
 });
 
 el.btnSolo.addEventListener("click", () => {
@@ -607,7 +626,8 @@ el.actionButtons.forEach((btn) => {
 socket.on("room_created", ({ roomId }) => {
   state.roomId = roomId;
   el.inputRoom.value = roomId;
-  emitJoin(roomId, (el.inputPwd.value || "").trim() || null);
+  el.waitRoomId.textContent = roomId;
+  persistSession();
 });
 
 socket.on("room_joined", ({ roomId, playerId, reconnectToken, players }) => {
@@ -615,11 +635,11 @@ socket.on("room_joined", ({ roomId, playerId, reconnectToken, players }) => {
   state.roomId = roomId;
   if (playerId) {
     state.playerId = playerId;
-    localStorage.setItem("abyss_player_id", state.playerId);
+    persistSession();
   }
   if (reconnectToken) {
     state.reconnectToken = reconnectToken;
-    localStorage.setItem("abyss_reconnect_token", reconnectToken);
+    persistSession();
   }
   state.players = players || [];
   el.waitRoomId.textContent = roomId;
@@ -706,9 +726,18 @@ socket.on("game_over", ({ winner, winnerName, loser, loserName, reason, players 
   renderState();
 });
 
+socket.on("player_joined", ({ playerId, players }) => {
+  logAction(`玩家加入：${playerId}`);
+  syncPlayersFromServer(players);
+});
+socket.on("player_reconnected", ({ playerId, players }) => {
+  logAction(`玩家重连：${playerId}`);
+  if (players) syncPlayersFromServer(players);
+});
+socket.on("player_left", ({ playerId }) => {
+  logAction(`玩家离开：${playerId}`);
+});
 socket.on("player_disconnected", ({ playerId }) => logAction(`玩家离线：${playerId}`));
-socket.on("player_reconnected", ({ playerId }) => logAction(`玩家重连：${playerId}`));
-socket.on("player_joined", ({ playerId }) => logAction(`玩家加入：${playerId}`));
 
 socket.on("join_error", ({ message }) => alert(message || "加入失败"));
 socket.on("action_error", ({ message }) => alert(message || "操作失败"));

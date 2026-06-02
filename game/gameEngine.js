@@ -84,9 +84,20 @@ class GameEngine {
   }
 
   tryStartGame(room) {
+    if (room.phase !== "waiting") return;
     if (room.players.length !== 2) return;
-    if (room.players.some((p) => !p.isBot && !p.socketId)) return;
     if (room.players.some((p) => p.chips <= 0)) return;
+
+    const humans = room.players.filter((p) => !p.isBot);
+    const bots = room.players.filter((p) => p.isBot);
+    if (humans.length === 2) {
+      if (humans.some((p) => !p.socketId)) return;
+    } else if (humans.length === 1 && bots.length === 1) {
+      if (!humans[0].socketId) return;
+    } else {
+      return;
+    }
+
     this.startHand(room);
   }
 
@@ -144,7 +155,7 @@ class GameEngine {
   }
 
   emitTurn(room) {
-    if (room.phase === "waiting" || room.phase === "showdown" || room.phase === "end") return;
+    if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
     const current = room.players[room.currentPlayerIndex];
     if (!current || current.status !== "active" || current.isAllIn) {
       const next = this.findNextActionPlayer(room, room.currentPlayerIndex);

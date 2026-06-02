@@ -104,9 +104,15 @@ class RoomManager {
     if (!room) return { ok: false, error: "房间不存在" };
     if (room.password && room.password !== password) return { ok: false, error: "房间密码错误" };
 
+    if (room.phase === "waiting") {
+      room.players = room.players.filter(
+        (p) => p.isBot || p.socketId || (playerId && p.playerId === playerId)
+      );
+    }
+
     const reconnectPlayer = room.players.find((p) => p.playerId === playerId);
     if (reconnectPlayer) {
-      if (reconnectPlayer.reconnectToken !== reconnectToken) {
+      if (reconnectToken && reconnectPlayer.reconnectToken !== reconnectToken) {
         return { ok: false, error: "重连凭证错误" };
       }
       reconnectPlayer.socketId = socketId;

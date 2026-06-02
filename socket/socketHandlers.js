@@ -1,8 +1,28 @@
 function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
   io.on("connection", (socket) => {
-    socket.on("create_room", ({ password } = {}) => {
+    socket.on("create_room", ({ password, playerName, playerId, reconnectToken } = {}) => {
       const room = roomManager.createRoom(password || null);
+      const joined = roomManager.joinRoom({
+        roomId: room.roomId,
+        password: password || null,
+        playerName,
+        playerId,
+        reconnectToken,
+        socketId: socket.id,
+      });
+      if (!joined.ok) {
+        socket.emit("join_error", { message: joined.error });
+        return;
+      }
+      socket.join(room.roomId);
       socket.emit("room_created", { roomId: room.roomId });
+      socket.emit("room_joined", {
+        roomId: room.roomId,
+        playerId: joined.player.playerId,
+        reconnectToken: joined.player.reconnectToken,
+        players: roomManager.getPublicPlayers(room),
+      });
+      gameEngine.broadcastRoomState(room);
     });
 
     socket.on("create_solo_room", ({ playerName, playerId, reconnectToken } = {}) => {
@@ -58,6 +78,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
 
       io.to(room.roomId).emit(reconnected ? "player_reconnected" : "player_joined", {
         playerId: player.playerId,
+        players: roomManager.getPublicPlayers(room),
       });
       gameEngine.broadcastRoomState(room);
       if (room.phase !== "waiting") {
