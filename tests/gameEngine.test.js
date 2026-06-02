@@ -132,7 +132,7 @@ describe("gameEngine", () => {
     const handResult = emitted.find((e) => e.event === "hand_result");
     expect(handResult).toBeTruthy();
     expect(handResult.payload.reason).toBe("fold");
-    expect(handResult.payload.settleMs).toBe(5000);
+    expect(handResult.payload.settleMs).toBe(3000);
   });
 
   test("allin 后可以推进到摊牌", () => {
@@ -178,7 +178,7 @@ describe("gameEngine", () => {
     room.phase = "end";
     engine.finalizeHand(room);
     expect(room.phase).toBe("end");
-    jest.advanceTimersByTime(5000);
+    jest.advanceTimersByTime(3000);
     const over = emitted.find((e) => e.event === "game_over");
     expect(over).toBeTruthy();
     expect(over.payload.reason).toBe("bankrupt");

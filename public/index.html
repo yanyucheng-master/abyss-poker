@@ -25,13 +25,29 @@
         <p class="settle-kicker">ABYSS JUDGMENT</p>
         <h2 id="settle-verdict" class="settle-verdict">审判中</h2>
         <p id="settle-detail" class="settle-detail"></p>
+        <div id="settle-board" class="settle-board">
+          <p class="settle-label">公共牌</p>
+          <div id="settle-community" class="settle-cards-row"></div>
+          <div class="settle-hands-grid">
+            <div class="settle-hand-col">
+              <p id="settle-self-label" class="settle-label">你</p>
+              <div id="settle-self-cards" class="settle-cards-row"></div>
+              <p id="settle-self-hand" class="settle-hand-type"></p>
+            </div>
+            <div class="settle-hand-col">
+              <p id="settle-opp-label" class="settle-label">对手</p>
+              <div id="settle-opp-cards" class="settle-cards-row"></div>
+              <p id="settle-opp-hand" class="settle-hand-type"></p>
+            </div>
+          </div>
+        </div>
         <p id="settle-hand-name" class="settle-hand-name"></p>
         <div class="settle-countdown-wrap">
           <svg class="settle-countdown-ring" viewBox="0 0 72 72" aria-hidden="true">
             <circle class="settle-countdown-track" cx="36" cy="36" r="30"></circle>
             <circle id="settle-countdown-progress" class="settle-countdown-progress" cx="36" cy="36" r="30"></circle>
           </svg>
-          <span id="settle-countdown-num" class="settle-countdown-num">5</span>
+          <span id="settle-countdown-num" class="settle-countdown-num">3</span>
         </div>
         <p id="settle-next" class="settle-next">下一局即将开始</p>
       </div>

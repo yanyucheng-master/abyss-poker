@@ -11,7 +11,7 @@ const {
   isStreetComplete,
 } = require("./pokerLogic");
 
-const HAND_SETTLE_MS = 5000;
+const HAND_SETTLE_MS = 3000;
 
 class GameEngine {
   constructor({ io, roomManager, logger, eventBus }) {
@@ -29,6 +29,27 @@ class GameEngine {
     if (player.socketId) this.io.to(player.socketId).emit(event, payload);
   }
 
+  buildPlayerHandDetail(player, communityCards, extra = {}) {
+    const cards = [...(player.cards || [])];
+    const detail = {
+      playerId: player.playerId,
+      name: player.name,
+      cards,
+      ...extra,
+    };
+    const pool = [...cards, ...(communityCards || [])];
+    if (pool.length >= 5) {
+      const hand = pickBestFive(pool);
+      detail.handName = hand.handName;
+      detail.bestFive = hand.bestFive;
+    } else if (extra.folded) {
+      detail.handName = cards.length ? "已弃牌（未成牌）" : "已弃牌";
+    } else if (cards.length > 0 && pool.length < 5) {
+      detail.handName = "未成牌";
+    }
+    return detail;
+  }
+
   buildHandResultPayload(room, { reason, winner, tie, pot, playersDetail }) {
     const bust = room.players.some((p) => p.chips <= 0);
     return {
@@ -39,6 +60,7 @@ class GameEngine {
       winner: winner?.playerId || null,
       winnerName: winner?.name || null,
       isFinalHand: bust,
+      communityCards: [...(room.communityCards || [])],
       players: playersDetail,
     };
   }
@@ -181,20 +203,11 @@ class GameEngine {
         winner,
         tie: false,
         pot,
-        playersDetail: [
-          {
-            playerId: winner.playerId,
-            name: winner.name,
-            cards: winner.cards,
-          },
-          loser
-            ? {
-                playerId: loser.playerId,
-                name: loser.name,
-                folded: true,
-              }
-            : null,
-        ].filter(Boolean),
+        playersDetail: room.players.map((p) =>
+          this.buildPlayerHandDetail(p, room.communityCards, {
+            folded: p.status === "folded",
+          })
+        ),
       })
     );
     this.finalizeHand(room);
@@ -304,14 +317,9 @@ class GameEngine {
         winner: tie ? null : first.player,
         tie,
         pot: potBefore,
-        playersDetail: result.map((x) => ({
-          playerId: x.player.playerId,
-          name: x.player.name,
-          cards: x.player.cards,
-          handName: x.hand.handName,
-          handRank: x.hand.category,
-          bestFive: x.hand.bestFive,
-        })),
+        playersDetail: result.map((x) =>
+          this.buildPlayerHandDetail(x.player, room.communityCards)
+        ),
       })
     );
     room.phase = "end";

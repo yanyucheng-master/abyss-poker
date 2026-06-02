@@ -586,7 +586,7 @@ input:focus {
 }
 
 .hand-settle-panel {
-  width: min(92vw, 460px);
+  width: min(94vw, 520px);
   padding: 30px 26px 24px;
   text-align: center;
   position: relative;
@@ -632,6 +632,67 @@ input:focus {
   margin: 0 0 8px;
   color: rgba(255, 255, 255, 0.84);
   line-height: 1.55;
+}
+
+.settle-board {
+  margin: 12px 0 10px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 212, 255, 0.22);
+  background: rgba(6, 10, 24, 0.55);
+}
+
+.settle-board.hidden {
+  display: none;
+}
+
+.settle-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: rgba(0, 212, 255, 0.78);
+  text-transform: uppercase;
+}
+
+.settle-cards-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  margin-bottom: 8px;
+}
+
+.settle-hands-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settle-hand-col {
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.settle-hand-type {
+  margin: 0;
+  min-height: 1.3em;
+  font-size: 13px;
+  color: #d2c4ff;
+  letter-spacing: 0.5px;
+}
+
+.settle-empty {
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 64px;
+}
+
+.card.settle-card {
+  width: 46px;
+  height: 68px;
+  font-size: 12px;
 }
 
 .settle-hand-name {

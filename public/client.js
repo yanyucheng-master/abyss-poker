@@ -26,10 +26,11 @@ const state = {
   handSettling: false,
   handSettleStage: 0,
   handSettleEndAt: 0,
+  handSettleTotalMs: HAND_SETTLE_MS,
   handSettleTimers: [],
 };
 
-const HAND_SETTLE_MS = 5000;
+const HAND_SETTLE_MS = 3000;
 const COUNTDOWN_CIRC = 188.5;
 
 localStorage.setItem("abyss_player_id", state.playerId);
@@ -79,6 +80,14 @@ const el = {
   settleCountdownNum: document.getElementById("settle-countdown-num"),
   settleCountdownProgress: document.getElementById("settle-countdown-progress"),
   settleNext: document.getElementById("settle-next"),
+  settleBoard: document.getElementById("settle-board"),
+  settleCommunity: document.getElementById("settle-community"),
+  settleSelfLabel: document.getElementById("settle-self-label"),
+  settleSelfCards: document.getElementById("settle-self-cards"),
+  settleSelfHand: document.getElementById("settle-self-hand"),
+  settleOppLabel: document.getElementById("settle-opp-label"),
+  settleOppCards: document.getElementById("settle-opp-cards"),
+  settleOppHand: document.getElementById("settle-opp-hand"),
   board: document.querySelector(".board"),
 };
 
@@ -129,7 +138,9 @@ function clearHandSettlement() {
   state.handSettling = false;
   state.handSettleStage = 0;
   state.handSettleEndAt = 0;
+  state.handSettleTotalMs = HAND_SETTLE_MS;
   el.handSettleModal?.classList.add("hidden");
+  el.settleBoard?.classList.add("hidden");
   el.board?.classList.remove("settle-dim");
   el.game?.classList.remove("settle-dim");
 }
@@ -148,7 +159,7 @@ function updateSettleCountdown() {
   const left = Math.max(0, state.handSettleEndAt - Date.now());
   const sec = Math.max(0, Math.ceil(left / 1000));
   el.settleCountdownNum.textContent = String(sec);
-  const progress = left / HAND_SETTLE_MS;
+  const progress = left / (state.handSettleTotalMs || HAND_SETTLE_MS);
   el.settleCountdownProgress.style.strokeDashoffset = String(COUNTDOWN_CIRC * (1 - progress));
   if (left > 0) {
     state.handSettleCountdownRaf = requestAnimationFrame(updateSettleCountdown);
@@ -158,10 +169,57 @@ function updateSettleCountdown() {
   }
 }
 
+function renderSettleCardRow(container, cards, highlightCodes, padToFive = false) {
+  if (!container) return;
+  container.innerHTML = "";
+  const list = cards || [];
+  if (!list.length && !padToFive) {
+    const empty = document.createElement("span");
+    empty.className = "settle-empty";
+    empty.textContent = "—";
+    container.appendChild(empty);
+    return;
+  }
+  list.forEach((card) => {
+    const node = createCardElement(card, { glow: highlightCodes.has(card.code) });
+    node.classList.add("settle-card", "flip-reveal");
+    container.appendChild(node);
+  });
+  if (padToFive) {
+    for (let i = list.length; i < 5; i += 1) {
+      container.appendChild(createCardElement({}, { back: true }));
+    }
+  }
+}
+
+function renderSettleBoard(payload) {
+  const me = getMe();
+  const op = getOpponent();
+  const meDetail = (payload.players || []).find((p) => p.playerId === state.playerId);
+  const opDetail = (payload.players || []).find((p) => p.playerId !== state.playerId);
+  const community = payload.communityCards || state.communityCards || [];
+  const highlights = state.bestFiveCodes;
+
+  el.settleBoard?.classList.remove("hidden");
+  el.settleSelfLabel.textContent = me?.name || "你";
+  el.settleOppLabel.textContent = op?.name || "对手";
+
+  renderSettleCardRow(el.settleCommunity, community, highlights, true);
+  renderSettleCardRow(el.settleSelfCards, meDetail?.cards || state.myCards, highlights);
+  renderSettleCardRow(el.settleOppCards, opDetail?.cards || state.showdownCards[op?.playerId] || [], highlights);
+
+  const selfHandText = meDetail?.handName ? `牌型：${meDetail.handName}` : meDetail?.folded ? "已弃牌" : "";
+  const oppHandText = opDetail?.handName ? `牌型：${opDetail.handName}` : opDetail?.folded ? "已弃牌" : "";
+  el.settleSelfHand.textContent = selfHandText;
+  el.settleOppHand.textContent = oppHandText;
+}
+
 function showHandVerdict(payload) {
   const op = getOpponent();
   const iWon = !payload.tie && payload.winner === state.playerId;
   const winDetail = (payload.players || []).find((p) => p.playerId === payload.winner);
+  const meDetail = (payload.players || []).find((p) => p.playerId === state.playerId);
+  const opDetail = (payload.players || []).find((p) => p.playerId !== state.playerId);
 
   el.settleVerdict.className = "settle-verdict";
   if (payload.reason === "fold") {
@@ -174,16 +232,23 @@ function showHandVerdict(payload) {
       el.settleVerdict.classList.add("lose-text");
       el.settleDetail.textContent = `你弃牌，${payload.winnerName || op?.name || "对手"} 赢得底池 ${payload.pot}`;
     }
-    el.settleHandName.textContent = "";
   } else if (payload.tie) {
     el.settleVerdict.textContent = "平局";
     el.settleVerdict.classList.add("tie-text");
     el.settleDetail.textContent = `底池 ${payload.pot} 平分（余数给房主）`;
-    el.settleHandName.textContent = "";
   } else {
     el.settleVerdict.textContent = iWon ? "胜利" : "败北";
     el.settleVerdict.classList.add(iWon ? "win-text" : "lose-text");
     el.settleDetail.textContent = `${payload.winnerName || winDetail?.name || "对手"} 赢得底池 ${payload.pot}`;
+  }
+
+  renderSettleBoard(payload);
+  if (payload.reason === "showdown" || payload.reason === "fold") {
+    const parts = [];
+    if (meDetail?.handName) parts.push(`你：${meDetail.handName}`);
+    if (opDetail?.handName) parts.push(`${op?.name || "对手"}：${opDetail.handName}`);
+    el.settleHandName.textContent = parts.join(" ｜ ");
+  } else {
     el.settleHandName.textContent = winDetail?.handName ? `胜方牌型 · ${winDetail.handName}` : "";
   }
   el.settleNext.textContent = payload.isFinalHand ? "对局即将结束" : "下一局即将开始";
@@ -196,51 +261,39 @@ function scheduleHandSettle(fn, ms) {
 function startHandSettlement(payload) {
   clearHandSettlement();
   state.handSettling = true;
-  state.handSettleStage = 0;
+  state.handSettleStage = 2;
   state.handSettleEndAt = Date.now() + (payload.settleMs || HAND_SETTLE_MS);
+  state.handSettleTotalMs = payload.settleMs || HAND_SETTLE_MS;
   state.phase = payload.reason === "showdown" ? "showdown" : "end";
   state.validActions = [];
   state.currentTurnPlayerId = null;
 
+  if (payload.communityCards?.length) {
+    state.communityCards = payload.communityCards;
+  }
   applyHandResultCards(payload.players);
   renderState();
+  renderSettleBoard(payload);
 
   el.board?.classList.add("settle-dim");
   el.game?.classList.add("settle-dim");
   el.handSettleModal?.classList.remove("hidden");
   el.settleVerdict.textContent = "审判中";
   el.settleVerdict.className = "settle-verdict";
-  el.settleDetail.textContent = payload.reason === "showdown" ? "正在翻牌验牌..." : "正在结算本局...";
+  el.settleDetail.textContent = "正在展示双方手牌与牌型...";
   el.settleHandName.textContent = "";
   el.settleCountdownNum.textContent = String(Math.ceil((payload.settleMs || HAND_SETTLE_MS) / 1000));
   el.settleCountdownProgress.style.strokeDashoffset = "0";
   updateSettleCountdown();
 
-  if (payload.reason === "showdown") {
-    scheduleHandSettle(() => {
-      state.handSettleStage = 1;
-      renderCards();
-    }, 420);
-    scheduleHandSettle(() => {
-      state.handSettleStage = 2;
-      renderCards();
-    }, 1300);
-    scheduleHandSettle(() => {
-      state.handSettleStage = 3;
-      showHandVerdict(payload);
-      renderCards();
-      const iWon = !payload.tie && payload.winner === state.playerId;
-      if (payload.tie) setBanner("平局", true);
-      else setBanner(iWon ? "胜利" : "败北", iWon);
-    }, 1850);
-  } else {
-    scheduleHandSettle(() => {
-      state.handSettleStage = 3;
-      showHandVerdict(payload);
-      const iWon = payload.winner === state.playerId;
-      setBanner(iWon ? "胜利" : "败北", iWon);
-    }, 650);
-  }
+  scheduleHandSettle(() => {
+    state.handSettleStage = 3;
+    showHandVerdict(payload);
+    renderCards();
+    const iWon = !payload.tie && payload.winner === state.playerId;
+    if (payload.tie) setBanner("平局", true);
+    else if (payload.winner) setBanner(iWon ? "胜利" : "败北", iWon);
+  }, 380);
 }
 
 function resetLocalSession() {
@@ -443,7 +496,7 @@ function renderCards() {
 
   el.oppCards.innerHTML = "";
   const inShowdownReveal =
-    state.phase === "showdown" || (state.handSettling && state.handSettleStage >= 1);
+    state.phase === "showdown" || (state.handSettling && state.handSettleStage >= 2);
   if (inShowdownReveal && showdownOppCards.length) {
     showdownOppCards.forEach((card, idx) => {
       const cardNode = createCardElement(card, { glow: highlightCodes.has(card.code) });
