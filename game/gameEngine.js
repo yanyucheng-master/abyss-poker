@@ -11,7 +11,7 @@ const {
   isStreetComplete,
 } = require("./pokerLogic");
 
-const HAND_SETTLE_MS = 3000;
+const HAND_SETTLE_MS = 5000;
 
 class GameEngine {
   constructor({ io, roomManager, logger, eventBus }) {

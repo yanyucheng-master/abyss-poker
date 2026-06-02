@@ -6,7 +6,7 @@ if (!initialPlayerId) {
   sessionStorage.setItem("abyss_player_id", initialPlayerId);
 }
 
-const HAND_SETTLE_MS = 3000;
+const HAND_SETTLE_MS = 5000;
 const COUNTDOWN_CIRC = 188.5;
 
 const state = {
