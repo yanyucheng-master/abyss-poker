@@ -10,6 +10,11 @@
   --violet: #7a54ff;
   --text: #eff2ff;
   --muted: #9da4ca;
+  --asset-table-bg: url("./assets/abyss-poker-table-bg.png");
+  --asset-card-back: url("./assets/abyss-card-back.png");
+  --asset-settlement: url("./assets/abyss-judgment-settlement.png");
+  --asset-lobby-banner: url("./assets/abyss-poker-lobby-banner.png");
+  --asset-ui-icons: url("./assets/abyss-poker-ui-icons.png");
 }
 
 * {
@@ -89,7 +94,35 @@ body::after {
 }
 
 .auth-hero {
+  position: relative;
   margin-bottom: 14px;
+}
+
+.lobby-banner {
+  position: relative;
+  min-height: clamp(170px, 30vw, 300px);
+  margin-bottom: 18px;
+  border: 1px solid rgba(122, 84, 255, 0.38);
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(5, 7, 18, 0.26), rgba(5, 7, 18, 0.04) 48%, rgba(5, 7, 18, 0.42)),
+    radial-gradient(circle at 50% 50%, rgba(122, 84, 255, 0.18), transparent 54%),
+    var(--asset-lobby-banner) center / cover no-repeat,
+    linear-gradient(135deg, rgba(19, 10, 42, 0.92), rgba(3, 8, 24, 0.96));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.lobby-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 45%, rgba(6, 7, 17, 0.58)),
+    radial-gradient(circle at 50% 80%, rgba(0, 212, 255, 0.16), transparent 42%);
 }
 
 .status-tags {
@@ -268,8 +301,9 @@ input:focus {
   border-radius: 18px;
   padding: 22px 16px 16px;
   background:
-    radial-gradient(circle at center, rgba(32, 46, 85, 0.2), transparent 62%),
-    linear-gradient(180deg, rgba(26, 20, 54, 0.22), rgba(8, 9, 24, 0.4)),
+    linear-gradient(180deg, rgba(5, 7, 18, 0.26), rgba(5, 7, 18, 0.58)),
+    radial-gradient(circle at center, rgba(0, 212, 255, 0.12), transparent 58%),
+    var(--asset-table-bg) center / cover no-repeat,
     var(--panel-strong);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
@@ -283,8 +317,14 @@ input:focus {
   inset: 0;
   pointer-events: none;
   background:
+    radial-gradient(ellipse at center, transparent 0 38%, rgba(1, 3, 12, 0.34) 74%),
     radial-gradient(circle at center, rgba(0, 212, 255, 0.05), transparent 58%),
     repeating-linear-gradient(0deg, transparent, transparent 26px, rgba(255, 255, 255, 0.015) 26px, rgba(255, 255, 255, 0.015) 27px);
+}
+
+.board > * {
+  position: relative;
+  z-index: 1;
 }
 
 .board-ornament {
@@ -296,6 +336,7 @@ input:focus {
   letter-spacing: 3px;
   color: rgba(0, 212, 255, 0.72);
   text-shadow: 0 0 8px rgba(0, 212, 255, 0.44);
+  z-index: 2;
 }
 
 .wait-shell {
@@ -404,9 +445,12 @@ input:focus {
   color: #d1e5ff;
   background:
     linear-gradient(140deg, rgba(0, 212, 255, 0.2), rgba(255, 51, 102, 0.18)),
+    var(--asset-card-back) center / cover no-repeat,
     repeating-linear-gradient(45deg, #171c44, #171c44 4px, #111533 4px, #111533 8px);
   text-shadow: 0 0 8px rgba(0, 212, 255, 0.65);
   border-color: rgba(0, 212, 255, 0.55);
+  font-size: 0;
+  background-clip: padding-box;
 }
 
 .card.glow-gold {
@@ -526,6 +570,7 @@ input:focus {
 }
 
 .eye-btn {
+  position: relative;
   flex-shrink: 0;
   width: 38px;
   height: 38px;
@@ -537,6 +582,15 @@ input:focus {
   display: grid;
   place-items: center;
   transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+
+.eye-btn::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  background: var(--asset-ui-icons) left top / 120px 120px no-repeat;
+  opacity: 0;
 }
 
 .eye-btn:hover {
@@ -551,8 +605,14 @@ input:focus {
 }
 
 .eye-icon {
+  position: relative;
+  z-index: 1;
   width: 20px;
   height: 20px;
+}
+
+.eye-icon.hidden {
+  display: none;
 }
 
 .hand-settle-modal {
@@ -596,6 +656,31 @@ input:focus {
     0 0 40px rgba(0, 212, 255, 0.18),
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   animation: settle-panel-in 0.45s ease;
+  overflow: hidden;
+}
+
+.hand-settle-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(5, 7, 18, 0.22), rgba(5, 7, 18, 0.86) 58%, rgba(5, 7, 18, 0.94)),
+    var(--asset-settlement) center top / cover no-repeat;
+  opacity: 0.46;
+}
+
+.hand-settle-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 48%, rgba(0, 212, 255, 0.08), rgba(2, 4, 12, 0.68) 72%);
+}
+
+.hand-settle-panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .settle-kicker {
@@ -1006,6 +1091,12 @@ input:focus {
     letter-spacing: 4px;
   }
 
+  .lobby-banner {
+    min-height: 150px;
+    margin-bottom: 14px;
+    background-position: center;
+  }
+
   .intro-grid {
     grid-template-columns: 1fr;
   }
@@ -1017,6 +1108,10 @@ input:focus {
   .card {
     width: 52px;
     height: 76px;
+  }
+
+  .hand-settle-panel {
+    padding: 24px 14px 18px;
   }
 
   .action-panel .btn {
