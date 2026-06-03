@@ -8,6 +8,14 @@ if (!initialPlayerId) {
 
 const HAND_SETTLE_MS = 5000;
 const COUNTDOWN_CIRC = 188.5;
+const DEFAULT_HOST_NAME = "player1";
+const DEFAULT_GUEST_NAME = "player2";
+
+function resolvePlayerName(raw, role) {
+  const trimmed = (raw || "").trim();
+  if (trimmed) return trimmed;
+  return role === "guest" ? DEFAULT_GUEST_NAME : DEFAULT_HOST_NAME;
+}
 
 const state = {
   playerId: initialPlayerId,
@@ -571,8 +579,7 @@ function syncPlayersFromServer(players) {
 }
 
 el.btnCreate.addEventListener("click", () => {
-  const name = (el.inputName.value || "").trim();
-  if (!name) return alert("请先输入昵称");
+  const name = resolvePlayerName(el.inputName.value, "host");
   state.myName = name;
   state.atLobby = false;
   socket.emit("create_room", {
@@ -584,8 +591,7 @@ el.btnCreate.addEventListener("click", () => {
 });
 
 el.btnSolo.addEventListener("click", () => {
-  const name = (el.inputName.value || "").trim();
-  if (!name) return alert("请先输入昵称");
+  const name = resolvePlayerName(el.inputName.value, "host");
   state.myName = name;
   state.atLobby = false;
   socket.emit("create_solo_room", {
@@ -596,9 +602,9 @@ el.btnSolo.addEventListener("click", () => {
 });
 
 el.btnJoin.addEventListener("click", () => {
-  const name = (el.inputName.value || "").trim();
   const roomId = (el.inputRoom.value || "").trim().toUpperCase();
-  if (!name || !roomId) return alert("请输入昵称和房间号");
+  if (!roomId) return alert("请输入房间号");
+  const name = resolvePlayerName(el.inputName.value, "guest");
   state.myName = name;
   state.atLobby = false;
   emitJoin(roomId, (el.inputJoinPwd.value || "").trim() || null);

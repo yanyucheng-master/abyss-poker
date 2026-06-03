@@ -130,9 +130,11 @@ class RoomManager {
     if (room.players.length >= 2) return { ok: false, error: "房间已满" };
     const finalPlayerId = playerId || `P${generateCode(8)}`;
     const token = reconnectToken || generateReconnectToken();
+    const trimmedName = String(playerName || "").trim();
+    const defaultName = room.players.length === 0 ? "player1" : "player2";
     const player = makePlayer({
       playerId: finalPlayerId,
-      name: playerName || "玩家",
+      name: trimmedName || defaultName,
       socketId,
       reconnectToken: token,
     });
