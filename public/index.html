@@ -16,6 +16,14 @@
       <div class="game-over-panel panel">
         <h2 id="game-over-title">对局结束</h2>
         <p id="game-over-msg"></p>
+        <div id="rematch-box" class="rematch-box hidden">
+          <p id="rematch-status" class="rematch-status">是否再来一局？</p>
+          <p class="rematch-countdown">剩余 <strong id="rematch-countdown">10</strong> 秒</p>
+          <div class="rematch-actions">
+            <button id="btn-rematch-yes" type="button" class="btn btn-cyan">再来一局</button>
+            <button id="btn-rematch-no" type="button" class="btn">不继续</button>
+          </div>
+        </div>
         <button id="btn-back-lobby" type="button" class="btn btn-cyan">返回大厅</button>
       </div>
     </div>

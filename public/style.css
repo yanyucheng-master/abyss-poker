@@ -951,10 +951,49 @@ input:focus {
   line-height: 1.6;
 }
 
+.rematch-box {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(5, 8, 22, 0.56);
+}
+
+.rematch-box.hidden {
+  display: none;
+}
+
+.rematch-status {
+  margin-bottom: 8px !important;
+  color: #dce6ff !important;
+  letter-spacing: 1px;
+}
+
+.rematch-countdown {
+  margin-bottom: 12px !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.rematch-countdown strong {
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(255, 204, 77, 0.55);
+}
+
+.rematch-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .game-over-panel .btn {
   min-width: 160px;
   position: relative;
   z-index: 2;
+}
+
+.game-over-panel .btn.hidden {
+  display: none;
 }
 
 .btn-ghost {

@@ -96,6 +96,14 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       if (!result.ok) socket.emit("action_error", { message: result.error });
     });
 
+    socket.on("rematch_response", ({ accepted } = {}) => {
+      const found = roomManager.getRoomBySocket(socket.id);
+      if (!found) return;
+      const player = found.room.players[found.playerIndex];
+      const result = gameEngine.handleRematchResponse(found.room, player, Boolean(accepted));
+      if (!result.ok) socket.emit("action_error", { message: result.error });
+    });
+
     socket.on("leave_room", () => {
       const result = roomManager.removePlayerBySocket(socket.id, {
         onForfeit: (room, loser) => gameEngine.resolveDisconnectTimeout(room, loser),

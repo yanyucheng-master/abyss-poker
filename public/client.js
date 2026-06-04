@@ -10,6 +10,7 @@ const HAND_SETTLE_MS = 5000;
 const COUNTDOWN_CIRC = 188.5;
 const DEFAULT_HOST_NAME = "player1";
 const DEFAULT_GUEST_NAME = "player2";
+const REMATCH_TIMEOUT_MS = 10000;
 
 function resolvePlayerName(raw, role) {
   const trimmed = (raw || "").trim();
@@ -42,6 +43,10 @@ const state = {
   handSettleEndAt: 0,
   handSettleTotalMs: HAND_SETTLE_MS,
   handSettleTimers: [],
+  rematchDeadlineAt: 0,
+  rematchCountdownRaf: 0,
+  rematchAcceptedIds: new Set(),
+  rematchResponded: false,
 };
 
 const el = {
@@ -79,6 +84,11 @@ const el = {
   gameOverModal: document.getElementById("game-over-modal"),
   gameOverTitle: document.getElementById("game-over-title"),
   gameOverMsg: document.getElementById("game-over-msg"),
+  rematchBox: document.getElementById("rematch-box"),
+  rematchStatus: document.getElementById("rematch-status"),
+  rematchCountdown: document.getElementById("rematch-countdown"),
+  btnRematchYes: document.getElementById("btn-rematch-yes"),
+  btnRematchNo: document.getElementById("btn-rematch-no"),
   btnBackLobby: document.getElementById("btn-back-lobby"),
   btnBackWait: document.getElementById("btn-back-wait"),
   btnBackGame: document.getElementById("btn-back-game"),
@@ -135,6 +145,65 @@ function showSettlementOverlay(isWin, message) {
 
 function hideSettlementOverlay() {
   el.gameOverModal.classList.add("hidden");
+}
+
+function clearRematchPrompt() {
+  if (state.rematchCountdownRaf) {
+    cancelAnimationFrame(state.rematchCountdownRaf);
+    state.rematchCountdownRaf = 0;
+  }
+  state.rematchDeadlineAt = 0;
+  state.rematchAcceptedIds = new Set();
+  state.rematchResponded = false;
+  el.rematchBox?.classList.add("hidden");
+  if (el.btnRematchYes) el.btnRematchYes.disabled = false;
+  if (el.btnRematchNo) el.btnRematchNo.disabled = false;
+  if (el.btnBackLobby) {
+    el.btnBackLobby.classList.remove("hidden");
+    el.btnBackLobby.textContent = "返回大厅";
+  }
+}
+
+function updateRematchCountdown() {
+  if (!state.rematchDeadlineAt) return;
+  const left = Math.max(0, state.rematchDeadlineAt - Date.now());
+  if (el.rematchCountdown) el.rematchCountdown.textContent = String(Math.ceil(left / 1000));
+  if (left > 0) {
+    state.rematchCountdownRaf = requestAnimationFrame(updateRematchCountdown);
+  } else {
+    if (el.rematchCountdown) el.rematchCountdown.textContent = "0";
+  }
+}
+
+function updateRematchPrompt(payload = {}) {
+  if (state.rematchCountdownRaf) {
+    cancelAnimationFrame(state.rematchCountdownRaf);
+    state.rematchCountdownRaf = 0;
+  }
+  const rematch = payload.rematch || payload;
+  const accepted = Array.isArray(rematch.accepted) ? rematch.accepted : [];
+  state.rematchAcceptedIds = new Set(accepted.map((item) => item.playerId));
+  state.rematchDeadlineAt =
+    rematch.deadlineAt || Date.now() + (rematch.timeoutMs || REMATCH_TIMEOUT_MS);
+
+  const meAccepted = state.rematchAcceptedIds.has(state.playerId);
+  state.rematchResponded = state.rematchResponded || meAccepted;
+  const total = (rematch.players || state.players || []).filter((p) => !p.isBot).length || 2;
+  const count = state.rematchAcceptedIds.size;
+
+  el.rematchBox?.classList.remove("hidden");
+  if (el.rematchStatus) {
+    el.rematchStatus.textContent = meAccepted
+      ? `已选择继续，等待对手确认（${count}/${total}）`
+      : `是否再来一局？双方同意后立即开新局（${count}/${total}）`;
+  }
+  if (el.btnRematchYes) el.btnRematchYes.disabled = meAccepted;
+  if (el.btnRematchNo) el.btnRematchNo.disabled = false;
+  if (el.btnBackLobby) {
+    el.btnBackLobby.classList.add("hidden");
+    el.btnBackLobby.textContent = "返回大厅";
+  }
+  updateRematchCountdown();
 }
 
 function clearHandSettlement() {
@@ -307,6 +376,7 @@ function startHandSettlement(payload) {
 
 function resetLocalSession() {
   clearHandSettlement();
+  clearRematchPrompt();
   hideSettlementOverlay();
   state.gameOver = false;
   state.atLobby = true;
@@ -324,6 +394,9 @@ function resetLocalSession() {
 }
 
 function returnToLobby() {
+  if (state.gameOver && state.rematchDeadlineAt) {
+    socket.emit("rematch_response", { accepted: false });
+  }
   resetLocalSession();
   socket.emit("leave_room");
   showScreen("auth");
@@ -667,6 +740,9 @@ socket.on("room_state", (payload) => {
 
 socket.on("your_cards", ({ cards }) => {
   clearHandSettlement();
+  clearRematchPrompt();
+  hideSettlementOverlay();
+  state.gameOver = false;
   state.myCards = cards || [];
   state.showdownCards = {};
   state.bestFiveCodes = new Set();
@@ -707,7 +783,8 @@ socket.on("hand_result", (payload) => {
   startHandSettlement(payload);
 });
 
-socket.on("game_over", ({ winner, winnerName, loser, loserName, reason, players }) => {
+socket.on("game_over", (payload) => {
+  const { winner, winnerName, loserName, reason, players, rematch } = payload;
   clearHandSettlement();
   state.gameOver = true;
   state.phase = "game_over";
@@ -729,7 +806,34 @@ socket.on("game_over", ({ winner, winnerName, loser, loserName, reason, players 
   logAction(message);
   setBanner(iWon ? "整场胜利" : "整场失败", iWon);
   showSettlementOverlay(iWon, message);
+  if (rematch) updateRematchPrompt({ rematch });
+  else clearRematchPrompt();
   renderState();
+});
+
+socket.on("rematch_update", (payload) => {
+  if (state.atLobby || !state.gameOver) return;
+  updateRematchPrompt(payload);
+});
+
+socket.on("rematch_started", ({ players }) => {
+  clearRematchPrompt();
+  hideSettlementOverlay();
+  state.gameOver = false;
+  state.phase = "waiting";
+  state.players = players || state.players;
+  logAction("双方同意，再来一局");
+  renderState();
+});
+
+socket.on("room_closed", ({ reason }) => {
+  const message =
+    reason === "rematch_declined"
+      ? "有玩家选择不继续，房间已关闭"
+      : "再来一局确认超时，房间已关闭";
+  resetLocalSession();
+  showScreen("auth");
+  alert(message);
 });
 
 socket.on("player_joined", ({ playerId, players }) => {
@@ -753,6 +857,19 @@ el.btnToggleCards?.addEventListener("click", () => {
   localStorage.setItem("abyss_reveal_cards", state.showMyCards ? "1" : "0");
   updateEyeButton();
   renderCards();
+});
+
+el.btnRematchYes?.addEventListener("click", () => {
+  state.rematchResponded = true;
+  el.btnRematchYes.disabled = true;
+  socket.emit("rematch_response", { accepted: true });
+});
+
+el.btnRematchNo?.addEventListener("click", () => {
+  state.rematchResponded = true;
+  el.btnRematchYes.disabled = true;
+  el.btnRematchNo.disabled = true;
+  socket.emit("rematch_response", { accepted: false });
 });
 
 el.btnBackLobby?.addEventListener("click", returnToLobby);

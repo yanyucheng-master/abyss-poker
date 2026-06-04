@@ -80,6 +80,7 @@ class RoomManager {
       handNo: 0,
       history: [],
       lastActionAt: Date.now(),
+      rematch: null,
     };
     this.rooms.set(roomId, room);
     this.logger.info("ROOM", "房间创建", { roomId });
@@ -188,6 +189,25 @@ class RoomManager {
 
   getPublicPlayers(room) {
     return room.players.map(toPublicPlayer);
+  }
+
+  destroyRoom(roomId) {
+    const room = this.getRoom(roomId);
+    if (!room) return null;
+    if (room.rematch?.timer) {
+      clearTimeout(room.rematch.timer);
+      room.rematch.timer = null;
+    }
+    room.players.forEach((player) => {
+      if (player.disconnectTimer) {
+        clearTimeout(player.disconnectTimer);
+        player.disconnectTimer = null;
+      }
+    });
+    this.rooms.delete(room.roomId);
+    this.logger.info("ROOM", "房间关闭", { roomId: room.roomId });
+    this.eventBus.emit("room:destroyed", { roomId: room.roomId });
+    return room;
   }
 
   removePlayerBySocket(socketId, { onForfeit } = {}) {

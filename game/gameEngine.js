@@ -12,6 +12,8 @@ const {
 } = require("./pokerLogic");
 
 const HAND_SETTLE_MS = 5000;
+const FULL_BOARD_SETTLE_MS = 6000;
+const REMATCH_TIMEOUT_MS = 10000;
 
 class GameEngine {
   constructor({ io, roomManager, logger, eventBus }) {
@@ -52,9 +54,10 @@ class GameEngine {
 
   buildHandResultPayload(room, { reason, winner, tie, pot, playersDetail }) {
     const bust = room.players.some((p) => p.chips <= 0);
+    const isFullBoard = (room.communityCards || []).length >= 5;
     return {
       reason,
-      settleMs: HAND_SETTLE_MS,
+      settleMs: reason === "showdown" && isFullBoard ? FULL_BOARD_SETTLE_MS : HAND_SETTLE_MS,
       pot,
       tie: Boolean(tie),
       winner: winner?.playerId || null,
@@ -63,6 +66,21 @@ class GameEngine {
       communityCards: [...(room.communityCards || [])],
       players: playersDetail,
     };
+  }
+
+  normalizeHeadsUpShowdownPot(room) {
+    if (room.players.length !== 2) return 0;
+    const [a, b] = room.players;
+    const high = a.totalBet > b.totalBet ? a : b;
+    const excess = Math.abs(a.totalBet - b.totalBet);
+    if (excess <= 0) return 0;
+
+    // Heads-up all-in can leave an unmatched bet in the pot. Return it before showdown.
+    high.chips += excess;
+    high.totalBet -= excess;
+    high.streetBet = Math.max(0, high.streetBet - excess);
+    room.pot = Math.max(0, room.pot - excess);
+    return excess;
   }
 
   getRoomSnapshot(room) {
@@ -81,6 +99,104 @@ class GameEngine {
 
   broadcastRoomState(room) {
     this.emitToRoom(room, "room_state", this.getRoomSnapshot(room));
+  }
+
+  resetRoomForRematch(room) {
+    room.phase = "waiting";
+    room.dealerIndex = 0;
+    room.currentPlayerIndex = 0;
+    room.deck = [];
+    room.communityCards = [];
+    room.pot = 0;
+    room.currentBet = 0;
+    room.lastRaiseSize = room.bigBlind;
+    room.handNo = 0;
+    room.history = [];
+    room.lastActionAt = Date.now();
+    room.rematch = null;
+    room.players.forEach((player) => {
+      player.chips = 1000;
+      player.cards = [];
+      player.status = "active";
+      player.totalBet = 0;
+      player.streetBet = 0;
+      player.hasActed = false;
+      player.isAllIn = false;
+      player.disconnectedAt = null;
+    });
+  }
+
+  closeRoom(room, reason = "rematch_timeout") {
+    if (!room || !this.roomManager.getRoom(room.roomId)) return;
+    if (room.rematch?.timer) {
+      clearTimeout(room.rematch.timer);
+      room.rematch.timer = null;
+    }
+    this.emitToRoom(room, "room_closed", { reason });
+    this.roomManager.destroyRoom(room.roomId);
+  }
+
+  getRematchPlayers(room) {
+    return room.players.filter((p) => !p.isBot && p.socketId);
+  }
+
+  buildRematchPayload(room) {
+    const rematch = room.rematch;
+    const accepted = rematch
+      ? Array.from(rematch.accepted).map((playerId) => ({ playerId, accepted: true }))
+      : [];
+    return {
+      timeoutMs: REMATCH_TIMEOUT_MS,
+      deadlineAt: rematch?.deadlineAt || Date.now() + REMATCH_TIMEOUT_MS,
+      accepted,
+      players: this.roomManager.getPublicPlayers(room),
+    };
+  }
+
+  emitRematchUpdate(room) {
+    this.emitToRoom(room, "rematch_update", this.buildRematchPayload(room));
+  }
+
+  beginRematchVote(room, gameOverPayload) {
+    if (room.rematch?.timer) clearTimeout(room.rematch.timer);
+    const deadlineAt = Date.now() + REMATCH_TIMEOUT_MS;
+    room.rematch = {
+      active: true,
+      accepted: new Set(),
+      deadlineAt,
+      timer: setTimeout(() => this.closeRoom(room, "rematch_timeout"), REMATCH_TIMEOUT_MS),
+    };
+    if (typeof room.rematch.timer.unref === "function") room.rematch.timer.unref();
+
+    this.emitToRoom(room, "game_over", {
+      ...gameOverPayload,
+      rematch: this.buildRematchPayload(room),
+    });
+    this.broadcastRoomState(room);
+  }
+
+  handleRematchResponse(room, player, accepted) {
+    if (!room?.rematch?.active || room.phase !== "game_over") {
+      return { ok: false, error: "当前不可再来一局" };
+    }
+    if (!accepted) {
+      this.closeRoom(room, "rematch_declined");
+      return { ok: true };
+    }
+
+    room.rematch.accepted.add(player.playerId);
+    const voters = this.getRematchPlayers(room);
+    const allAccepted = voters.length > 0 && voters.every((p) => room.rematch.accepted.has(p.playerId));
+    this.emitRematchUpdate(room);
+    if (allAccepted) {
+      clearTimeout(room.rematch.timer);
+      this.resetRoomForRematch(room);
+      this.emitToRoom(room, "rematch_started", {
+        players: this.roomManager.getPublicPlayers(room),
+      });
+      this.startHand(room);
+    }
+    return { ok: true };
   }
 
   tryStartGame(room) {
@@ -271,6 +387,7 @@ class GameEngine {
 
   settleShowdown(room) {
     room.phase = "showdown";
+    const returned = this.normalizeHeadsUpShowdownPot(room);
     const alive = getActivePlayers(room);
     const result = alive.map((p) => ({
       player: p,
@@ -304,6 +421,7 @@ class GameEngine {
       roomId: room.roomId,
       winner: tie ? "tie" : first.player.playerId,
       pot: potBefore,
+      returned,
     });
     this.eventBus.emit("game:showdown", { roomId: room.roomId, tie, pot: potBefore });
 
@@ -355,7 +473,7 @@ class GameEngine {
           winner: winner?.playerId || null,
           loser: bust.playerId,
         });
-        this.emitToRoom(room, "game_over", {
+        this.beginRematchVote(room, {
           winner: winner ? winner.playerId : null,
           winnerName: winner?.name || null,
           loser: bust.playerId,
@@ -363,7 +481,6 @@ class GameEngine {
           reason: "bankrupt",
           players: this.roomManager.getPublicPlayers(room),
         });
-        this.broadcastRoomState(room);
         return;
       }
       room.dealerIndex = otherIndex(room.dealerIndex);
@@ -425,7 +542,7 @@ class GameEngine {
     room.phase = "game_over";
     room.pot = 0;
     room.currentBet = 0;
-    this.emitToRoom(room, "game_over", {
+    this.beginRematchVote(room, {
       winner: winner?.playerId || null,
       winnerName: winner?.name || null,
       loser: loser.playerId,
