@@ -1711,8 +1711,13 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 }
 
 .wait-password-inline {
+  display: block;
   width: min(420px, 100%);
   margin: 0 auto 12px;
+}
+
+.wait-password-inline.hidden {
+  display: none !important;
 }
 
 .wait-password-row {
@@ -2074,6 +2079,7 @@ body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
   grid-template-rows: auto minmax(0, 1fr) auto;
   padding: clamp(10px, 1.6vw, 20px);
   border-radius: 24px;
+  overflow: hidden;
 }
 
 #screen-game .action-dock {
