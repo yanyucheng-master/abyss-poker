@@ -135,10 +135,6 @@ const el = {
   settingScale: byId("setting-scale"),
   settingScaleValue: byId("setting-scale-value"),
   settingLowPerformance: byId("setting-low-performance"),
-  allinModal: byId("allin-confirm-modal"),
-  allinValue: byId("allin-confirm-value"),
-  btnAllinCancel: byId("btn-allin-cancel"),
-  btnAllinConfirm: byId("btn-allin-confirm"),
   leaveConfirmModal: byId("leave-confirm-modal"),
   btnLeaveCancel: byId("btn-leave-cancel"),
   btnLeaveConfirm: byId("btn-leave-confirm"),
@@ -920,7 +916,6 @@ function resetLocalRoom() {
   state.activeCommitment = null;
   state.fairnessStatus = "pending";
   el.gameOverModal.classList.add("hidden");
-  el.allinModal.classList.add("hidden");
   el.leaveConfirmModal.classList.add("hidden");
 }
 
@@ -988,7 +983,6 @@ function startHandSettlement(payload) {
   if (state.atLobby && state.deliberateLeave) return;
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
-  closeAllInConfirmation();
   state.handSettling = true;
   state.phase = payload.reason === "showdown" ? "showdown" : "end";
   state.validActions = [];
@@ -1085,7 +1079,6 @@ function showGameOver(payload) {
   if (state.atLobby && state.deliberateLeave) return;
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
-  closeAllInConfirmation();
   state.gameOver = true;
   state.phase = "game_over";
   state.currentTurnPlayerId = null;
@@ -1162,16 +1155,6 @@ function syncPlayers(players) {
   renderState();
 }
 
-function openAllInConfirmation() {
-  const me = getMe();
-  el.allinValue.textContent = String(Math.min(state.maxBet || Infinity, (me?.streetBet || 0) + (me?.chips || 0)));
-  el.allinModal.classList.remove("hidden");
-  el.btnAllinConfirm.focus();
-}
-
-function closeAllInConfirmation() {
-  el.allinModal.classList.add("hidden");
-}
 
 function selectedMode() {
   return document.querySelector('input[name="game-mode"]:checked')?.value || GAME_MODE.STANDARD;
@@ -1503,7 +1486,6 @@ el.actionButtons.forEach((button) => {
     const action = button.dataset.action;
     if (!action || button.disabled) return;
     ensureAudioContext();
-    if (action === "allin") return openAllInConfirmation();
     const payload = { action };
     if (action === "raise") payload.amount = Number(el.raiseInput.value);
     socket.emit("player_action", payload);
@@ -1519,11 +1501,6 @@ el.raisePresets.forEach((button) => {
     if (preset === "max") value = state.maxBet;
     setRaiseValue(value);
   });
-});
-el.btnAllinCancel?.addEventListener("click", closeAllInConfirmation);
-el.btnAllinConfirm?.addEventListener("click", () => {
-  closeAllInConfirmation();
-  socket.emit("player_action", { action: "allin" });
 });
 el.btnLeaveCancel.addEventListener("click", () => {
   el.leaveConfirmModal.classList.add("hidden");
@@ -1589,7 +1566,6 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   const wasLeaveOpen = !el.leaveConfirmModal.classList.contains("hidden");
   el.settingsModal.classList.add("hidden");
-  closeAllInConfirmation();
   el.leaveConfirmModal.classList.add("hidden");
   el.joinPasswordModal?.classList.add("hidden");
   if (wasLeaveOpen) el.btnBackGame.focus();
@@ -1752,7 +1728,6 @@ socket.on("game_started", (payload) => {
   clearRematch();
   el.gameOverModal.classList.add("hidden");
   el.leaveConfirmModal.classList.add("hidden");
-  if (el.allinModal) el.allinModal.classList.add("hidden");
   showScreen("game");
   if (state.gameMode === GAME_MODE.OVERDRIVE) triggerProtocolBurst();
 });
@@ -1861,12 +1836,16 @@ socket.on("hand_reveal", (payload) => {
 });
 socket.on("player_joined", (payload) => {
   if (payload.players) syncPlayers(payload.players);
-  showToast("玩家已接入", "success");
+  if (payload.playerId && payload.playerId !== state.playerId) {
+    showToast("玩家已接入", "success");
+  }
 });
 socket.on("player_reconnected", (payload) => {
   if (payload.players) syncPlayers(payload.players);
-  showToast("玩家连接已恢复", "success");
-  playTone("connect");
+  if (payload.playerId && payload.playerId !== state.playerId) {
+    showToast("玩家连接已恢复", "success");
+    playTone("connect");
+  }
 });
 socket.on("player_disconnected", (payload) => {
   if (Array.isArray(payload.players)) syncPlayers(payload.players);
