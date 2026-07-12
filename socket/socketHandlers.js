@@ -256,7 +256,10 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         socket.emit("action_error", { message: result.error });
         return;
       }
-      io.to(found.room.roomId).emit("room:password_updated", { hasPassword: result.hasPassword });
+      io.to(found.room.roomId).emit("room:password_updated", {
+        roomId: found.room.roomId,
+        hasPassword: result.hasPassword,
+      });
       gameEngine.broadcastRoomState(found.room);
     });
 

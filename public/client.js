@@ -881,6 +881,14 @@ function triggerStreetEffect(phase) {
   }
 }
 
+function shouldIgnoreSyncEvent(payload, { allowPendingJoin = false } = {}) {
+  if (state.atLobby && state.deliberateLeave) return true;
+  // Leaving/creating clears roomId; drop late events except room_joined.
+  if (!allowPendingJoin && state.deliberateLeave && !state.roomId) return true;
+  if (payload?.roomId && state.roomId && payload.roomId !== state.roomId) return true;
+  return false;
+}
+
 function persistSession() {
   sessionStorage.setItem(STORAGE.playerId, state.playerId);
   if (state.reconnectToken) sessionStorage.setItem(STORAGE.reconnectToken, state.reconnectToken);
@@ -980,7 +988,7 @@ function updateHandSettleCountdown() {
 }
 
 function startHandSettlement(payload) {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
   state.handSettling = true;
@@ -1076,7 +1084,7 @@ function updateRematch(payload) {
 }
 
 function showGameOver(payload) {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
   state.gameOver = true;
@@ -1645,7 +1653,8 @@ function resolveLobbyScreenAfterJoin() {
 }
 
 socket.on("room_joined", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  // create/join clears roomId with deliberateLeave; must allow this event through
+  if (shouldIgnoreSyncEvent(payload, { allowPendingJoin: true })) return;
   const enteringFromLobby = state.atLobby || !state.roomId || state.roomId !== payload.roomId;
   state.atLobby = false;
   state.reconnecting = false;
@@ -1665,7 +1674,7 @@ socket.on("room_joined", (payload) => {
   renderState();
 });
 socket.on("room_state", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   state.gameMode = payload.gameMode || state.gameMode;
   state.skillMode = payload.skillMode || state.skillMode;
   state.phase = payload.phase || state.phase;
@@ -1720,7 +1729,7 @@ socket.on("room_state", (payload) => {
   renderState();
 });
 socket.on("game_started", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   state.gameMode = payload.gameMode || state.gameMode;
   if (payload.skillMode) state.skillMode = payload.skillMode;
   state.phase = "pre_flop";
@@ -1732,7 +1741,7 @@ socket.on("game_started", (payload) => {
   if (state.gameMode === GAME_MODE.OVERDRIVE) triggerProtocolBurst();
 });
 socket.on("your_cards", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   clearHandSettlement();
   state.gameOver = false;
   state.myCards = payload.cards || [];
@@ -1745,7 +1754,7 @@ socket.on("your_cards", (payload) => {
   playTone("deal");
 });
 socket.on("hand_hint", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   const previousCategory = state.handCategory;
   state.handHint = payload.handName || "未成牌";
   state.handCategory = Number(payload.category || 0);
@@ -1759,7 +1768,7 @@ socket.on("hand_hint", (payload) => {
   }
 });
 socket.on("community_cards", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   const previousCount = state.communityCards.length;
   state.communityCards = payload.cards || [];
   state.phase = payload.phase || state.phase;
@@ -1775,7 +1784,7 @@ socket.on("community_cards", (payload) => {
   if (state.communityCards.length > previousCount) triggerStreetEffect(state.phase);
 });
 socket.on("player_turn", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   state.currentTurnPlayerId = payload.playerId;
   state.validActions = payload.playerId === state.playerId ? payload.validActions || [] : [];
   state.minRaise = Number(payload.minRaise || 0);
@@ -1786,7 +1795,7 @@ socket.on("player_turn", (payload) => {
   renderState();
 });
 socket.on("action_made", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
+  if (shouldIgnoreSyncEvent(payload)) return;
   state.currentTurnPlayerId = null;
   state.validActions = [];
   state.actionDeadline = null;
@@ -1835,12 +1844,14 @@ socket.on("hand_reveal", (payload) => {
   });
 });
 socket.on("player_joined", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   if (payload.players) syncPlayers(payload.players);
   if (payload.playerId && payload.playerId !== state.playerId) {
     showToast("玩家已接入", "success");
   }
 });
 socket.on("player_reconnected", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   if (payload.players) syncPlayers(payload.players);
   if (payload.playerId && payload.playerId !== state.playerId) {
     showToast("玩家连接已恢复", "success");
@@ -1848,11 +1859,13 @@ socket.on("player_reconnected", (payload) => {
   }
 });
 socket.on("player_disconnected", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   if (Array.isArray(payload.players)) syncPlayers(payload.players);
   showToast("玩家 " + payload.playerId + " 连接中断", "error");
   playTone("disconnect");
 });
 socket.on("player_left", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   if (Array.isArray(payload.players)) syncPlayers(payload.players);
   else if (payload.playerId) {
     state.players = state.players.filter((p) => p.playerId !== payload.playerId);
@@ -1899,6 +1912,7 @@ socket.on("join_error", (payload) => {
   showToast(payload.message || "加入房间失败", "error");
 });
 socket.on("room:password_updated", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   state.hasPassword = Boolean(payload?.hasPassword);
   if (el.waitPasswordStatus) el.waitPasswordStatus.textContent = state.hasPassword ? "已设置" : "未设置";
   showToast(state.hasPassword ? "房间密码已设置" : "已清除房间密码", "success");
@@ -2069,6 +2083,7 @@ el.btnSkillPrivateClose?.addEventListener("click", () => {
 });
 
 socket.on("skill:state", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   state.skillMode = payload.skillMode || state.skillMode;
   state.skillState = payload.room || state.skillState;
   state.skillSelf = payload.self || state.skillSelf;
@@ -2084,6 +2099,7 @@ socket.on("skill:state", (payload) => {
 });
 
 socket.on("skill:loadout:confirmed", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   showToast((payload.playerId === state.playerId ? "你" : "对手") + " 已确认技能构筑", "success");
   renderSkillDraft();
 });

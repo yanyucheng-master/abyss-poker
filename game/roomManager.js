@@ -170,6 +170,7 @@ class RoomManager {
         return { ok: false, error: "重连凭证错误" };
       }
       reconnectPlayer.socketId = socketId;
+      reconnectPlayer.roomId = room.roomId;
       reconnectPlayer.status = reconnectPlayer.chips > 0 ? "active" : "out";
       reconnectPlayer.isReady = true;
       reconnectPlayer.disconnectedAt = null;
@@ -193,6 +194,7 @@ class RoomManager {
       socketId,
       reconnectToken: token,
     });
+    player.roomId = room.roomId;
     initPlayerForSkillMode(player, room.skillMode);
     room.players.push(player);
     if (!room.ownerPlayerId) room.ownerPlayerId = player.playerId;

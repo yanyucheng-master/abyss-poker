@@ -35,6 +35,14 @@ const FULL_BOARD_SETTLE_MS = 6000;
 const REMATCH_TIMEOUT_MS = 10000;
 const ACTION_TIMEOUT_MS = 30000;
 
+function withRoomId(roomId, payload) {
+  if (payload == null) return { roomId };
+  if (typeof payload !== "object" || Array.isArray(payload)) {
+    return { roomId, data: payload };
+  }
+  return { roomId, ...payload };
+}
+
 class GameEngine {
   constructor({
     io,
@@ -56,11 +64,13 @@ class GameEngine {
   }
 
   emitToRoom(room, event, payload) {
-    this.io.to(room.roomId).emit(event, payload);
+    this.io.to(room.roomId).emit(event, withRoomId(room.roomId, payload));
   }
 
   emitToPlayer(player, event, payload) {
-    if (player.socketId) this.io.to(player.socketId).emit(event, payload);
+    if (!player?.socketId) return;
+    const roomId = player.roomId || null;
+    this.io.to(player.socketId).emit(event, roomId ? withRoomId(roomId, payload) : payload);
   }
 
   clearActionTimer(room) {
