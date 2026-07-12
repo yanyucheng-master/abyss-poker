@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const { RoomManager } = require("../game/roomManager");
 const { GameEngine } = require("../game/gameEngine");
@@ -10,9 +11,15 @@ const eventBus = require("../utils/eventBus");
 function createAppServer(options = {}) {
   const app = express();
   const httpServer = http.createServer(app);
-  const io = new Server(httpServer);
+  const io = new Server(httpServer, {
+    maxHttpBufferSize: 64 * 1024,
+    pingInterval: 20000,
+    pingTimeout: 20000,
+  });
 
-  app.use(express.static("public"));
+  app.disable("x-powered-by");
+  app.get("/healthz", (_req, res) => res.json({ ok: true }));
+  app.use(express.static(path.join(__dirname, "..", "public")));
 
   const roomManager = new RoomManager({
     logger,

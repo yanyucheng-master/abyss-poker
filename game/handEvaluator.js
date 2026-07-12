@@ -97,14 +97,24 @@ function evaluateFive(cards) {
   return { category: 1, handName: "高牌", rankVector: values, bestFive: sorted };
 }
 
-function pickBestFive(cards7) {
+function pickBestFive(cards7, options = {}) {
+  const excludedCodes = options.excludedCodes
+    ? new Set(
+        [...options.excludedCodes].map((code) => (typeof code === "string" ? code : code?.code))
+      )
+    : null;
+  const pool = excludedCodes
+    ? cards7.filter((card) => card && !excludedCodes.has(card.code))
+    : cards7;
+  if (!Array.isArray(pool) || pool.length < 5) return null;
+
   const combos = [];
-  for (let a = 0; a < cards7.length - 4; a += 1) {
-    for (let b = a + 1; b < cards7.length - 3; b += 1) {
-      for (let c = b + 1; c < cards7.length - 2; c += 1) {
-        for (let d = c + 1; d < cards7.length - 1; d += 1) {
-          for (let e = d + 1; e < cards7.length; e += 1) {
-            combos.push([cards7[a], cards7[b], cards7[c], cards7[d], cards7[e]]);
+  for (let a = 0; a < pool.length - 4; a += 1) {
+    for (let b = a + 1; b < pool.length - 3; b += 1) {
+      for (let c = b + 1; c < pool.length - 2; c += 1) {
+        for (let d = c + 1; d < pool.length - 1; d += 1) {
+          for (let e = d + 1; e < pool.length; e += 1) {
+            combos.push([pool[a], pool[b], pool[c], pool[d], pool[e]]);
           }
         }
       }

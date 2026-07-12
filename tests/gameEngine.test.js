@@ -1,5 +1,9 @@
 const { EventEmitter } = require("events");
 const { GameEngine } = require("../game/gameEngine");
+const { GAME_MODE } = require("../game/gameModes");
+const { verifyDeckCommitment } = require("../game/deckCommitment");
+const { getValidActions } = require("../game/pokerLogic");
+const { createDeck } = require("../utils/deck");
 
 function card(code) {
   const suit = code[0];
@@ -8,7 +12,7 @@ function card(code) {
   return { code, suit, rank, value: map[rank] || Number(rank) };
 }
 
-function createHarness() {
+function createHarness(engineOptions = {}) {
   const emitted = [];
   let trackedRoom = null;
   const io = {
@@ -45,6 +49,7 @@ function createHarness() {
     roomManager,
     logger,
     eventBus: new EventEmitter(),
+    ...engineOptions,
   });
   return {
     engine,
@@ -60,6 +65,7 @@ function createHarness() {
 function makeRoom() {
   return {
     roomId: "ROOM1",
+    gameMode: GAME_MODE.STANDARD,
     ownerPlayerId: "P1",
     players: [
       {
@@ -74,6 +80,7 @@ function makeRoom() {
         streetBet: 0,
         hasActed: false,
         isAllIn: false,
+        isReady: true,
       },
       {
         playerId: "P2",
@@ -87,6 +94,7 @@ function makeRoom() {
         streetBet: 0,
         hasActed: false,
         isAllIn: false,
+        isReady: true,
       },
     ],
     phase: "waiting",
@@ -122,7 +130,72 @@ describe("gameEngine", () => {
     expect(room.phase).toBe("pre_flop");
     expect(room.players[0].cards.length).toBe(2);
     expect(emitted.some((e) => e.event === "your_cards")).toBe(true);
+    expect(emitted.some((e) => e.event === "hand_commitment")).toBe(true);
+    expect(room.deckCommitment).toMatch(/^[a-f\d]{64}$/);
   });
+
+  test("标准局不调用高爆生成器，高爆局才调用", () => {
+    const overdriveGenerator = jest.fn(() => ({
+      deck: createDeck(),
+      profile: "strong_confrontation",
+      metrics: { fallback: false },
+    }));
+    const { engine } = createHarness({ overdriveGenerator });
+    const standard = makeRoom();
+    engine.startHand(standard);
+    expect(overdriveGenerator).not.toHaveBeenCalled();
+
+    const overdrive = makeRoom();
+    overdrive.gameMode = GAME_MODE.OVERDRIVE;
+    engine.startHand(overdrive);
+    expect(overdriveGenerator).toHaveBeenCalledTimes(1);
+    expect(overdrive.privateOverdriveProfile).toBe("strong_confrontation");
+  });
+
+  test.each([GAME_MODE.STANDARD, GAME_MODE.OVERDRIVE])(
+    "%s 模式均支持 Fold / Check / Call / Raise / All In",
+    (gameMode) => {
+      const engineOptions = {
+        deckFactory: () => createDeck(),
+        overdriveGenerator: () => ({
+          deck: createDeck(),
+          profile: null,
+          metrics: { fallback: false },
+        }),
+      };
+      const { engine } = createHarness(engineOptions);
+      const room = makeRoom();
+      room.gameMode = gameMode;
+      engine.startHand(room);
+
+      const firstTurn = getValidActions(room, room.currentPlayerIndex);
+      expect(firstTurn.validActions).toEqual(
+        expect.arrayContaining(["fold", "call", "raise", "allin"])
+      );
+      expect(
+        engine.handlePlayerAction(room, room.currentPlayerIndex, "raise", firstTurn.minRaiseTo).ok
+      ).toBe(true);
+      expect(engine.handlePlayerAction(room, room.currentPlayerIndex, "call").ok).toBe(true);
+      expect(room.phase).toBe("flop");
+      expect(room.communityCards).toHaveLength(3);
+      expect(engine.handlePlayerAction(room, room.currentPlayerIndex, "check").ok).toBe(true);
+      expect(engine.handlePlayerAction(room, room.currentPlayerIndex, "check").ok).toBe(true);
+      expect(engine.handlePlayerAction(room, room.currentPlayerIndex, "fold").ok).toBe(true);
+      expect(room.players.every((player) => player.streetBet === 0)).toBe(true);
+
+      const allInRoom = makeRoom();
+      allInRoom.gameMode = gameMode;
+      engine.startHand(allInRoom);
+      expect(engine.handlePlayerAction(allInRoom, allInRoom.currentPlayerIndex, "allin").ok).toBe(
+        true
+      );
+      expect(engine.handlePlayerAction(allInRoom, allInRoom.currentPlayerIndex, "call").ok).toBe(
+        true
+      );
+      expect(allInRoom.communityCards).toHaveLength(5);
+      expect(allInRoom.players.every((player) => player.streetBet === 0)).toBe(true);
+    }
+  );
 
   test("handlePlayerAction 支持 raise 和 call", () => {
     const { engine } = createHarness();
@@ -134,6 +207,50 @@ describe("gameEngine", () => {
     const second = room.currentPlayerIndex;
     const c = engine.handlePlayerAction(room, second, "call");
     expect(c.ok).toBe(true);
+  });
+
+  test("heads-up 翻牌后由非庄家先行动", () => {
+    const { engine } = createHarness();
+    const room = makeRoom();
+    engine.startHand(room);
+    const dealer = room.dealerIndex;
+    expect(engine.handlePlayerAction(room, dealer, "call").ok).toBe(true);
+    expect(engine.handlePlayerAction(room, room.currentPlayerIndex, "check").ok).toBe(true);
+    expect(room.phase).toBe("flop");
+    expect(room.currentPlayerIndex).toBe(dealer === 0 ? 1 : 0);
+  });
+
+  test("跨街有效下注上限使用 streetBet 单位", () => {
+    const room = makeRoom();
+    room.currentBet = 0;
+    room.players.forEach((player) => {
+      player.totalBet = 50;
+      player.streetBet = 0;
+      player.chips = 950;
+    });
+    expect(getValidActions(room, 0).maxTotalBet).toBe(950);
+  });
+
+  test("仅一方 all-in 且对手跟注后自动发完公共牌", () => {
+    const { engine } = createHarness();
+    const room = makeRoom();
+    room.players[0].chips = 500;
+    room.players[1].chips = 1500;
+    engine.startHand(room);
+    expect(engine.handlePlayerAction(room, 0, "allin").ok).toBe(true);
+    expect(engine.handlePlayerAction(room, 1, "call").ok).toBe(true);
+    expect(room.communityCards).toHaveLength(5);
+    expect(room.phase).toBe("end");
+    expect(room.players.reduce((sum, player) => sum + player.chips, 0)).toBe(2000);
+  });
+
+  test("当前玩家断线后行动倒计时到期会自动弃牌", () => {
+    const { engine } = createHarness();
+    const room = makeRoom();
+    engine.startHand(room);
+    room.players[room.currentPlayerIndex].status = "disconnected";
+    jest.advanceTimersByTime(30000);
+    expect(room.phase).toBe("end");
   });
 
   test("handlePlayerAction 会拒绝非法阶段、非当前玩家和错误加注", () => {
@@ -168,10 +285,17 @@ describe("gameEngine", () => {
     const res = engine.handlePlayerAction(room, first, "fold");
     expect(res.ok).toBe(true);
     expect(room.phase).toBe("end");
-    const handResult = emitted.find((e) => e.event === "hand_result");
-    expect(handResult).toBeTruthy();
-    expect(handResult.payload.reason).toBe("fold");
-    expect(handResult.payload.settleMs).toBe(5000);
+    const handResults = emitted.filter((e) => e.event === "hand_result");
+    expect(handResults).toHaveLength(2);
+    handResults.forEach(({ payload }) => {
+      expect(payload.reason).toBe("fold");
+      expect(payload.settleMs).toBe(5000);
+      expect(payload.players.map((p) => p.cards.length).sort()).toEqual([0, 2]);
+    });
+
+    const reveal = emitted.find((e) => e.event === "hand_reveal")?.payload;
+    expect(reveal.deck).toHaveLength(52);
+    expect(verifyDeckCommitment(reveal)).toBe(true);
   });
 
   test("allin 后可以推进到摊牌", () => {
@@ -284,6 +408,18 @@ describe("gameEngine", () => {
     expect(emitted.some((e) => e.event === "your_cards")).toBe(true);
   });
 
+  test("真人对手离线时单方不能启动幽灵重赛", () => {
+    const { engine, trackRoom } = createHarness();
+    const room = trackRoom(makeRoom());
+    room.phase = "game_over";
+    room.players[1].socketId = null;
+    room.players[1].status = "disconnected";
+    engine.beginRematchVote(room, { reason: "bankrupt", players: [] });
+
+    expect(engine.handleRematchResponse(room, room.players[0], true).ok).toBe(true);
+    expect(room.phase).toBe("game_over");
+  });
+
   test("任一玩家拒绝再来一局会关闭房间", () => {
     const { engine, emitted, roomManager, trackRoom } = createHarness();
     const room = trackRoom(makeRoom());
@@ -336,13 +472,15 @@ describe("gameEngine", () => {
     const { engine } = createHarness();
     const room = makeRoom();
     room.players[0].isBot = true;
-    const picked = engine.chooseBotAction(room, 0, {
-      toCall: 0,
-      validActions: ["check", "raise", "fold", "allin"],
-      minRaise: 100,
-      maxBet: 200,
+    room.currentBet = 0;
+    room.players.forEach((player) => {
+      player.streetBet = 0;
     });
-    expect(["check", "raise"]).toContain(picked.action);
+    const random = jest.spyOn(Math, "random").mockReturnValue(0.1);
+    const picked = engine.chooseBotAction(room, 0, getValidActions(room, 0));
+    expect(picked.action).toBe("raise");
+    expect(Number.isFinite(picked.amount)).toBe(true);
+    random.mockRestore();
   });
 
   test("机器人高压力可能 fold", () => {

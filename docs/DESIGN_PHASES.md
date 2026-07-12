@@ -130,3 +130,39 @@
 - Phase 6：按上述模块编码实现
 - Phase 7：Jest + socket.io-client 自动化测试，覆盖核心流程
 - Phase 8：更新 README 与 Render 部署说明，确保可交接
+
+## Phase 9：高爆协议与界面重制
+
+### 双模式
+
+- `standard`：安全随机标准牌堆，不调用任何候选筛选。
+- `overdrive`：服务端生成有限数量的完整候选，评分后加权随机选择。
+- 模式在房间创建时固定，断线重连和再来一局均保持原模式。
+
+### 高爆模块
+
+- `game/gameModes.js`：模式常量与规范化。
+- `game/candidateScorer.js`：独立评分项、候选约束和剧情分类。
+- `game/overdriveGenerator.js`：安全随机候选、分级放宽、加权选择和回退。
+- `game/deckCommitment.js`：开局承诺与终局验证。
+
+### 新公开状态
+
+`room_state` 增加 `gameMode`、`activePlayerId`、`actionDeadline`、`handId`、
+`deckCommitment` 和脱敏后的 `overdriveProfile`。玩家公开投影增加准备、连接、
+本街下注与 All In 状态，但不包含底牌、token 或 socketId。
+
+### 新事件
+
+- `hand_commitment`：开局只发送 SHA-256 承诺。
+- `hand_reveal`：该手结束后发送 nonce、完整初始牌堆和终局剧情标签。
+- `hand_hint`：仅向本人发送基于当前已发牌计算的牌型提示。
+
+### 规则修正
+
+- heads-up 翻牌后由非庄家先行动。
+- 有效筹码上限统一使用本街下注单位。
+- 一方 All In、另一方完成跟注后自动跑完公共牌。
+- Fold 结算不再在 `hand_result` 中广播对手底牌。
+- 重连必须同时验证 `playerId + reconnectToken`。
+- 断线玩家不能被排除在重赛法定人数之外。

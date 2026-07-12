@@ -13,8 +13,10 @@ function getToCall(room, player) {
 function getEffectiveMaxTotal(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
-  const playerMax = player.totalBet + player.chips;
-  const opponentMax = opponent.totalBet + opponent.chips;
+  // Raise targets are expressed as this street's total bet. Keep the cap in
+  // the same unit so previous-street contributions cannot inflate the slider.
+  const playerMax = player.streetBet + player.chips;
+  const opponentMax = opponent.streetBet + opponent.chips;
   return Math.min(playerMax, opponentMax);
 }
 
@@ -33,7 +35,7 @@ function getValidActions(room, playerIndex) {
   const validActions = ["fold"];
   if (toCall === 0) validActions.push("check");
   if (toCall > 0 && player.chips > 0) validActions.push("call");
-  if (player.chips > 0) validActions.push("allin");
+  if (player.chips > 0 && !opponent.isAllIn) validActions.push("allin");
 
   const maxTotalBet = getEffectiveMaxTotal(room, playerIndex);
   const minRaiseTo = getMinRaiseTo(room);

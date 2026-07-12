@@ -51,7 +51,7 @@ $lines = @(
     "Option A (recommended): GitHub + Render",
     "  1. Push this folder to GitHub repo abyss-poker",
     "  2. Render -> New Web Service -> connect repo",
-    "  3. Build Command : npm install",
+    "  3. Build Command : npm ci",
     "  4. Start Command  : npm start",
     "  5. Root Directory : (empty)",
     "",

@@ -1,205 +1,621 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-animation="high">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>深渊德州</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#050713" />
+    <meta
+      name="description"
+      content="深渊德州：科技霓虹风格的双人实时联机德州扑克。"
+    />
+    <title>深渊德州 · ABYSS HOLD'EM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div id="chip-fx-layer" class="chip-fx-layer"></div>
-    <div id="flash-allin" class="flash-overlay hidden">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <div class="abyss-background" aria-hidden="true">
+      <div class="abyss-vortex"></div>
+      <div class="perspective-grid"></div>
+      <div class="scanlines"></div>
+      <div class="data-stream stream-a"></div>
+      <div class="data-stream stream-b"></div>
+    </div>
+
+    <div id="connection-banner" class="connection-banner hidden" role="status" aria-live="assertive">
+      <span class="connection-pulse" aria-hidden="true"></span>
+      <span id="connection-banner-text">网络连接已中断，正在尝试恢复牌局…</span>
+    </div>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <div id="chip-fx-layer" class="chip-fx-layer" aria-hidden="true"></div>
+
+    <div id="flash-allin" class="flash-overlay hidden" aria-hidden="true">
+      <div class="allin-surge"></div>
       <div class="allin-text">ALL IN</div>
     </div>
-    <div id="result-banner" class="result-banner hidden"></div>
-    <div id="game-over-modal" class="game-over-modal hidden">
-      <div class="game-over-panel panel">
+
+    <div id="river-overload" class="river-overload hidden" aria-hidden="true">
+      <span class="river-overline">FINAL STREET // CRITICAL</span>
+      <strong>RIVER OVERLOAD</strong>
+      <span>河牌过载</span>
+    </div>
+
+    <div id="protocol-burst" class="protocol-burst hidden" aria-hidden="true">
+      <span>OVERDRIVE PROTOCOL</span>
+      <strong>高爆协议已启用</strong>
+    </div>
+
+    <div id="result-banner" class="result-banner hidden" role="status"></div>
+
+    <button
+      id="btn-settings"
+      class="icon-button settings-trigger"
+      type="button"
+      aria-label="打开界面设置"
+      aria-haspopup="dialog"
+    >
+      <span aria-hidden="true">⚙</span>
+      <span class="settings-trigger-label">系统设置</span>
+    </button>
+
+    <div id="settings-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <section class="modal-panel settings-panel glass-panel" tabindex="-1">
+        <header class="modal-header">
+          <div>
+            <p class="eyebrow">INTERFACE CONTROL</p>
+            <h2 id="settings-title">界面设置</h2>
+          </div>
+          <button id="btn-close-settings" class="icon-button" type="button" aria-label="关闭设置">×</button>
+        </header>
+
+        <div class="settings-grid">
+          <label class="setting-row" for="setting-animation">
+            <span><strong>动画强度</strong><small>控制发牌与能量演出</small></span>
+            <select id="setting-animation">
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+          </label>
+
+          <label class="setting-row switch-row" for="setting-reduce-motion">
+            <span><strong>减少动态效果</strong><small>停用大幅位移与闪烁</small></span>
+            <input id="setting-reduce-motion" type="checkbox" role="switch" />
+          </label>
+
+          <label class="setting-row range-setting" for="setting-sfx">
+            <span><strong>音效音量</strong><small id="setting-sfx-value">55%</small></span>
+            <input id="setting-sfx" type="range" min="0" max="100" step="5" value="55" />
+          </label>
+
+          <label class="setting-row range-setting" for="setting-music">
+            <span><strong>背景音乐音量</strong><small id="setting-music-value">0%</small></span>
+            <input id="setting-music" type="range" min="0" max="100" step="5" value="0" />
+          </label>
+
+          <label class="setting-row range-setting" for="setting-scale">
+            <span><strong>界面缩放</strong><small id="setting-scale-value">100%</small></span>
+            <input id="setting-scale" type="range" min="85" max="115" step="5" value="100" />
+          </label>
+
+          <label class="setting-row switch-row" for="setting-low-performance">
+            <span><strong>低性能模式</strong><small>减少粒子、模糊与背景刷新</small></span>
+            <input id="setting-low-performance" type="checkbox" role="switch" />
+          </label>
+        </div>
+
+        <p class="settings-note">设置只保存在当前设备，不参与牌局判定。</p>
+      </section>
+    </div>
+
+    <div id="allin-confirm-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="allin-confirm-title">
+      <section class="modal-panel confirm-panel danger-panel glass-panel" tabindex="-1">
+        <p class="eyebrow danger-text">CORE LIMIT RELEASE</p>
+        <h2 id="allin-confirm-title">确认 ALL IN？</h2>
+        <p>你将投入本手可用的全部有效筹码。该操作发送后无法撤回。</p>
+        <div class="confirm-stack">
+          <div class="confirm-value">
+            <span>预计投入至</span>
+            <strong id="allin-confirm-value">0</strong>
+          </div>
+          <div class="modal-actions">
+            <button id="btn-allin-cancel" class="button button-ghost" type="button">取消</button>
+            <button id="btn-allin-confirm" class="button button-danger" type="button">确认 ALL IN</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="leave-confirm-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="leave-confirm-title">
+      <section class="modal-panel confirm-panel danger-panel glass-panel" tabindex="-1">
+        <p class="eyebrow danger-text">ABORT CURRENT SESSION</p>
+        <h2 id="leave-confirm-title">确认离开牌桌？</h2>
+        <p>当前牌局尚未结束，离开将由服务器按弃权处理。</p>
+        <div class="modal-actions">
+          <button id="btn-leave-cancel" class="button button-ghost" type="button">继续对局</button>
+          <button id="btn-leave-confirm" class="button button-danger" type="button">确认离开</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="game-over-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+      <section class="modal-panel game-over-panel glass-panel" tabindex="-1">
+        <p class="eyebrow">ABYSS SESSION RESULT</p>
         <h2 id="game-over-title">对局结束</h2>
         <p id="game-over-msg"></p>
         <div id="rematch-box" class="rematch-box hidden">
           <p id="rematch-status" class="rematch-status">是否再来一局？</p>
-          <p class="rematch-countdown">剩余 <strong id="rematch-countdown">10</strong> 秒</p>
-          <div class="rematch-actions">
-            <button id="btn-rematch-yes" type="button" class="btn btn-cyan">再来一局</button>
-            <button id="btn-rematch-no" type="button" class="btn">不继续</button>
+          <div class="rematch-time">协议窗口 <strong id="rematch-countdown">10</strong>s</div>
+          <div class="modal-actions">
+            <button id="btn-rematch-yes" type="button" class="button button-primary">再来一局</button>
+            <button id="btn-rematch-no" type="button" class="button button-ghost">结束连接</button>
           </div>
         </div>
-        <button id="btn-back-lobby" type="button" class="btn btn-cyan">返回大厅</button>
-      </div>
+        <button id="btn-back-lobby" type="button" class="button button-primary">返回大厅</button>
+      </section>
     </div>
-    <div id="hand-settle-modal" class="hand-settle-modal hidden" aria-live="polite">
-      <div class="hand-settle-scan"></div>
-      <div class="hand-settle-panel panel">
-        <p class="settle-kicker">ABYSS JUDGMENT</p>
-        <h2 id="settle-verdict" class="settle-verdict">审判中</h2>
+
+    <div id="hand-settle-modal" class="modal-layer hand-settle-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settle-verdict">
+      <div class="settle-scan" aria-hidden="true"></div>
+      <section class="modal-panel settle-panel glass-panel" tabindex="-1">
+        <div class="settle-header">
+          <div>
+            <p class="eyebrow">ABYSS JUDGMENT</p>
+            <h2 id="settle-verdict">结算中</h2>
+          </div>
+          <div id="settle-countdown" class="settle-countdown" aria-label="结算剩余时间">
+            <span id="settle-countdown-num">5</span>
+          </div>
+        </div>
         <p id="settle-detail" class="settle-detail"></p>
+
         <div id="settle-board" class="settle-board">
-          <p class="settle-label">公共牌</p>
-          <div id="settle-community" class="settle-cards-row"></div>
+          <span class="settle-label">公共牌</span>
+          <div id="settle-community" class="settle-card-row"></div>
           <div class="settle-hands-grid">
-            <div class="settle-hand-col">
-              <p id="settle-self-label" class="settle-label">你</p>
-              <div id="settle-self-cards" class="settle-cards-row"></div>
-              <p id="settle-self-hand" class="settle-hand-type"></p>
+            <div class="settle-hand">
+              <span id="settle-self-label" class="settle-label">你</span>
+              <div id="settle-self-cards" class="settle-card-row"></div>
+              <strong id="settle-self-hand">—</strong>
             </div>
-            <div class="settle-hand-col">
-              <p id="settle-opp-label" class="settle-label">对手</p>
-              <div id="settle-opp-cards" class="settle-cards-row"></div>
-              <p id="settle-opp-hand" class="settle-hand-type"></p>
+            <div class="settle-hand">
+              <span id="settle-opp-label" class="settle-label">对手</span>
+              <div id="settle-opp-cards" class="settle-card-row"></div>
+              <strong id="settle-opp-hand">—</strong>
             </div>
           </div>
         </div>
         <p id="settle-hand-name" class="settle-hand-name"></p>
-        <div class="settle-countdown-wrap">
-          <svg class="settle-countdown-ring" viewBox="0 0 72 72" aria-hidden="true">
-            <circle class="settle-countdown-track" cx="36" cy="36" r="30"></circle>
-            <circle id="settle-countdown-progress" class="settle-countdown-progress" cx="36" cy="36" r="30"></circle>
-          </svg>
-          <span id="settle-countdown-num" class="settle-countdown-num">3</span>
-        </div>
-        <p id="settle-next" class="settle-next">下一局即将开始</p>
-      </div>
+        <p id="settle-next" class="settle-next">下一手即将开始</p>
+      </section>
     </div>
 
-    <main class="app-shell">
-      <section id="screen-auth" class="screen active">
-        <div class="auth-hero">
-          <div class="lobby-banner" aria-hidden="true"></div>
-          <h1 class="brand-title">深渊德州</h1>
-          <p class="sub">实时联机双人德州扑克</p>
-          <p class="brand-kicker">ABYSS TABLE / NO LIMIT HEADS UP</p>
-          <div class="status-tags">
-            <span>REALTIME</span>
-            <span>HEADS UP</span>
-            <span>SERVER AUTHORITY</span>
-          </div>
-          <div class="intro-grid">
-            <div class="intro-card">
-              <h3>高压博弈</h3>
-              <p>在深渊霓虹牌桌中进行双人对抗，节奏紧凑，信息清晰。</p>
-            </div>
-            <div class="intro-card">
-              <h3>实时联机</h3>
-              <p>房间制快速开局，支持断线重连与服务端权威判定。</p>
-            </div>
-            <div class="intro-card">
-              <h3>演出化界面</h3>
-              <p>ALL IN 震屏、底池动效、操作高亮，更像电子游戏而非网页表单。</p>
+    <main id="main-content" class="app-shell">
+      <section id="screen-auth" class="screen active" aria-labelledby="brand-title">
+        <header class="lobby-hero">
+          <div class="hero-copy">
+            <div class="brand-mark" aria-hidden="true"><span>A</span></div>
+            <p class="eyebrow">ABYSS FACILITY // HOLD'EM TERMINAL</p>
+            <h1 id="brand-title" class="brand-title">深渊德州</h1>
+            <p class="hero-subtitle">进入未知能量层，在服务器权威判定下完成一场双人实时对决。</p>
+            <div class="status-strip" aria-label="游戏特性">
+              <span><i class="status-dot online"></i>REALTIME</span>
+              <span>HEADS UP</span>
+              <span>NO LIMIT</span>
+              <span>SERVER AUTHORITY</span>
             </div>
           </div>
-        </div>
-
-        <div class="auth-shell">
-          <div class="panel auth-panel">
-            <h3>创建房间</h3>
-            <label>你的昵称（可选）</label>
-            <input id="input-name" type="text" maxlength="16" placeholder="留空则房主 player1 / 加入方 player2" />
-
-            <label>房间密码（可选）</label>
-            <input id="input-password" type="password" maxlength="16" placeholder="创建房间时可填" />
-
-            <button id="btn-create" class="btn btn-cyan">创建联机房间</button>
-            <button id="btn-solo" class="btn">单机模式测试（人机）</button>
+          <div class="hero-visual" aria-hidden="true">
+            <div class="hero-orbit orbit-a"></div>
+            <div class="hero-orbit orbit-b"></div>
+            <span>ABYSS<br />CORE</span>
           </div>
+        </header>
 
-          <div class="panel auth-panel">
-            <h3>加入房间</h3>
-            <label>房间号</label>
-            <input id="input-room" type="text" maxlength="8" placeholder="例如 A3B7K9" />
-
-            <label>加入密码（可选）</label>
-            <input id="input-join-password" type="password" maxlength="16" placeholder="若房主设置了密码" />
-
-            <button id="btn-join" class="btn btn-magenta">加入对战</button>
-            <p class="tip">提示：联机请两人各用独立浏览器或无痕窗口；单机测试不会消耗联机房间名额</p>
-          </div>
-        </div>
-
-        <div class="home-footer">VERSION 0.2 / ABYSS PROTOCOL ONLINE</div>
-      </section>
-
-      <section id="screen-wait" class="screen">
-        <div class="wait-shell panel">
-          <button type="button" id="btn-back-wait" class="btn btn-ghost back-btn">← 返回大厅</button>
-          <h2>等待对手加入</h2>
-          <p class="wait-sub">将房间号分享给好友后即可开局</p>
-          <div class="room-code">ROOM <strong id="wait-room-id">-</strong></div>
-          <button id="btn-copy-room" class="btn btn-cyan">复制房间号</button>
-        </div>
-      </section>
-
-      <section id="screen-game" class="screen">
-        <button type="button" id="btn-back-game" class="btn btn-ghost back-btn back-btn-game">← 返回大厅</button>
-        <div class="board">
-          <div class="board-ornament">ABYSS JUDGE TABLE</div>
-          <div class="player-area top" id="opponent-area">
-            <div class="player-header">
-              <div class="avatar"></div>
-              <div>
-                <div id="opponent-name">对手</div>
-                <div class="chips">筹码：<span id="opponent-chips">1000</span></div>
-              </div>
+        <section class="mode-section glass-panel" aria-labelledby="mode-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">SELECT PROTOCOL</p>
+              <h2 id="mode-title">选择开局模式</h2>
             </div>
-            <div class="cards-row" id="opponent-cards"></div>
+            <span id="selected-mode-tag" class="mode-pill standard">STANDARD</span>
           </div>
 
-          <div class="table-center">
-            <div class="community-row" id="community-cards"></div>
-            <div class="pots">
-              <span>底池：<strong id="pot-value">0</strong></span>
-              <span>当前注：<strong id="current-bet">0</strong></span>
-              <span>阶段：<strong id="phase-text">waiting</strong></span>
+          <fieldset class="mode-selector">
+            <legend class="sr-only">游戏模式</legend>
+            <label class="mode-card standard selected">
+              <input type="radio" name="game-mode" value="standard" checked />
+              <span class="mode-index">01</span>
+              <span class="mode-copy">
+                <strong>标准局 <small>STANDARD</small></strong>
+                <span>完整随机洗牌，遵循标准无限注双人德州扑克流程。</span>
+              </span>
+              <span class="mode-check" aria-hidden="true">✓</span>
+            </label>
+
+            <label class="mode-card overdrive">
+              <input type="radio" name="game-mode" value="overdrive" />
+              <span class="mode-index">02</span>
+              <span class="mode-copy">
+                <strong>高爆局 <small>OVERDRIVE</small></strong>
+                <span>高潜力起手牌、强对抗公共牌、河牌过载。下注规则与标准局一致。</span>
+              </span>
+              <span class="mode-check" aria-hidden="true">✓</span>
+            </label>
+          </fieldset>
+
+          <div id="mode-description" class="mode-description">
+            <span class="mode-description-icon">S</span>
+            <p><strong>标准协议</strong> 每一手都使用独立安全洗牌，不受高爆候选算法影响。</p>
+          </div>
+        </section>
+
+        <section class="mode-section glass-panel" aria-labelledby="skill-mode-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">SKILL PROTOCOL</p>
+              <h2 id="skill-mode-title">技能模式</h2>
             </div>
-            <div id="action-log" class="action-log"></div>
+            <span id="selected-skill-tag" class="mode-pill standard">OFF</span>
           </div>
+          <fieldset class="mode-selector skill-mode-selector">
+            <legend class="sr-only">技能模式</legend>
+            <label class="mode-card standard selected">
+              <input type="radio" name="skill-mode" value="off" checked />
+              <span class="mode-index">A</span>
+              <span class="mode-copy">
+                <strong>关闭技能 <small>OFF</small></strong>
+                <span>纯扑克对局，不启用深渊能量与技能构筑。</span>
+              </span>
+              <span class="mode-check" aria-hidden="true">✓</span>
+            </label>
+            <label class="mode-card overdrive">
+              <input type="radio" name="skill-mode" value="abyss" />
+              <span class="mode-index">B</span>
+              <span class="mode-copy">
+                <strong>深渊技能 <small>ABYSS</small></strong>
+                <span>2–4 技能构筑，负载上限 8，支持反制与牌面干涉。</span>
+              </span>
+              <span class="mode-check" aria-hidden="true">✓</span>
+            </label>
+          </fieldset>
+          <p id="skill-mode-hint" class="panel-tip">发牌模式与技能模式相互独立，开局后不可更换。</p>
+        </section>
 
-          <div class="player-area bottom" id="self-area">
-            <div class="self-cards-wrap">
-              <div class="cards-row" id="self-cards"></div>
-              <button
-                type="button"
-                id="btn-toggle-cards"
-                class="eye-btn"
-                title="显示我的手牌"
-                aria-label="显示我的手牌"
-                aria-pressed="false"
-              >
-                <svg class="eye-icon eye-open" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 11a4 4 0 110-8 4 4 0 010 8z"
-                    fill="currentColor"
-                  />
-                </svg>
-                <svg class="eye-icon eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-3.89-6-7-11-7-1.4 0-2.74.25-3.98.7l2.16 2.16A4.94 4.94 0 0112 7zM2 4.27l2.28 2.28.46.46A11.8 11.8 0 001 12c1.73 3.89 6 7 11 7 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55a3 3 0 004.6 4.6l1.55 1.55a5 5 0 00-7.7-7.7z"
-                    fill="currentColor"
-                  />
-                </svg>
+        <div class="lobby-grid">
+          <section class="lobby-panel glass-panel" aria-labelledby="create-title">
+            <div class="panel-number">A-01</div>
+            <p class="eyebrow">HOST A PRIVATE TABLE</p>
+            <h2 id="create-title">创建房间</h2>
+
+            <label for="input-name">玩家昵称</label>
+            <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="留空将使用默认昵称" />
+
+            <label for="input-password">房间密码 <small>可选</small></label>
+            <input id="input-password" type="password" maxlength="16" autocomplete="new-password" placeholder="设置访问密钥" />
+
+            <div class="button-stack">
+              <button id="btn-create" class="button button-primary" type="button">
+                <span>创建联机房间</span><small>CREATE ROOM</small>
+              </button>
+              <button id="btn-solo" class="button button-secondary" type="button">
+                <span>启动人机测试</span><small>SOLO SIMULATION</small>
               </button>
             </div>
-            <div class="player-header">
-              <div class="avatar"></div>
-              <div>
-                <div id="self-name">你</div>
-                <div class="chips">筹码：<span id="self-chips">1000</span></div>
-              </div>
-            </div>
-          </div>
+          </section>
+
+          <section class="lobby-panel glass-panel" aria-labelledby="join-title">
+            <div class="panel-number">B-02</div>
+            <p class="eyebrow">CONNECT TO A TABLE</p>
+            <h2 id="join-title">加入房间</h2>
+
+            <label for="input-room">房间编号</label>
+            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="例如 A3B7K9" />
+
+            <label for="input-join-password">访问密码 <small>可选</small></label>
+            <input id="input-join-password" type="password" maxlength="16" autocomplete="current-password" placeholder="由房主提供" />
+
+            <button id="btn-join" class="button button-overdrive" type="button">
+              <span>接入对局</span><small>JOIN SESSION</small>
+            </button>
+            <p class="panel-tip">加入后会从服务器同步模式、筹码与当前牌局；模式不能在开局后切换。</p>
+          </section>
         </div>
 
-        <div class="action-panel">
-          <button data-action="check" class="btn">CHECK</button>
-          <button data-action="call" class="btn">CALL</button>
-          <div class="raise-box">
-            <input id="raise-input" type="number" min="0" step="25" placeholder="加注总额" />
-            <button data-action="raise" class="btn btn-cyan">RAISE</button>
-          </div>
-          <button data-action="allin" class="btn btn-magenta">ALL IN</button>
-          <button data-action="fold" class="btn">FOLD</button>
+        <footer class="lobby-footer">
+          <span>ABYSS PROTOCOL v1.0</span>
+          <span>牌局由服务器发牌、校验行动并结算</span>
+          <span id="lobby-connection"><i class="status-dot"></i>CONNECTING</span>
+        </footer>
+      </section>
+
+      <section id="screen-wait" class="screen" aria-labelledby="wait-title">
+        <header class="screen-bar">
+          <button type="button" id="btn-back-wait" class="button button-ghost back-button">← 返回大厅</button>
+          <div class="screen-brand"><span>ABYSS</span> ROOM TERMINAL</div>
+          <span id="wait-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
+        </header>
+
+        <div class="wait-layout">
+          <section class="wait-primary glass-panel">
+            <div class="wait-beacon" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+            <p class="eyebrow">AWAITING SECOND OPERATOR</p>
+            <h1 id="wait-title">等待对手接入</h1>
+            <p>分享房间编号。第二位玩家完成验证后，服务器将自动锁定模式并发牌。</p>
+
+            <div class="room-code-block">
+              <span>ROOM ACCESS CODE</span>
+              <strong id="wait-room-id">——</strong>
+              <button id="btn-copy-room" class="button button-primary" type="button">复制房间号</button>
+            </div>
+
+            <div class="wait-player-slots">
+              <div id="wait-host-slot" class="wait-player-slot ready">
+                <span class="slot-icon">01</span>
+                <div><small>房主</small><strong id="wait-host-name">等待同步</strong></div>
+                <span id="wait-host-state" class="state-chip">校验中</span>
+              </div>
+              <div id="wait-guest-slot" class="wait-player-slot">
+                <span class="slot-icon">02</span>
+                <div><small>挑战者</small><strong id="wait-guest-name">等待接入</strong></div>
+                <span id="wait-guest-state" class="state-chip muted">空闲</span>
+              </div>
+            </div>
+          </section>
+
+          <aside class="wait-side">
+            <section class="glass-panel room-manifest">
+              <div class="section-heading compact">
+                <div><p class="eyebrow">ROOM MANIFEST</p><h2>房间状态</h2></div>
+                <span id="wait-mode-badge" class="mode-pill standard">STANDARD</span>
+              </div>
+              <dl class="manifest-list">
+                <div><dt>当前模式</dt><dd id="wait-mode-name">标准局</dd></div>
+                <div><dt>技能模式</dt><dd id="wait-skill-mode">关闭</dd></div>
+                <div><dt>初始筹码</dt><dd id="wait-initial-chips">1000</dd></div>
+                <div><dt>初始能量</dt><dd id="wait-initial-energy">—</dd></div>
+                <div><dt>房间阶段</dt><dd id="wait-room-status">等待中</dd></div>
+                <div><dt>房主准备</dt><dd id="wait-host-ready">确认中</dd></div>
+              </dl>
+            </section>
+
+            <section id="skill-draft-panel" class="glass-panel skill-draft-panel hidden">
+              <div class="section-heading compact">
+                <div><p class="eyebrow">LOADOUT</p><h2>技能构筑</h2></div>
+                <span id="draft-load-meter" class="mode-pill">0 / 8</span>
+              </div>
+              <p id="draft-status" class="panel-tip">选择 2–4 个技能，总负载不超过 8。</p>
+              <div id="skill-catalog" class="skill-catalog"></div>
+              <div class="button-stack">
+                <button id="btn-confirm-loadout" class="button button-primary" type="button" disabled>
+                  <span>确认构筑</span><small>CONFIRM LOADOUT</small>
+                </button>
+              </div>
+            </section>
+
+            <section id="wait-mode-brief" class="glass-panel mode-brief standard">
+              <p class="eyebrow">PROTOCOL BRIEF</p>
+              <h2>标准局</h2>
+              <p>安全随机洗牌，完整保留标准德州扑克的不确定性。</p>
+            </section>
+          </aside>
         </div>
       </section>
+
+      <section id="screen-game" class="screen game-screen" aria-labelledby="table-title">
+        <header class="game-topbar">
+          <button type="button" id="btn-back-game" class="button button-ghost back-button">← 离开牌桌</button>
+          <div class="table-identity">
+            <p id="table-title">ABYSS JUDGE TABLE</p>
+            <div>
+              <span id="game-room-id">ROOM ——</span>
+              <span id="game-mode-badge" class="mode-pill standard">STANDARD</span>
+            </div>
+          </div>
+          <div class="topbar-status">
+            <span id="game-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
+            <span id="fairness-summary" class="fairness-chip" title="牌堆承诺状态">◇ 等待承诺</span>
+          </div>
+        </header>
+
+        <div id="board" class="poker-board">
+          <div class="board-grid-overlay" aria-hidden="true"></div>
+          <div id="overdrive-stage" class="overdrive-stage" aria-hidden="true"></div>
+
+          <section id="opponent-area" class="player-zone opponent-zone" aria-label="对手状态">
+            <div class="player-console">
+              <div id="opponent-avatar" class="player-avatar"><span>?</span><i></i></div>
+              <div class="player-main">
+                <div class="player-title-row">
+                  <strong id="opponent-name">等待对手</strong>
+                  <span id="opponent-connection" class="mini-status"><i class="status-dot"></i>未接入</span>
+                </div>
+                <div class="player-metrics">
+                  <span>筹码 <strong id="opponent-chips">—</strong></span>
+                  <span>本轮下注 <strong id="opponent-bet">0</strong></span>
+                </div>
+              </div>
+              <div id="opponent-state" class="player-state">STANDBY</div>
+            </div>
+            <div id="opponent-cards" class="cards-row opponent-cards" aria-label="对手底牌"></div>
+          </section>
+
+          <section class="table-center" aria-label="公共牌与底池">
+            <div class="street-header">
+              <span id="phase-text">WAITING</span>
+              <div class="street-line"><i></i></div>
+              <span id="action-log" class="action-log" aria-live="polite">等待服务器同步</span>
+            </div>
+
+            <div id="community-cards" class="community-row" aria-label="公共牌"></div>
+
+            <div class="core-console">
+              <div class="table-stat">
+                <span>CURRENT BET</span>
+                <strong id="current-bet">0</strong>
+              </div>
+
+              <div id="pot-core" class="pot-core" aria-label="当前底池 0">
+                <div class="core-ring ring-outer"></div>
+                <div class="core-ring ring-inner"></div>
+                <div class="core-value">
+                  <span>ENERGY POT</span>
+                  <strong id="pot-value">0</strong>
+                </div>
+              </div>
+
+              <div class="table-stat fairness-stat">
+                <span>DECK COMMIT</span>
+                <strong id="commitment-short">PENDING</strong>
+              </div>
+            </div>
+
+            <div class="fairness-detail" aria-live="polite">
+              <span id="fairness-hand-id">HAND —</span>
+              <span id="fairness-result">牌局开始前将锁定牌堆承诺</span>
+            </div>
+
+            <div id="overdrive-profile" class="overdrive-profile hidden">
+              <span>OVERDRIVE SIGNAL</span>
+              <strong id="overdrive-profile-label">高能牌局</strong>
+            </div>
+
+            <div id="skill-hud" class="skill-hud hidden">
+              <div class="skill-energy-row">
+                <span>ABYSS ENERGY <strong id="self-energy">0</strong>/10</span>
+                <span>对手能量 <strong id="opponent-energy">0</strong></span>
+                <span id="skill-silence-flag" class="hidden">静默区</span>
+              </div>
+              <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
+              <div id="skill-log" class="skill-log" aria-live="polite"></div>
+            </div>
+          </section>
+
+          <section id="self-area" class="player-zone self-zone" aria-label="你的状态">
+            <div class="self-hand-console">
+              <div class="self-cards-wrap">
+                <div id="self-cards" class="cards-row self-cards" aria-label="你的底牌"></div>
+                <button
+                  type="button"
+                  id="btn-toggle-cards"
+                  class="icon-button card-visibility"
+                  title="显示我的底牌"
+                  aria-label="显示我的底牌"
+                  aria-pressed="false"
+                >
+                  <span class="eye-open" aria-hidden="true">◉</span>
+                  <span class="eye-closed hidden" aria-hidden="true">⊘</span>
+                </button>
+              </div>
+              <div class="hand-hint">
+                <span>CURRENT HAND</span>
+                <strong id="self-hand-type">等待发牌</strong>
+              </div>
+            </div>
+
+            <div class="player-console">
+              <div id="self-avatar" class="player-avatar"><span>我</span><i></i></div>
+              <div class="player-main">
+                <div class="player-title-row">
+                  <strong id="self-name">你</strong>
+                  <span id="self-connection" class="mini-status online"><i class="status-dot online"></i>在线</span>
+                </div>
+                <div class="player-metrics">
+                  <span>筹码 <strong id="self-chips">—</strong></span>
+                  <span>本轮下注 <strong id="self-bet">0</strong></span>
+                </div>
+              </div>
+              <div id="self-state" class="player-state">STANDBY</div>
+            </div>
+          </section>
+        </div>
+
+        <section class="action-dock" aria-label="玩家操作">
+          <div class="turn-status">
+            <div id="action-countdown" class="action-countdown" aria-label="行动倒计时">
+              <span id="action-countdown-value">—</span>
+            </div>
+            <div>
+              <span id="turn-kicker">AWAITING TURN</span>
+              <strong id="turn-message">等待服务器行动指令</strong>
+            </div>
+          </div>
+
+          <div class="primary-actions">
+            <button data-action="fold" class="action-button fold" type="button"><span>FOLD</span><small>弃牌</small></button>
+            <button data-action="check" class="action-button check" type="button"><span>CHECK</span><small>过牌</small></button>
+            <button data-action="call" class="action-button call" type="button"><span id="call-label">CALL</span><small id="call-amount">跟注</small></button>
+            <button data-action="allin" class="action-button allin" type="button"><span>ALL IN</span><small>全押</small></button>
+          </div>
+
+          <div class="raise-console">
+            <div class="raise-heading">
+              <div><span>RAISE TARGET</span><strong id="raise-value">0</strong></div>
+              <button data-action="raise" id="btn-raise" class="action-button raise" type="button">
+                <span id="raise-label">RAISE</span><small>加注至最终额</small>
+              </button>
+            </div>
+            <label class="sr-only" for="raise-input">加注到</label>
+            <input id="raise-input" type="range" min="0" max="0" step="1" value="0" />
+            <div class="raise-range-labels"><span id="raise-min-label">MIN —</span><span id="raise-max-label">MAX —</span></div>
+            <div class="raise-presets" aria-label="加注快捷值">
+              <button type="button" data-raise-preset="min">最小</button>
+              <button type="button" data-raise-preset="half">半池</button>
+              <button type="button" data-raise-preset="pot">满池</button>
+              <button type="button" data-raise-preset="max">最大</button>
+            </div>
+          </div>
+        </section>
+      </section>
     </main>
+
+    <div id="skill-reaction-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-reaction-title">
+      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
+        <header class="modal-header">
+          <h2 id="skill-reaction-title">反制窗口</h2>
+        </header>
+        <p id="skill-reaction-text">对手发动了可反制技能。</p>
+        <p class="panel-tip">剩余 <strong id="skill-reaction-timer">2.0</strong>s</p>
+        <div class="modal-actions">
+          <button id="btn-skill-counter" class="button button-overdrive" type="button">神经阻断</button>
+          <button id="btn-skill-counter-skip" class="button button-ghost" type="button">放弃</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="skill-choice-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-choice-title">
+      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
+        <header class="modal-header">
+          <h2 id="skill-choice-title">技能选择</h2>
+        </header>
+        <p id="skill-choice-text">请完成技能选择</p>
+        <div id="skill-choice-body" class="skill-choice-body"></div>
+        <div class="modal-actions">
+          <button id="btn-skill-choice-confirm" class="button button-primary" type="button">确认</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="skill-private-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-private-title">
+      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
+        <header class="modal-header">
+          <h2 id="skill-private-title">私有情报</h2>
+        </header>
+        <p id="skill-private-text"></p>
+        <div class="modal-actions">
+          <button id="btn-skill-private-close" class="button button-primary" type="button">关闭</button>
+        </div>
+      </section>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="./client.js"></script>

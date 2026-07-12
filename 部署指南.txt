@@ -27,7 +27,7 @@
      Name          : abyss-poker（任意）
      Branch        : master
      Runtime       : Node
-     Build Command : npm install
+     Build Command : npm ci
      Start Command : npm start
      Instance Type : Free
      Root Directory: （留空，使用仓库根目录）
@@ -95,7 +95,7 @@ Render 会自动注入 PORT，代码已支持 process.env.PORT。
 六、改了代码后的发布流程
 ========================================
 
-  1. 本地改代码并测试：npm test
+  1. 本地改代码并测试：npm test；高爆统计：npm run simulate:overdrive
   2. 执行 push-github.ps1 推到 GitHub
   3. 等 Render 自动 Deploy 完成
   4. 浏览器 Ctrl+F5 强刷公网页面

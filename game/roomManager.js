@@ -1,4 +1,11 @@
 const crypto = require("crypto");
+const { GAME_MODE, normalizeGameMode } = require("./gameModes");
+const { SKILL_MODE, normalizeSkillMode, isSkillEnabled } = require("./skillModes");
+const {
+  getPublicSkillSummary,
+  initPlayerForSkillMode,
+} = require("./skills/skillEngine");
+const { createRoomSkillState } = require("./skills/skillState");
 
 const RECONNECT_TTL_MS = 5 * 60 * 1000;
 
@@ -6,7 +13,7 @@ function generateCode(length = 6) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
   for (let i = 0; i < length; i += 1) {
-    out += chars[Math.floor(Math.random() * chars.length)];
+    out += chars[crypto.randomInt(chars.length)];
   }
   return out;
 }
@@ -31,6 +38,7 @@ function makePlayer({ playerId, name, socketId, reconnectToken }) {
     disconnectedAt: null,
     disconnectTimer: null,
     isBot: false,
+    isReady: true,
     skills: [],
     buffs: [],
     relics: [],
@@ -39,7 +47,7 @@ function makePlayer({ playerId, name, socketId, reconnectToken }) {
 }
 
 function toPublicPlayer(player) {
-  return {
+  const publicPlayer = {
     playerId: player.playerId,
     name: player.name,
     chips: player.chips,
@@ -48,7 +56,13 @@ function toPublicPlayer(player) {
     totalBet: player.totalBet,
     isConnected: Boolean(player.socketId),
     isBot: Boolean(player.isBot),
+    isReady: Boolean(player.isReady),
+    isAllIn: Boolean(player.isAllIn),
   };
+  if (player.skillRuntime) {
+    publicPlayer.skills = getPublicSkillSummary(player);
+  }
+  return publicPlayer;
 }
 
 class RoomManager {
@@ -59,7 +73,7 @@ class RoomManager {
     this.reconnectTtlMs = reconnectTtlMs;
   }
 
-  createRoom(password) {
+  createRoom(password, gameMode = GAME_MODE.STANDARD, skillMode = SKILL_MODE.OFF) {
     let roomId = generateCode();
     while (this.rooms.has(roomId)) roomId = generateCode();
     const room = {
@@ -81,9 +95,27 @@ class RoomManager {
       history: [],
       lastActionAt: Date.now(),
       rematch: null,
+      skillState: null,
     };
+    const fixedGameMode = normalizeGameMode(gameMode);
+    const fixedSkillMode = normalizeSkillMode(skillMode);
+    Object.defineProperty(room, "gameMode", {
+      get: () => fixedGameMode,
+      set: () => {},
+      enumerable: true,
+      configurable: false,
+    });
+    Object.defineProperty(room, "skillMode", {
+      get: () => fixedSkillMode,
+      set: () => {},
+      enumerable: true,
+      configurable: false,
+    });
+    if (isSkillEnabled(fixedSkillMode)) {
+      room.skillState = createRoomSkillState();
+    }
     this.rooms.set(roomId, room);
-    this.logger.info("ROOM", "房间创建", { roomId });
+    this.logger.info("ROOM", "房间创建", { roomId, gameMode: fixedGameMode, skillMode: fixedSkillMode });
     this.eventBus.emit("room:created", { roomId });
     return room;
   }
@@ -103,21 +135,28 @@ class RoomManager {
   joinRoom({ roomId, password, playerName, playerId, reconnectToken, socketId }) {
     const room = this.getRoom(roomId);
     if (!room) return { ok: false, error: "房间不存在" };
-    if (room.password && room.password !== password) return { ok: false, error: "房间密码错误" };
+    const reconnectCandidate = room.players.find((p) => p.playerId === playerId);
+    const hasReconnectCredential =
+      reconnectCandidate && reconnectToken && reconnectCandidate.reconnectToken === reconnectToken;
+    if (room.password && room.password !== password && !hasReconnectCredential) {
+      return { ok: false, error: "房间密码错误" };
+    }
 
     if (room.phase === "waiting") {
       room.players = room.players.filter(
         (p) => p.isBot || p.socketId || (playerId && p.playerId === playerId)
       );
+      this.updateOwner(room);
     }
 
-    const reconnectPlayer = room.players.find((p) => p.playerId === playerId);
+    const reconnectPlayer = reconnectCandidate;
     if (reconnectPlayer) {
-      if (reconnectToken && reconnectPlayer.reconnectToken !== reconnectToken) {
+      if (!reconnectToken || reconnectPlayer.reconnectToken !== reconnectToken) {
         return { ok: false, error: "重连凭证错误" };
       }
       reconnectPlayer.socketId = socketId;
       reconnectPlayer.status = reconnectPlayer.chips > 0 ? "active" : "out";
+      reconnectPlayer.isReady = true;
       reconnectPlayer.disconnectedAt = null;
       if (reconnectPlayer.disconnectTimer) {
         clearTimeout(reconnectPlayer.disconnectTimer);
@@ -130,7 +169,7 @@ class RoomManager {
 
     if (room.players.length >= 2) return { ok: false, error: "房间已满" };
     const finalPlayerId = playerId || `P${generateCode(8)}`;
-    const token = reconnectToken || generateReconnectToken();
+    const token = generateReconnectToken();
     const trimmedName = String(playerName || "").trim();
     const defaultName = room.players.length === 0 ? "player1" : "player2";
     const player = makePlayer({
@@ -139,6 +178,7 @@ class RoomManager {
       socketId,
       reconnectToken: token,
     });
+    initPlayerForSkillMode(player, room.skillMode);
     room.players.push(player);
     if (!room.ownerPlayerId) room.ownerPlayerId = player.playerId;
     this.logger.info("ROOM", "玩家加入", { roomId: room.roomId, playerId: player.playerId });
@@ -157,6 +197,8 @@ class RoomManager {
       name: botName,
     });
     bot.isBot = true;
+    bot.isReady = true;
+    initPlayerForSkillMode(bot, room.skillMode);
     room.players.push(bot);
     this.logger.info("ROOM", "机器人加入", { roomId: room.roomId, playerId: bot.playerId });
     this.eventBus.emit("player:bot_joined", { roomId: room.roomId, playerId: bot.playerId });
@@ -171,6 +213,7 @@ class RoomManager {
     player.socketId = null;
     player.disconnectedAt = Date.now();
     player.status = player.chips > 0 ? "disconnected" : "out";
+    player.isReady = false;
     this.logger.warn("ROOM", "玩家断线", { roomId: room.roomId, playerId: player.playerId });
     this.eventBus.emit("player:disconnected", { roomId: room.roomId, playerId: player.playerId });
 
@@ -191,12 +234,41 @@ class RoomManager {
     return room.players.map(toPublicPlayer);
   }
 
+  updateOwner(room, excludedPlayerId = null) {
+    if (!room) return null;
+    if (
+      room.players.some(
+        (p) => p.playerId === room.ownerPlayerId && p.playerId !== excludedPlayerId
+      )
+    ) {
+      return room.ownerPlayerId;
+    }
+    const eligible = room.players.filter((p) => p.playerId !== excludedPlayerId);
+    const nextOwner = eligible.find((p) => !p.isBot) || eligible[0] || null;
+    room.ownerPlayerId = nextOwner?.playerId || null;
+    return room.ownerPlayerId;
+  }
+
   destroyRoom(roomId) {
     const room = this.getRoom(roomId);
     if (!room) return null;
     if (room.rematch?.timer) {
       clearTimeout(room.rematch.timer);
       room.rematch.timer = null;
+    }
+    for (const timerKey of ["actionTimer", "nextHandTimer"]) {
+      if (room[timerKey]) {
+        clearTimeout(room[timerKey]);
+        room[timerKey] = null;
+      }
+    }
+    if (room.skillState) {
+      for (const timerKey of ["reactionTimer", "choiceTimer", "preDealTimer"]) {
+        if (room.skillState[timerKey]) {
+          clearTimeout(room.skillState[timerKey]);
+          room.skillState[timerKey] = null;
+        }
+      }
     }
     room.players.forEach((player) => {
       if (player.disconnectTimer) {
@@ -224,13 +296,19 @@ class RoomManager {
 
     const activePhases = new Set(["pre_flop", "flop", "turn", "river", "showdown"]);
     if (activePhases.has(room.phase) && player.chips > 0 && !player.isBot) {
+      player.socketId = null;
+      player.isReady = false;
       onForfeit?.(room, player);
-      return { ok: true, room, player, forfeited: true };
+      this.updateOwner(room, player.playerId);
+      this.logger.info("ROOM", "玩家离开房间", { roomId: room.roomId, playerId: player.playerId });
+      this.eventBus.emit("player:left", { roomId: room.roomId, playerId: player.playerId });
+      return { ok: true, room, player, destroyed: false, forfeited: true };
     }
 
     room.players.splice(playerIndex, 1);
+    this.updateOwner(room);
     const destroyed = room.players.length === 0 || room.players.every((p) => p.isBot);
-    if (destroyed) this.rooms.delete(room.roomId);
+    if (destroyed) this.destroyRoom(room.roomId);
 
     this.logger.info("ROOM", "玩家离开房间", { roomId: room.roomId, playerId: player.playerId });
     this.eventBus.emit("player:left", { roomId: room.roomId, playerId: player.playerId });
