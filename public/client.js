@@ -14,6 +14,7 @@ const STORAGE = Object.freeze({
   playerName: "abyss_player_name",
   revealCards: "abyss_reveal_cards",
   settings: "abyss_ui_settings_v2",
+  skillLoadout: "abyss_skill_loadout_v1",
 });
 
 function createPlayerId() {
@@ -56,6 +57,10 @@ const state = {
   skillMode: "off",
   skillCatalog: [],
   selectedLoadout: [],
+  savedLoadout: [],
+  skillConfig: { minEquipped: 2, maxEquipped: 4, maxLoad: 8 },
+  pendingRoomAction: null,
+  autoLoadoutSubmitted: false,
   skillState: null,
   skillSelf: null,
   nullifiedCommunityCardIds: [],
@@ -106,6 +111,7 @@ const el = {
   auth: byId("screen-auth"),
   wait: byId("screen-wait"),
   game: byId("screen-game"),
+  skillLab: byId("screen-skill-lab"),
   connectionBanner: byId("connection-banner"),
   connectionBannerText: byId("connection-banner-text"),
   toastRegion: byId("toast-region"),
@@ -157,14 +163,20 @@ const el = {
   settleHandName: byId("settle-hand-name"),
   settleNext: byId("settle-next"),
   selectedModeTag: byId("selected-mode-tag"),
-  modeDescription: byId("mode-description"),
+  protocolSummary: byId("protocol-summary"),
   inputName: byId("input-name"),
   inputPwd: byId("input-password"),
   inputRoom: byId("input-room"),
   inputJoinPwd: byId("input-join-password"),
-  btnCreate: byId("btn-create"),
-  btnSolo: byId("btn-solo"),
   btnJoin: byId("btn-join"),
+  btnOpenSkillLab: byId("btn-open-skill-lab"),
+  btnBackSkillLab: byId("btn-back-skill-lab"),
+  btnSaveLoadout: byId("btn-save-loadout"),
+  btnClearLoadout: byId("btn-clear-loadout"),
+  skillPrepStatus: byId("skill-prep-status"),
+  skillLabCatalog: byId("skill-lab-catalog"),
+  skillLabStatus: byId("skill-lab-status"),
+  labLoadMeter: byId("lab-load-meter"),
   lobbyConnection: byId("lobby-connection"),
   btnBackWait: byId("btn-back-wait"),
   waitConnection: byId("wait-connection"),
@@ -206,7 +218,6 @@ const el = {
   overdriveProfile: byId("overdrive-profile"),
   overdriveProfileLabel: byId("overdrive-profile-label"),
   selectedSkillTag: byId("selected-skill-tag"),
-  skillModeHint: byId("skill-mode-hint"),
   waitSkillMode: byId("wait-skill-mode"),
   waitInitialEnergy: byId("wait-initial-energy"),
   skillDraftPanel: byId("skill-draft-panel"),
@@ -253,10 +264,13 @@ const el = {
   raiseInput: byId("raise-input"),
   raiseMinLabel: byId("raise-min-label"),
   raiseMaxLabel: byId("raise-max-label"),
-  actionButtons: document.querySelectorAll("[data-action]"),
+  actionButtons: document.querySelectorAll(".action-button[data-action]"),
   raisePresets: document.querySelectorAll("[data-raise-preset]"),
   modeInputs: document.querySelectorAll('input[name="game-mode"]'),
   skillModeInputs: document.querySelectorAll('input[name="skill-mode"]'),
+  protocolInputs: document.querySelectorAll('input[name="protocol"]'),
+  protocolCards: document.querySelectorAll(".protocol-card"),
+  protocolButtons: document.querySelectorAll(".protocol-btn"),
 };
 
 const PHASE_LABELS = Object.freeze({
@@ -383,8 +397,11 @@ function showToast(message, tone) {
 }
 
 function showScreen(name) {
-  [el.auth, el.wait, el.game].forEach((screen) => screen.classList.remove("active"));
-  el[name].classList.add("active");
+  [el.auth, el.wait, el.game, el.skillLab].forEach((screen) => {
+    if (screen) screen.classList.remove("active");
+  });
+  const target = el[name];
+  if (target) target.classList.add("active");
 }
 
 function modeInfo(mode) {
@@ -404,25 +421,15 @@ function modeInfo(mode) {
 function setMode(mode) {
   state.gameMode = mode === GAME_MODE.OVERDRIVE ? GAME_MODE.OVERDRIVE : GAME_MODE.STANDARD;
   const info = modeInfo(state.gameMode);
-  el.selectedModeTag.textContent = info.code;
-  el.selectedModeTag.className = "mode-pill " + state.gameMode;
-  el.modeDescription.className = "mode-description " + state.gameMode;
-  const icon = el.modeDescription.querySelector(".mode-description-icon");
-  const copy = el.modeDescription.querySelector("p");
-  if (icon) icon.textContent = state.gameMode === GAME_MODE.OVERDRIVE ? "O" : "S";
-  if (copy) {
-    copy.textContent = "";
-    const strong = document.createElement("strong");
-    strong.textContent = state.gameMode === GAME_MODE.OVERDRIVE ? "高爆协议 " : "标准协议 ";
-    copy.appendChild(strong);
-    copy.appendChild(document.createTextNode(info.brief));
+  if (el.selectedModeTag) {
+    el.selectedModeTag.textContent = info.code;
+    el.selectedModeTag.className = "mode-pill " + state.gameMode;
   }
   el.modeInputs.forEach((input) => {
-    const selected = input.value === state.gameMode;
-    input.checked = selected;
-    input.closest(".mode-card")?.classList.toggle("selected", selected);
+    input.checked = input.value === state.gameMode;
   });
   document.body.classList.toggle("overdrive", state.gameMode === GAME_MODE.OVERDRIVE);
+  syncProtocolUi();
 }
 
 function getMe() {
@@ -1153,47 +1160,282 @@ function selectedMode() {
   return document.querySelector('input[name="game-mode"]:checked')?.value || GAME_MODE.STANDARD;
 }
 
-el.modeInputs.forEach((input) => input.addEventListener("change", () => setMode(input.value)));
-el.btnCreate.addEventListener("click", () => {
+function selectedSkillMode() {
+  return document.querySelector('input[name="skill-mode"]:checked')?.value || "off";
+}
+
+function protocolValue(gameMode, skillMode) {
+  return (gameMode === GAME_MODE.OVERDRIVE ? "overdrive" : "standard") + "-" + (skillMode === "abyss" ? "abyss" : "off");
+}
+
+function protocolSummaryText(gameMode, skillMode) {
+  const deal = gameMode === GAME_MODE.OVERDRIVE ? "高爆局" : "标准局";
+  const skill = skillMode === "abyss" ? "深渊技能" : "技能关闭";
+  return deal + " · " + skill;
+}
+
+function loadSavedLoadout() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE.skillLoadout) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function validateLoadoutIds(ids, catalog = state.skillCatalog) {
+  const min = state.skillConfig.minEquipped || 2;
+  const max = state.skillConfig.maxEquipped || 4;
+  const maxLoad = state.skillConfig.maxLoad || 8;
+  if (!Array.isArray(ids) || ids.length < min || ids.length > max) {
+    return { ok: false, load: 0, error: `请选择 ${min}–${max} 个技能` };
+  }
+  const unique = [...new Set(ids)];
+  if (unique.length !== ids.length) return { ok: false, load: 0, error: "技能不能重复" };
+  if (!catalog.length) {
+    return { ok: true, load: 0, skillIds: unique, pendingCatalog: true };
+  }
+  let load = 0;
+  for (const id of unique) {
+    const def = catalog.find((skill) => skill.id === id);
+    if (!def) return { ok: false, load: 0, error: "存在未知技能" };
+    load += def.load || 0;
+  }
+  if (load > maxLoad) return { ok: false, load, error: `负载不能超过 ${maxLoad}` };
+  return { ok: true, load, skillIds: unique };
+}
+
+function isLoadoutConfigured() {
+  return validateLoadoutIds(state.savedLoadout).ok;
+}
+
+function syncProtocolUi() {
+  const value = protocolValue(state.gameMode, state.skillMode || "off");
+  el.protocolInputs?.forEach((input) => {
+    const selected = input.value === value;
+    input.checked = selected;
+    input.closest(".protocol-card")?.classList.toggle("selected", selected);
+  });
+  if (el.protocolSummary) {
+    el.protocolSummary.textContent = protocolSummaryText(state.gameMode, state.skillMode || "off");
+  }
+  updateSkillPrepUi();
+}
+
+function updateSkillPrepUi() {
+  const ready = isLoadoutConfigured();
+  const load = validateLoadoutIds(state.savedLoadout).load || 0;
+  if (el.skillPrepStatus) {
+    el.skillPrepStatus.classList.toggle("ready", ready);
+    el.skillPrepStatus.textContent = ready
+      ? `已配置 ${state.savedLoadout.length} 技能 · 负载 ${load}/8`
+      : "未配置 · 技能协议不可进入";
+  }
+  el.protocolCards?.forEach((card) => {
+    const needsSkill = card.dataset.skillMode === "abyss";
+    card.classList.toggle("locked-abyss", needsSkill && !ready);
+  });
+}
+
+function setProtocol(gameMode, skillMode) {
+  setMode(gameMode);
+  setSkillMode(skillMode);
+}
+
+function openSkillLab(pendingAction = null) {
+  state.pendingRoomAction = pendingAction;
+  state.selectedLoadout = [...state.savedLoadout];
+  showScreen("skillLab");
+  renderSkillLab();
+}
+
+function closeSkillLab() {
+  showScreen("auth");
+  updateSkillPrepUi();
+}
+
+async function ensureSkillCatalog() {
+  if (state.skillCatalog.length) return state.skillCatalog;
+  try {
+    const response = await fetch("/api/skills");
+    if (!response.ok) throw new Error("skill api failed");
+    const data = await response.json();
+    state.skillCatalog = Array.isArray(data.skills) ? data.skills : [];
+    if (data.config) {
+      state.skillConfig = {
+        minEquipped: data.config.minEquipped || 2,
+        maxEquipped: data.config.maxEquipped || 4,
+        maxLoad: data.config.maxLoad || 8,
+      };
+    }
+  } catch (_error) {
+    showToast("技能目录加载失败", "error");
+  }
+  return state.skillCatalog;
+}
+
+function renderSkillLab() {
+  if (!el.skillLabCatalog) return;
+  const validation = validateLoadoutIds(state.selectedLoadout);
+  const load = state.selectedLoadout.reduce((sum, id) => {
+    const def = state.skillCatalog.find((skill) => skill.id === id);
+    return sum + (def?.load || 0);
+  }, 0);
+  if (el.labLoadMeter) el.labLoadMeter.textContent = load + " / " + (state.skillConfig.maxLoad || 8);
+  if (el.skillLabStatus) {
+    el.skillLabStatus.textContent = validation.ok
+      ? "构筑有效，可保存后进入技能局。"
+      : validation.error || "选择 2–4 个技能，总负载不超过 8。";
+  }
+  if (el.btnSaveLoadout) el.btnSaveLoadout.disabled = !validation.ok;
+  el.skillLabCatalog.textContent = "";
+  state.skillCatalog.forEach((skill) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "skill-card load-" + skill.load;
+    if (state.selectedLoadout.includes(skill.id)) card.classList.add("selected");
+    card.innerHTML =
+      "<strong>" +
+      skill.name +
+      "</strong><small>负载 " +
+      skill.load +
+      " · 能量 " +
+      skill.energyCost +
+      "</small><span>" +
+      skill.description +
+      "</span>";
+    card.addEventListener("click", () => {
+      const idx = state.selectedLoadout.indexOf(skill.id);
+      if (idx >= 0) state.selectedLoadout.splice(idx, 1);
+      else if (state.selectedLoadout.length >= (state.skillConfig.maxEquipped || 4)) {
+        showToast("最多装备 " + (state.skillConfig.maxEquipped || 4) + " 个技能", "error");
+        return;
+      } else if (loadoutLoad([...state.selectedLoadout, skill.id]) > (state.skillConfig.maxLoad || 8)) {
+        showToast("负载已达上限", "error");
+        return;
+      } else {
+        state.selectedLoadout.push(skill.id);
+      }
+      renderSkillLab();
+    });
+    el.skillLabCatalog.appendChild(card);
+  });
+}
+
+function saveLoadoutFromLab() {
+  const validation = validateLoadoutIds(state.selectedLoadout);
+  if (!validation.ok) return showToast(validation.error || "构筑无效", "error");
+  state.savedLoadout = [...validation.skillIds];
+  localStorage.setItem(STORAGE.skillLoadout, JSON.stringify(state.savedLoadout));
+  updateSkillPrepUi();
+  showToast("技能构筑已保存", "success");
+  const pending = state.pendingRoomAction;
+  state.pendingRoomAction = null;
+  closeSkillLab();
+  if (pending) startRoomAction(pending.type, pending.gameMode, pending.skillMode);
+}
+
+function requireLoadoutForSkillMode(skillMode, pendingAction) {
+  if (skillMode !== "abyss") return true;
+  if (isLoadoutConfigured()) return true;
+  showToast("请先完成技能自定义配置", "error");
+  ensureSkillCatalog().then(() => openSkillLab(pendingAction));
+  return false;
+}
+
+function startRoomAction(type, gameMode, skillMode) {
+  setProtocol(gameMode, skillMode);
+  if (!requireLoadoutForSkillMode(skillMode, { type, gameMode, skillMode })) return;
+
   prepareManualRoomRequest();
-  state.myName = (el.inputName.value || "").trim() || "player1";
+  state.autoLoadoutSubmitted = false;
+  if (type === "join") {
+    const roomId = (el.inputRoom.value || "").trim().toUpperCase();
+    if (!roomId) return showToast("请输入房间号", "error");
+    state.myName = (el.inputName.value || "").trim() || "player2";
+    state.atLobby = false;
+    sessionStorage.setItem(STORAGE.playerName, state.myName);
+    emitJoin(roomId, (el.inputJoinPwd.value || "").trim() || null);
+    return;
+  }
+
+  state.myName = (el.inputName.value || "").trim() || (type === "solo" ? "player1" : "player1");
   state.atLobby = false;
-  setMode(selectedMode());
-  setSkillMode(selectedSkillMode());
   sessionStorage.setItem(STORAGE.playerName, state.myName);
+  if (type === "solo") {
+    socket.emit("create_solo_room", {
+      playerName: state.myName,
+      playerId: state.playerId,
+      reconnectToken: state.reconnectToken || undefined,
+      gameMode: state.gameMode,
+      skillMode: state.skillMode,
+    });
+    return;
+  }
   socket.emit("create_room", {
     password: (el.inputPwd.value || "").trim() || null,
     playerName: state.myName,
     playerId: state.playerId,
     reconnectToken: state.reconnectToken || undefined,
     gameMode: state.gameMode,
-    skillMode: selectedSkillMode(),
+    skillMode: state.skillMode,
+  });
+}
+
+function maybeAutoSubmitLoadout() {
+  if (state.skillMode !== "abyss") return;
+  if (!["waiting", "drafting"].includes(state.phase || "waiting")) return;
+  if (!isLoadoutConfigured()) return;
+  const me = getMe();
+  if (me?.skills?.loadoutConfirmed) return;
+  if (state.autoLoadoutSubmitted) return;
+  state.selectedLoadout = [...state.savedLoadout];
+  state.autoLoadoutSubmitted = true;
+  socket.emit("skill:loadout:set", { skillIds: state.savedLoadout });
+}
+
+el.modeInputs.forEach((input) => input.addEventListener("change", () => setMode(input.value)));
+el.protocolCards?.forEach((card) => {
+  card.addEventListener("click", (event) => {
+    if (event.target.closest(".protocol-btn")) return;
+    setProtocol(card.dataset.gameMode || "standard", card.dataset.skillMode || "off");
   });
 });
-
-el.btnSolo.addEventListener("click", () => {
-  prepareManualRoomRequest();
-  state.myName = (el.inputName.value || "").trim() || "player1";
-  state.atLobby = false;
-  setMode(selectedMode());
-  setSkillMode(selectedSkillMode());
-  sessionStorage.setItem(STORAGE.playerName, state.myName);
-  socket.emit("create_solo_room", {
-    playerName: state.myName,
-    playerId: state.playerId,
-    reconnectToken: state.reconnectToken || undefined,
-    gameMode: state.gameMode,
-    skillMode: selectedSkillMode(),
+el.protocolButtons?.forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const card = button.closest(".protocol-card");
+    if (!card) return;
+    startRoomAction(
+      button.dataset.roomAction === "solo" ? "solo" : "create",
+      card.dataset.gameMode || "standard",
+      card.dataset.skillMode || "off"
+    );
   });
 });
 el.btnJoin.addEventListener("click", () => {
   const roomId = (el.inputRoom.value || "").trim().toUpperCase();
   if (!roomId) return showToast("请输入房间号", "error");
   prepareManualRoomRequest();
+  state.autoLoadoutSubmitted = false;
   state.myName = (el.inputName.value || "").trim() || "player2";
   state.atLobby = false;
   sessionStorage.setItem(STORAGE.playerName, state.myName);
   emitJoin(roomId, (el.inputJoinPwd.value || "").trim() || null);
+});
+el.btnOpenSkillLab?.addEventListener("click", async () => {
+  await ensureSkillCatalog();
+  openSkillLab(null);
+});
+el.btnBackSkillLab?.addEventListener("click", () => {
+  state.pendingRoomAction = null;
+  closeSkillLab();
+});
+el.btnSaveLoadout?.addEventListener("click", saveLoadoutFromLab);
+el.btnClearLoadout?.addEventListener("click", () => {
+  state.selectedLoadout = [];
+  renderSkillLab();
 });
 el.btnCopyRoom.addEventListener("click", async () => {
   if (!state.roomId) return;
@@ -1344,14 +1586,25 @@ socket.on("room_joined", (payload) => {
   state.roomId = payload.roomId;
   state.gameMode = payload.gameMode || state.gameMode;
   state.skillMode = payload.skillMode || state.skillMode;
-  if (Array.isArray(payload.skillCatalog)) state.skillCatalog = payload.skillCatalog;
+  if (Array.isArray(payload.skillCatalog) && payload.skillCatalog.length) {
+    state.skillCatalog = payload.skillCatalog;
+  }
   state.playerId = payload.playerId || state.playerId;
   state.reconnectToken = payload.reconnectToken || state.reconnectToken;
   state.players = payload.players || [];
   state.deliberateLeave = false;
   persistSession();
+
+  if (state.skillMode === "abyss" && !isLoadoutConfigured()) {
+    showToast("技能局需先完成技能自定义配置", "error");
+    completeReturnToLobby();
+    ensureSkillCatalog().then(() => openSkillLab(null));
+    return;
+  }
+
   const showDraft = state.skillMode === "abyss" && (state.phase === "waiting" || state.phase === "drafting");
   showScreen(state.players.length >= 2 && !showDraft ? "game" : "wait");
+  maybeAutoSubmitLoadout();
   renderSkillDraft();
   renderState();
 });
@@ -1391,6 +1644,7 @@ socket.on("room_state", (payload) => {
     if (state.phase === "drafting" || state.players.length < 2) showScreen("wait");
     else if (!state.atLobby) showScreen("game");
   } else if (!state.atLobby) showScreen("game");
+  maybeAutoSubmitLoadout();
   renderSkillDraft();
   renderState();
 });
@@ -1553,18 +1807,24 @@ socket.on("action_error", (payload) => showToast(payload.message || "操作失�
 
 if (state.myName) el.inputName.value = state.myName;
 if (state.roomId) el.inputRoom.value = state.roomId;
+state.savedLoadout = loadSavedLoadout();
 setMode(GAME_MODE.STANDARD);
 setSkillMode("off");
 applySettings();
 updateEyeButton();
+updateSkillPrepUi();
+ensureSkillCatalog().then(() => {
+  const validation = validateLoadoutIds(state.savedLoadout);
+  if (state.savedLoadout.length && !validation.ok) {
+    state.savedLoadout = [];
+    localStorage.removeItem(STORAGE.skillLoadout);
+  }
+  updateSkillPrepUi();
+});
 if (hasPendingReconnect) showScreen("wait");
 renderState();
 
 /* ========== 深渊技能 UI ========== */
-function selectedSkillMode() {
-  return document.querySelector('input[name="skill-mode"]:checked')?.value || "off";
-}
-
 function setSkillMode(mode) {
   state.skillMode = mode === "abyss" ? "abyss" : "off";
   if (el.selectedSkillTag) {
@@ -1572,12 +1832,11 @@ function setSkillMode(mode) {
     el.selectedSkillTag.className = "mode-pill " + (state.skillMode === "abyss" ? "overdrive" : "standard");
   }
   el.skillModeInputs?.forEach((input) => {
-    const selected = input.value === state.skillMode;
-    input.checked = selected;
-    input.closest(".mode-card")?.classList.toggle("selected", selected);
+    input.checked = input.value === state.skillMode;
   });
   if (el.waitSkillMode) el.waitSkillMode.textContent = state.skillMode === "abyss" ? "深渊技能" : "关闭";
   if (el.waitInitialEnergy) el.waitInitialEnergy.textContent = state.skillMode === "abyss" ? "4" : "—";
+  syncProtocolUi();
 }
 
 function loadoutLoad(ids) {

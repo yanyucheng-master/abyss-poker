@@ -198,142 +198,142 @@
     </div>
 
     <main id="main-content" class="app-shell">
-      <section id="screen-auth" class="screen active" aria-labelledby="brand-title">
-        <header class="lobby-hero">
+      <section id="screen-auth" class="screen active lobby-screen" aria-labelledby="brand-title">
+        <header class="lobby-hero lobby-hero-compact">
           <div class="hero-copy">
-            <div class="brand-mark" aria-hidden="true"><span>A</span></div>
             <p class="eyebrow">ABYSS FACILITY // HOLD'EM TERMINAL</p>
             <h1 id="brand-title" class="brand-title">深渊德州</h1>
-            <p class="hero-subtitle">进入未知能量层，在服务器权威判定下完成一场双人实时对决。</p>
-            <div class="status-strip" aria-label="游戏特性">
-              <span><i class="status-dot online"></i>REALTIME</span>
-              <span>HEADS UP</span>
-              <span>NO LIMIT</span>
-              <span>SERVER AUTHORITY</span>
-            </div>
+            <p class="hero-subtitle">选协议开打 · 技能局需先完成构筑</p>
           </div>
-          <div class="hero-visual" aria-hidden="true">
-            <div class="hero-orbit orbit-a"></div>
-            <div class="hero-orbit orbit-b"></div>
-            <span>ABYSS<br />CORE</span>
+          <div class="lobby-hero-meta">
+            <span id="selected-mode-tag" class="mode-pill standard">STANDARD</span>
+            <span id="selected-skill-tag" class="mode-pill standard">OFF</span>
+            <span id="lobby-connection" class="connection-chip"><i class="status-dot"></i>CONNECTING</span>
           </div>
         </header>
 
-        <section class="mode-section glass-panel" aria-labelledby="mode-title">
-          <div class="section-heading">
+        <section class="skill-prep-bar glass-panel" aria-labelledby="skill-prep-title">
+          <div class="skill-prep-copy">
+            <p class="eyebrow">SKILL LOADOUT</p>
+            <h2 id="skill-prep-title">技能自定义</h2>
+            <p id="skill-prep-status" class="skill-prep-status">未配置 · 技能协议不可进入</p>
+          </div>
+          <button id="btn-open-skill-lab" class="button button-secondary" type="button">
+            <span>配置技能</span><small>LOADOUT</small>
+          </button>
+        </section>
+
+        <section class="mode-section protocol-section glass-panel" aria-labelledby="mode-title">
+          <div class="section-heading compact">
             <div>
               <p class="eyebrow">SELECT PROTOCOL</p>
-              <h2 id="mode-title">选择开局模式</h2>
+              <h2 id="mode-title">四种协议 · 人机 / 建房</h2>
             </div>
-            <span id="selected-mode-tag" class="mode-pill standard">STANDARD</span>
+            <p id="protocol-summary" class="protocol-summary">标准局 · 技能关闭</p>
           </div>
 
-          <fieldset class="mode-selector">
-            <legend class="sr-only">游戏模式</legend>
-            <label class="mode-card standard selected">
-              <input type="radio" name="game-mode" value="standard" checked />
-              <span class="mode-index">01</span>
-              <span class="mode-copy">
-                <strong>标准局 <small>STANDARD</small></strong>
-                <span>完整随机洗牌，遵循标准无限注双人德州扑克流程。</span>
-              </span>
-              <span class="mode-check" aria-hidden="true">✓</span>
-            </label>
+          <div class="protocol-grid" role="list">
+            <article class="protocol-card selected" data-game-mode="standard" data-skill-mode="off" role="listitem">
+              <input type="radio" name="protocol" value="standard-off" checked tabindex="-1" />
+              <span class="protocol-index">01</span>
+              <strong>标准局 <small>无技能</small></strong>
+              <span class="protocol-desc">完整随机洗牌，纯扑克对决。</span>
+              <div class="protocol-actions">
+                <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
+                <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
+              </div>
+            </article>
 
-            <label class="mode-card overdrive">
-              <input type="radio" name="game-mode" value="overdrive" />
-              <span class="mode-index">02</span>
-              <span class="mode-copy">
-                <strong>高爆局 <small>OVERDRIVE</small></strong>
-                <span>高潜力起手牌、强对抗公共牌、河牌过载。下注规则与标准局一致。</span>
-              </span>
-              <span class="mode-check" aria-hidden="true">✓</span>
-            </label>
-          </fieldset>
+            <article class="protocol-card overdrive" data-game-mode="overdrive" data-skill-mode="off" role="listitem">
+              <input type="radio" name="protocol" value="overdrive-off" tabindex="-1" />
+              <span class="protocol-index">02</span>
+              <strong>高爆局 <small>无技能</small></strong>
+              <span class="protocol-desc">高潜力起手与河牌变局。</span>
+              <div class="protocol-actions">
+                <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
+                <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
+              </div>
+            </article>
 
-          <div id="mode-description" class="mode-description">
-            <span class="mode-description-icon">S</span>
-            <p><strong>标准协议</strong> 每一手都使用独立安全洗牌，不受高爆候选算法影响。</p>
+            <article class="protocol-card abyss" data-game-mode="standard" data-skill-mode="abyss" role="listitem">
+              <input type="radio" name="protocol" value="standard-abyss" tabindex="-1" />
+              <span class="protocol-index">03</span>
+              <strong>标准局 <small>深渊技能</small></strong>
+              <span class="protocol-desc">常规发牌 + 技能构筑。</span>
+              <div class="protocol-actions">
+                <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
+                <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
+              </div>
+            </article>
+
+            <article class="protocol-card overdrive abyss" data-game-mode="overdrive" data-skill-mode="abyss" role="listitem">
+              <input type="radio" name="protocol" value="overdrive-abyss" tabindex="-1" />
+              <span class="protocol-index">04</span>
+              <strong>高爆局 <small>深渊技能</small></strong>
+              <span class="protocol-desc">高爆牌局与技能同时启用。</span>
+              <div class="protocol-actions">
+                <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
+                <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
+              </div>
+            </article>
+          </div>
+
+          <div class="sr-only" aria-hidden="true">
+            <input type="radio" name="game-mode" value="standard" checked />
+            <input type="radio" name="game-mode" value="overdrive" />
+            <input type="radio" name="skill-mode" value="off" checked />
+            <input type="radio" name="skill-mode" value="abyss" />
           </div>
         </section>
 
-        <section class="mode-section glass-panel" aria-labelledby="skill-mode-title">
-          <div class="section-heading">
+        <section class="lobby-entry glass-panel" aria-labelledby="join-title">
+          <div class="lobby-entry-head">
             <div>
-              <p class="eyebrow">SKILL PROTOCOL</p>
-              <h2 id="skill-mode-title">技能模式</h2>
+              <p class="eyebrow">JOIN / IDENTITY</p>
+              <h2 id="join-title">身份与加入</h2>
             </div>
-            <span id="selected-skill-tag" class="mode-pill standard">OFF</span>
           </div>
-          <fieldset class="mode-selector skill-mode-selector">
-            <legend class="sr-only">技能模式</legend>
-            <label class="mode-card standard selected">
-              <input type="radio" name="skill-mode" value="off" checked />
-              <span class="mode-index">A</span>
-              <span class="mode-copy">
-                <strong>关闭技能 <small>OFF</small></strong>
-                <span>纯扑克对局，不启用深渊能量与技能构筑。</span>
-              </span>
-              <span class="mode-check" aria-hidden="true">✓</span>
-            </label>
-            <label class="mode-card overdrive">
-              <input type="radio" name="skill-mode" value="abyss" />
-              <span class="mode-index">B</span>
-              <span class="mode-copy">
-                <strong>深渊技能 <small>ABYSS</small></strong>
-                <span>2–4 技能构筑，负载上限 8，支持反制与牌面干涉。</span>
-              </span>
-              <span class="mode-check" aria-hidden="true">✓</span>
-            </label>
-          </fieldset>
-          <p id="skill-mode-hint" class="panel-tip">发牌模式与技能模式相互独立，开局后不可更换。</p>
-        </section>
-
-        <div class="lobby-grid">
-          <section class="lobby-panel glass-panel" aria-labelledby="create-title">
-            <div class="panel-number">A-01</div>
-            <p class="eyebrow">HOST A PRIVATE TABLE</p>
-            <h2 id="create-title">创建房间</h2>
-
-            <label for="input-name">玩家昵称</label>
-            <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="留空将使用默认昵称" />
-
-            <label for="input-password">房间密码 <small>可选</small></label>
-            <input id="input-password" type="password" maxlength="16" autocomplete="new-password" placeholder="设置访问密钥" />
-
-            <div class="button-stack">
-              <button id="btn-create" class="button button-primary" type="button">
-                <span>创建联机房间</span><small>CREATE ROOM</small>
-              </button>
-              <button id="btn-solo" class="button button-secondary" type="button">
-                <span>启动人机测试</span><small>SOLO SIMULATION</small>
-              </button>
-            </div>
-          </section>
-
-          <section class="lobby-panel glass-panel" aria-labelledby="join-title">
-            <div class="panel-number">B-02</div>
-            <p class="eyebrow">CONNECT TO A TABLE</p>
-            <h2 id="join-title">加入房间</h2>
-
-            <label for="input-room">房间编号</label>
-            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="例如 A3B7K9" />
-
-            <label for="input-join-password">访问密码 <small>可选</small></label>
-            <input id="input-join-password" type="password" maxlength="16" autocomplete="current-password" placeholder="由房主提供" />
-
+          <div class="lobby-entry-grid">
+            <label for="input-name">昵称</label>
+            <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="默认 player" />
+            <label for="input-password">建房密码</label>
+            <input id="input-password" type="password" maxlength="16" autocomplete="new-password" placeholder="可选" />
+            <label for="input-room">房间号</label>
+            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="A3B7K9" />
+            <label for="input-join-password">加入密码</label>
+            <input id="input-join-password" type="password" maxlength="16" autocomplete="current-password" placeholder="可选" />
             <button id="btn-join" class="button button-overdrive" type="button">
-              <span>接入对局</span><small>JOIN SESSION</small>
+              <span>加入房间</span><small>JOIN</small>
             </button>
-            <p class="panel-tip">加入后会从服务器同步模式、筹码与当前牌局；模式不能在开局后切换。</p>
-          </section>
-        </div>
+          </div>
+        </section>
+      </section>
 
-        <footer class="lobby-footer">
-          <span>ABYSS PROTOCOL v1.0</span>
-          <span>牌局由服务器发牌、校验行动并结算</span>
-          <span id="lobby-connection"><i class="status-dot"></i>CONNECTING</span>
-        </footer>
+      <section id="screen-skill-lab" class="screen skill-lab-screen" aria-labelledby="skill-lab-title">
+        <header class="screen-bar">
+          <button type="button" id="btn-back-skill-lab" class="button button-ghost back-button">← 返回大厅</button>
+          <div class="screen-brand"><span>ABYSS</span> SKILL LAB</div>
+          <span id="lab-load-meter" class="mode-pill">0 / 8</span>
+        </header>
+        <section class="skill-lab-panel glass-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">CUSTOM LOADOUT</p>
+              <h2 id="skill-lab-title">技能构筑台</h2>
+            </div>
+            <p id="skill-lab-hint" class="protocol-summary">选 2–4 个技能，负载 ≤ 8</p>
+          </div>
+          <p id="skill-lab-status" class="panel-tip">配置将保存在本机，进入技能局后自动提交。</p>
+          <div id="skill-lab-catalog" class="skill-catalog"></div>
+          <div class="button-stack horizontal skill-lab-actions">
+            <button id="btn-clear-loadout" class="button button-ghost" type="button">
+              <span>清空</span><small>CLEAR</small>
+            </button>
+            <button id="btn-save-loadout" class="button button-primary" type="button" disabled>
+              <span>保存构筑</span><small>SAVE</small>
+            </button>
+          </div>
+        </section>
       </section>
 
       <section id="screen-wait" class="screen" aria-labelledby="wait-title">

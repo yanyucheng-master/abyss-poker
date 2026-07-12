@@ -19,6 +19,18 @@ function createAppServer(options = {}) {
 
   app.disable("x-powered-by");
   app.get("/healthz", (_req, res) => res.json({ ok: true }));
+  app.get("/api/skills", (_req, res) => {
+    const { listSkillDefinitions } = require("../game/skills/definitions");
+    const { SKILL_CONFIG } = require("../game/skillConfig");
+    res.json({
+      skills: listSkillDefinitions(),
+      config: {
+        minEquipped: SKILL_CONFIG.MIN_EQUIPPED_SKILLS,
+        maxEquipped: SKILL_CONFIG.MAX_EQUIPPED_SKILLS,
+        maxLoad: SKILL_CONFIG.MAX_SKILL_LOAD,
+      },
+    });
+  });
   app.use(express.static(path.join(__dirname, "..", "public")));
 
   const roomManager = new RoomManager({

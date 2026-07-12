@@ -35,6 +35,15 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('name="game-mode" value="overdrive"');
     expect(html).toContain('name="skill-mode" value="off"');
     expect(html).toContain('name="skill-mode" value="abyss"');
+    expect(html).toContain('name="protocol" value="standard-off"');
+    expect(html).toContain('name="protocol" value="overdrive-off"');
+    expect(html).toContain('name="protocol" value="standard-abyss"');
+    expect(html).toContain('name="protocol" value="overdrive-abyss"');
+    expect(html).toContain('data-room-action="solo"');
+    expect(html).toContain('data-room-action="create"');
+    expect(html).toContain('id="btn-open-skill-lab"');
+    expect(html).toContain('id="screen-skill-lab"');
+    expect(html).toContain('id="skill-lab-catalog"');
     expect(html).toContain('data-raise-preset="max"');
     expect(html).toContain('id="skill-draft-panel"');
     expect(html).toContain('id="skill-hud"');
