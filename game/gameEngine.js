@@ -617,14 +617,6 @@ class GameEngine {
     });
 
     room.players.forEach((player, idx) => {
-      this.emitToPlayer(player, "room_joined", {
-        roomId: room.roomId,
-        playerId: player.playerId,
-        reconnectToken: player.reconnectToken,
-        gameMode: room.gameMode,
-        skillMode: normalizeSkillMode(room.skillMode),
-        players: this.roomManager.getPublicPlayers(room),
-      });
       this.emitToPlayer(player, "your_cards", { cards: player.cards });
       this.emitToPlayer(player, "game_started", {
         dealer: room.players[room.dealerIndex].playerId,
