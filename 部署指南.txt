@@ -49,14 +49,14 @@ Render 会自动注入 PORT，代码已支持 process.env.PORT。
 详细步骤见：render-upload/上传说明.txt
 
 ========================================
-三、一键推送到 GitHub
+三、推送到 GitHub
 ========================================
 
-在项目根目录执行：
+在项目根目录执行常规 git 推送即可（仓库已绑定 Render 时会自动重新部署）：
 
-  powershell -ExecutionPolicy Bypass -File push-github.ps1
-
-推送后 Render 会自动重新部署（若已绑定仓库）。
+  git add -A
+  git commit -m "your message"
+  git push origin master
 
 重新打 zip 包：
 
@@ -84,7 +84,7 @@ Render 会自动注入 PORT，代码已支持 process.env.PORT。
 五、本地联机测试（同一 WiFi，可选）
 ========================================
 
-  cd poker-game
+  cd 德州扑克
   npm install
   npm start
 
@@ -95,8 +95,8 @@ Render 会自动注入 PORT，代码已支持 process.env.PORT。
 六、改了代码后的发布流程
 ========================================
 
-  1. 本地改代码并测试：npm test；高爆统计：npm run simulate:overdrive
-  2. 执行 push-github.ps1 推到 GitHub
+  1. 本地改代码并测试：npm test；高爆统计：npm run simulate:overdrive；技能模拟：npm run simulate:skills
+  2. git add / commit / push 推到 GitHub
   3. 等 Render 自动 Deploy 完成
   4. 浏览器 Ctrl+F5 强刷公网页面
 

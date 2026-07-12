@@ -17,7 +17,6 @@ $includeFiles = @(
     "jest.config.cjs",
     "README.md",
     "部署指南.txt",
-    "push-github.ps1",
     ".gitignore"
 )
 
@@ -55,7 +54,7 @@ $lines = @(
     "  4. Start Command  : npm start",
     "  5. Root Directory : (empty)",
     "",
-    "Option B: use push-github.ps1 in project root",
+    "Option B: git push origin master from project root",
     "",
     "After deploy, open https://YOUR-SERVICE.onrender.com",
     "Player A creates room, Player B joins with same URL + room code.",
