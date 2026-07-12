@@ -2089,6 +2089,12 @@ body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
   gap: 8px;
 }
 
+#screen-game .skill-hud {
+  margin: 0;
+  padding: 6px 8px;
+  grid-column: 1 / -1;
+}
+
 #screen-game .action-button {
   min-height: 46px;
   padding: 6px 8px;
@@ -2108,11 +2114,6 @@ body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
   margin-top: 4px;
   font-size: 0.68rem;
   gap: 8px;
-}
-
-#screen-game .skill-hud {
-  margin-top: 6px;
-  padding: 6px 8px;
 }
 
 #screen-game .skill-log {
@@ -3546,18 +3547,13 @@ body.low-performance .hand-settle-modal {
     padding: 4px 6px;
   }
 
-  #screen-game .turn-status {
-    min-height: 0;
+  #screen-game .skill-hud {
+    margin: 0;
     padding: 4px 6px;
   }
 
-  #screen-game .turn-status small,
-  #screen-game .action-countdown {
-    transform: scale(0.9);
-  }
-
-  #screen-game .skill-hud {
-    margin-top: 4px;
+  #screen-game .turn-status {
+    min-height: 0;
     padding: 4px 6px;
   }
 
