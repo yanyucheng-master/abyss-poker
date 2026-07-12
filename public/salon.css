@@ -1,0 +1,1345 @@
+/* ═══════════════════════════════════════════════════════════════
+   深渊沙龙 · Salon UI
+   Premium underground casino overlay — less neon, less clutter,
+   felt table as the hero, Chinese-first hierarchy.
+   Loaded AFTER style.css. Preserve all functional IDs/classes.
+   ═══════════════════════════════════════════════════════════════ */
+
+.salon-ui {
+  --ink: #090b10;
+  --ink-2: #10141c;
+  --ink-3: #171d28;
+  --panel: rgba(16, 20, 28, 0.88);
+  --panel-strong: rgba(12, 15, 22, 0.96);
+  --panel-soft: rgba(22, 28, 38, 0.72);
+  --line: rgba(232, 213, 163, 0.14);
+  --line-strong: rgba(232, 213, 163, 0.38);
+  --felt: #0d3a2c;
+  --felt-deep: #07261d;
+  --felt-rim: #1a5c48;
+  --gold: #d4b56a;
+  --gold-soft: #e8d5a3;
+  --bone: #f0ebe3;
+  --text: #e8e4dc;
+  --muted: #9a958a;
+  --dim: #6a665e;
+  --teal: #3f9a8a;
+  --ember: #d47a3c;
+  --danger: #c45c4a;
+  --ok: #5fbf8f;
+  --cyan: var(--teal);
+  --cyan-strong: #2f7f72;
+  --blue: #6a7f9a;
+  --violet: #7a6a8a;
+  --magenta: #c4786a;
+  --pink: #c4786a;
+  --red: var(--danger);
+  --orange: #d4a06a;
+  --green: var(--ok);
+  --white: var(--bone);
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  --glow-cyan: none;
+  --glow-violet: none;
+  --glow-magenta: none;
+  --radius-xl: 22px;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --blur: 12px;
+  --font-display: "Sora", "Noto Sans SC", sans-serif;
+  --font-ui: "Sora", "Noto Sans SC", sans-serif;
+  --font-body: "Noto Sans SC", "Sora", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
+  color: var(--text);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -10%, rgba(212, 181, 106, 0.08), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(13, 58, 44, 0.35), transparent 50%),
+    linear-gradient(165deg, #0c1018 0%, var(--ink) 55%, #06080c 100%);
+}
+
+/* —— Atmosphere (quiet) —— */
+.salon-ui .abyss-background {
+  background: transparent;
+}
+
+.salon-ui .salon-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(63, 154, 138, 0.07), transparent 42%),
+    radial-gradient(ellipse at 70% 80%, rgba(212, 181, 106, 0.05), transparent 45%);
+}
+
+.salon-ui .salon-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+.salon-ui .abyss-vortex,
+.salon-ui .perspective-grid,
+.salon-ui .scanlines,
+.salon-ui .data-stream {
+  display: none !important;
+}
+
+/* —— Type —— */
+.salon-ui .eyebrow {
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.salon-ui .brand-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--bone);
+  text-shadow: none;
+}
+
+.salon-ui h1,
+.salon-ui h2,
+.salon-ui h3 {
+  font-family: var(--font-display);
+  color: var(--bone);
+  letter-spacing: -0.02em;
+}
+
+/* —— Surfaces —— */
+.salon-ui .glass-panel,
+.salon-ui .action-dock,
+.salon-ui .screen-bar,
+.salon-ui .game-topbar,
+.salon-ui .modal-panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+}
+
+.salon-ui .glass-panel::after,
+.salon-ui .action-dock::after,
+.salon-ui .screen-bar::after,
+.salon-ui .game-topbar::after {
+  display: none;
+}
+
+/* —— Controls —— */
+.salon-ui .button,
+.salon-ui .action-button,
+.salon-ui .protocol-btn,
+.salon-ui .raise-presets button,
+.salon-ui .skill-use-btn,
+.salon-ui .skill-card {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.salon-ui .button:hover,
+.salon-ui .action-button:hover:not(:disabled),
+.salon-ui .protocol-btn:hover {
+  transform: translateY(-1px);
+}
+
+.salon-ui .button small,
+.salon-ui .action-button small {
+  color: var(--dim);
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+
+.salon-ui .button-primary {
+  border-color: rgba(212, 181, 106, 0.45);
+  color: #1a1408;
+  background: linear-gradient(180deg, #e8d5a3, #c9a85a);
+  box-shadow: none;
+}
+
+.salon-ui .button-primary small {
+  color: rgba(26, 20, 8, 0.55);
+}
+
+.salon-ui .button-secondary {
+  border-color: rgba(63, 154, 138, 0.4);
+  color: var(--bone);
+  background: rgba(63, 154, 138, 0.14);
+  box-shadow: none;
+}
+
+.salon-ui .button-overdrive {
+  border-color: rgba(196, 92, 74, 0.5);
+  color: var(--bone);
+  background: rgba(196, 92, 74, 0.18);
+  box-shadow: none;
+}
+
+.salon-ui .button-danger {
+  border-color: rgba(196, 92, 74, 0.65);
+  color: #fff;
+  background: linear-gradient(180deg, #d46a58, #a84436);
+  box-shadow: none;
+}
+
+.salon-ui .button-ghost {
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.salon-ui .button-ghost:hover {
+  color: var(--bone);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line);
+}
+
+.salon-ui input[type="text"],
+.salon-ui input[type="password"],
+.salon-ui select {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--bone);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: none;
+}
+
+.salon-ui input:focus,
+.salon-ui select:focus {
+  outline: none;
+  border-color: rgba(212, 181, 106, 0.55);
+  box-shadow: 0 0 0 3px rgba(212, 181, 106, 0.12);
+}
+
+.salon-ui .mode-pill,
+.salon-ui .connection-chip,
+.salon-ui .fairness-chip,
+.salon-ui .state-chip {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+}
+
+.salon-ui .mode-pill.standard {
+  color: var(--gold-soft);
+  border-color: rgba(212, 181, 106, 0.35);
+}
+
+.salon-ui .mode-pill.overdrive,
+.salon-ui .mode-pill.abyss {
+  color: #e8b4a8;
+  border-color: rgba(196, 92, 74, 0.4);
+}
+
+.salon-ui .status-dot {
+  background: var(--dim);
+  box-shadow: none;
+}
+
+.salon-ui .status-dot.online {
+  background: var(--ok);
+}
+
+.salon-ui .settings-trigger {
+  top: calc(var(--safe-top) + 10px);
+  right: calc(var(--safe-right) + 10px);
+  width: auto;
+  min-width: 52px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.salon-ui .settings-trigger:hover {
+  color: var(--bone);
+  border-color: var(--line-strong);
+}
+
+/* ══════════════════════════════════
+   LOBBY
+   ══════════════════════════════════ */
+.salon-ui .connection-banner {
+  top: calc(var(--safe-top) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 24px));
+  max-width: calc(100% - 24px);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(212, 181, 106, 0.28);
+  background: rgba(16, 14, 10, 0.88);
+  color: var(--gold-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 40;
+}
+
+.salon-ui .toast-region {
+  top: calc(var(--safe-top) + 52px);
+  right: calc(var(--safe-right) + 12px);
+  left: auto;
+  width: min(280px, calc(100% - 24px));
+  align-items: flex-end;
+  gap: 6px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.salon-ui .toast,
+.salon-ui .toast-item {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  opacity: 0.92;
+}
+
+.salon-ui body:has(#screen-auth.lobby-screen.active) .app-shell,
+.salon-ui:has(#screen-auth.lobby-screen.active) .app-shell {
+  padding-top: calc(var(--safe-top) + 48px);
+}
+
+.salon-ui #screen-auth.lobby-screen.active {
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.salon-ui .protocol-desc {
+  flex: 0 0 auto;
+}
+
+.salon-ui .protocol-actions {
+  margin-top: auto;
+}
+
+.salon-ui .lobby-hero-compact {
+  min-height: 0;
+  margin: 0;
+  padding: 10px 16px 10px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(140, 110, 255, 0.28);
+  background:
+    radial-gradient(ellipse 42% 120% at 8% 50%, rgba(150, 80, 255, 0.28), transparent 58%),
+    radial-gradient(ellipse 55% 100% at 28% 40%, rgba(60, 120, 255, 0.12), transparent 55%),
+    linear-gradient(105deg, rgba(6, 6, 16, 0.96) 0%, rgba(9, 11, 20, 0.82) 46%, rgba(9, 11, 16, 0.55) 100%),
+    var(--asset-lobby) 78% 38% / cover no-repeat;
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 rgba(180, 140, 255, 0.12);
+  align-items: center;
+  gap: 12px 18px;
+}
+
+.salon-ui .lobby-brand {
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.salon-ui .lobby-logo-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(108px, 14vw, 156px);
+  height: clamp(108px, 14vw, 156px);
+  display: grid;
+  place-items: center;
+  margin: -6px 0 -8px;
+}
+
+.salon-ui .lobby-logo-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 12% 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(190, 90, 255, 0.45), rgba(70, 110, 255, 0.12) 48%, transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.salon-ui .lobby-logo {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.55));
+  user-select: none;
+  pointer-events: none;
+}
+
+.salon-ui .lobby-hero-compact .hero-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.salon-ui .lobby-hero-compact .eyebrow,
+.salon-ui .lobby-hero-compact .brand-title:not(.sr-only) {
+  display: none;
+}
+
+.salon-ui .lobby-hero-compact .hero-kicker {
+  display: none;
+}
+
+.salon-ui .lobby-hero-compact .hero-subtitle {
+  margin: 0;
+  color: rgba(220, 210, 245, 0.78);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  max-width: 18em;
+}
+
+.salon-ui .lobby-hero-meta {
+  align-self: center;
+  gap: 6px;
+}
+
+.salon-ui .skill-prep-bar {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  align-items: center;
+}
+
+.salon-ui .skill-prep-copy h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.salon-ui .skill-prep-status {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.salon-ui .skill-prep-status.ready {
+  color: var(--ok);
+}
+
+.salon-ui .protocol-section {
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  min-height: 0 !important;
+  flex: 1 1 auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.salon-ui .protocol-grid {
+  gap: 10px;
+  min-height: 0 !important;
+  flex: 0 0 auto !important;
+  align-content: start;
+  align-items: stretch;
+  height: auto !important;
+}
+
+.salon-ui .protocol-card {
+  gap: 8px;
+  padding: 14px;
+  min-height: 0 !important;
+  height: auto !important;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(160deg, rgba(36, 42, 54, 0.95), rgba(12, 14, 20, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  justify-content: flex-start;
+}
+
+.salon-ui .protocol-card::before {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(212, 181, 106, 0.45);
+}
+
+.salon-ui .protocol-card.overdrive::before {
+  background: rgba(196, 92, 74, 0.65);
+}
+
+.salon-ui .protocol-card.abyss::before {
+  background: rgba(63, 154, 138, 0.7);
+}
+
+.salon-ui .protocol-card.overdrive.abyss::before {
+  background: linear-gradient(90deg, rgba(196, 92, 74, 0.7), rgba(63, 154, 138, 0.7));
+}
+
+.salon-ui .protocol-section .section-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.salon-ui .protocol-summary {
+  color: var(--gold);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.salon-ui .protocol-card:hover {
+  border-color: rgba(212, 181, 106, 0.35);
+  box-shadow: none;
+}
+
+.salon-ui .protocol-card.selected,
+.salon-ui .protocol-card:has(input:checked) {
+  border-color: rgba(212, 181, 106, 0.55);
+  background: rgba(212, 181, 106, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(212, 181, 106, 0.12);
+}
+
+.salon-ui .protocol-card.overdrive.selected,
+.salon-ui .protocol-card.overdrive:has(input:checked),
+.salon-ui .protocol-card.abyss.selected {
+  border-color: rgba(196, 92, 74, 0.5);
+  background: rgba(196, 92, 74, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(196, 92, 74, 0.1);
+}
+
+.salon-ui .protocol-index {
+  display: none;
+}
+
+.salon-ui .protocol-card > strong {
+  font-size: 1.02rem;
+  color: var(--bone);
+  font-weight: 700;
+}
+
+.salon-ui .protocol-card > strong small {
+  color: var(--gold);
+  font-size: 0.68rem;
+  margin-top: 4px;
+}
+
+.salon-ui .protocol-desc {
+  color: #b7b2a6;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  opacity: 1;
+}
+
+.salon-ui .protocol-actions .button-secondary {
+  border-color: rgba(63, 154, 138, 0.55);
+  background: rgba(63, 154, 138, 0.16);
+}
+
+.salon-ui .protocol-actions .button-primary {
+  min-height: 36px;
+}
+
+.salon-ui .protocol-actions {
+  gap: 6px;
+  padding-top: 6px;
+}
+
+.salon-ui .protocol-actions .button {
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.salon-ui .lobby-entry {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+}
+
+.salon-ui .lobby-entry-head h2 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.salon-ui .lobby-entry-grid label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* ══════════════════════════════════
+   SKILL LAB / WAIT
+   ══════════════════════════════════ */
+.salon-ui .screen-bar,
+.salon-ui .game-topbar {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: 0;
+}
+
+.salon-ui .screen-brand {
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.salon-ui .screen-brand span {
+  color: var(--gold);
+}
+
+.salon-ui .skill-lab-panel {
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(212, 181, 106, 0.08), transparent 45%),
+    var(--panel);
+  border: 1px solid var(--line);
+}
+
+.salon-ui #skill-lab-catalog .skill-card,
+.salon-ui .skill-catalog .skill-card {
+  border-color: var(--line);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  text-align: left;
+  padding: 12px;
+  gap: 6px;
+}
+
+.salon-ui .skill-card strong {
+  color: var(--bone);
+  font-size: 0.95rem;
+}
+
+.salon-ui .skill-card small {
+  color: var(--gold-soft);
+  letter-spacing: 0.04em;
+}
+
+.salon-ui .skill-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.salon-ui .skill-catalog {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.salon-ui .skill-lab-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.salon-ui .skill-card.selected {
+  border-color: rgba(212, 181, 106, 0.65);
+  background: rgba(212, 181, 106, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(212, 181, 106, 0.18);
+}
+
+.salon-ui .wait-primary {
+  padding: clamp(16px, 3vw, 28px);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(63, 154, 138, 0.14), transparent 55%),
+    var(--panel);
+}
+
+.salon-ui .wait-primary::before {
+  display: none;
+}
+
+.salon-ui .wait-primary h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+}
+
+.salon-ui .wait-lead {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.salon-ui .room-code-block {
+  margin: 16px auto;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: none;
+  gap: 8px;
+}
+
+.salon-ui .room-code-block > span {
+  color: var(--muted);
+  letter-spacing: 0.12em;
+}
+
+.salon-ui .room-code-block > strong {
+  color: var(--gold-soft);
+  font-family: var(--font-mono);
+  text-shadow: none;
+  letter-spacing: 0.14em;
+}
+
+.salon-ui .wait-player-slot {
+  border-color: var(--line);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.salon-ui .wait-player-slot.ready {
+  border-color: rgba(95, 191, 143, 0.4);
+}
+
+.salon-ui .slot-icon {
+  border-color: rgba(212, 181, 106, 0.35);
+  color: var(--gold);
+  border-radius: var(--radius-sm);
+}
+
+.salon-ui .manifest-list > div {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ══════════════════════════════════
+   GAME TABLE — hero felt, clear HUD
+   ══════════════════════════════════ */
+.salon-ui #screen-game.game-screen.active {
+  gap: 8px;
+}
+
+.salon-ui .game-topbar {
+  background: rgba(12, 15, 22, 0.9);
+}
+
+.salon-ui .table-identity > p {
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.salon-ui .poker-board {
+  border: 3px solid #348a6c;
+  border-radius: 28px;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, rgba(86, 168, 132, 0.55), transparent 58%),
+    radial-gradient(ellipse at center, #248a68 0%, #156248 38%, #0c3a2e 100%);
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 7px #142018,
+    inset 0 0 0 8px rgba(232, 213, 163, 0.28),
+    inset 0 0 56px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.salon-ui .poker-board::before {
+  inset: 3.5%;
+  border-radius: 22px;
+  border: 1px solid rgba(232, 213, 163, 0.16);
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+}
+
+.salon-ui #screen-game .poker-board {
+  border-radius: 24px;
+}
+
+.salon-ui .board-grid-overlay,
+.salon-ui .overdrive-stage {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.salon-ui .player-console {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(8, 10, 14, 0.88);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  padding: 8px 10px;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.salon-ui .opponent-zone .player-console {
+  background: rgba(10, 12, 16, 0.88);
+}
+
+.salon-ui .self-zone .player-console {
+  background: rgba(14, 18, 16, 0.9);
+  border-color: rgba(212, 181, 106, 0.28);
+}
+
+.salon-ui .player-main strong,
+.salon-ui .player-metrics strong {
+  color: var(--bone);
+}
+
+.salon-ui .player-metrics {
+  color: #cfc9bc;
+}
+
+.salon-ui .player-metrics span {
+  color: #cfc9bc;
+}
+
+.salon-ui .player-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(212, 181, 106, 0.35);
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: none;
+}
+
+.salon-ui .player-state {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+}
+
+.salon-ui .player-zone.active-turn .player-console {
+  border-color: rgba(212, 181, 106, 0.45);
+  box-shadow: 0 0 0 1px rgba(212, 181, 106, 0.12);
+}
+
+.salon-ui .street-header {
+  color: rgba(232, 213, 163, 0.22);
+  font-size: clamp(1.4rem, 3.5vw, 2.4rem);
+  letter-spacing: 0.18em;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.salon-ui .street-header .action-log,
+.salon-ui .action-log {
+  color: rgba(240, 235, 227, 0.28);
+  font-weight: 600;
+}
+
+.salon-ui #phase-text {
+  color: rgba(232, 213, 163, 0.35);
+}
+
+.salon-ui .street-line i {
+  background: linear-gradient(90deg, transparent, rgba(212, 181, 106, 0.45), transparent);
+  box-shadow: none;
+}
+
+.salon-ui .table-stat {
+  border: 1px solid rgba(232, 213, 163, 0.22);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 12, 14, 0.78);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+  padding: 8px 12px;
+  backdrop-filter: blur(6px);
+}
+
+.salon-ui .table-stat span {
+  color: rgba(232, 226, 214, 0.72);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+
+.salon-ui .table-stat strong {
+  color: #f5f0e6;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.salon-ui .pot-core {
+  border: 1px solid rgba(212, 181, 106, 0.5);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(212, 181, 106, 0.18), transparent 55%),
+    rgba(10, 14, 12, 0.9);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.salon-ui .core-ring {
+  border-color: rgba(212, 181, 106, 0.35) !important;
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+.salon-ui .core-value span {
+  color: rgba(232, 226, 214, 0.7);
+  letter-spacing: 0.1em;
+}
+
+.salon-ui .core-value strong {
+  color: #f0d78c;
+  text-shadow: none;
+  font-size: 1.35rem;
+}
+
+.salon-ui .fairness-detail.compact {
+  color: rgba(232, 226, 214, 0.78);
+  opacity: 1;
+  background: rgba(8, 12, 14, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+
+.salon-ui .fairness-chip {
+  color: var(--bone);
+  border-color: rgba(212, 181, 106, 0.35);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.salon-ui .fairness-chip.verified,
+.salon-ui .fairness-chip.success {
+  color: #9fd9b8;
+  border-color: rgba(95, 191, 143, 0.45);
+}
+
+.salon-ui .fairness-chip.failed {
+  color: #f0b0a0;
+  border-color: rgba(196, 92, 74, 0.5);
+}
+
+.salon-ui .overdrive-profile {
+  border-color: rgba(196, 92, 74, 0.4);
+  background: rgba(196, 92, 74, 0.12);
+  box-shadow: none;
+}
+
+/* Cards — clean casino stock */
+.salon-ui .card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(160deg, #f7f3ea, #ebe4d6);
+  color: #1a1408;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+.salon-ui .card.red {
+  color: #a83228;
+}
+
+.salon-ui .card.back,
+.salon-ui .card.hidden-card {
+  background:
+    linear-gradient(135deg, rgba(212, 181, 106, 0.15), transparent 40%),
+    linear-gradient(160deg, #1a2430, #0e141c);
+  color: var(--gold-soft);
+  border-color: rgba(212, 181, 106, 0.25);
+}
+
+.salon-ui .community-row > *,
+.salon-ui .cards-row > * {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.salon-ui .hand-hint span {
+  color: var(--dim);
+  letter-spacing: 0.08em;
+}
+
+.salon-ui .hand-hint strong {
+  color: var(--gold-soft);
+}
+
+/* Action dock — solid control deck, no overlap noise */
+.salon-ui .action-dock {
+  margin-top: 0;
+  padding: 10px;
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  background: rgba(10, 12, 16, 0.96);
+  border: 1px solid var(--line);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+  align-items: center;
+  grid-auto-rows: minmax(0, auto);
+}
+
+.salon-ui .action-dock > * {
+  min-height: 0;
+  align-self: center;
+}
+
+.salon-ui .primary-actions {
+  align-content: center;
+  gap: 6px;
+}
+
+.salon-ui .action-button {
+  min-height: 44px;
+  max-height: 52px;
+  height: 48px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--bone);
+  align-self: center;
+  gap: 2px;
+}
+
+.salon-ui .action-button span {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.salon-ui .action-button small {
+  color: rgba(240, 235, 227, 0.45);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+}
+
+.salon-ui .turn-status {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  min-height: 0;
+  padding: 8px 10px;
+}
+
+.salon-ui .action-countdown {
+  border-color: rgba(212, 181, 106, 0.45);
+  color: var(--bone);
+  box-shadow: none;
+}
+
+.salon-ui #turn-kicker {
+  color: var(--gold);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.salon-ui #turn-message {
+  color: var(--bone);
+}
+
+.salon-ui .action-button:disabled {
+  opacity: 0.35;
+}
+
+.salon-ui .action-button.fold {
+  border-color: rgba(154, 149, 138, 0.35);
+}
+
+.salon-ui .action-button.check,
+.salon-ui .action-button.call {
+  border-color: rgba(63, 154, 138, 0.4);
+  background: rgba(63, 154, 138, 0.1);
+}
+
+.salon-ui .action-button.raise {
+  border-color: rgba(212, 181, 106, 0.45);
+  background: rgba(212, 181, 106, 0.12);
+  color: var(--gold-soft);
+}
+
+.salon-ui .action-button.allin {
+  border-color: rgba(196, 92, 74, 0.5);
+  background: rgba(196, 92, 74, 0.16);
+}
+
+.salon-ui .raise-console {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(212, 181, 106, 0.22);
+  background: rgba(255, 255, 255, 0.03);
+  gap: 6px;
+}
+
+.salon-ui .raise-heading {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.salon-ui .raise-heading strong {
+  color: var(--gold-soft);
+  font-size: 1rem;
+}
+
+.salon-ui .raise-console input[type="range"] {
+  accent-color: #c9a84a;
+}
+
+.salon-ui .raise-range-labels {
+  color: var(--dim);
+  font-size: 0.62rem;
+}
+
+.salon-ui .raise-presets button {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+.salon-ui .raise-presets button:hover {
+  color: var(--bone);
+  border-color: var(--line-strong);
+}
+
+.salon-ui .skill-hud {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(63, 154, 138, 0.08);
+  box-shadow: none;
+}
+
+.salon-ui .skill-use-btn {
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--bone);
+  border-color: rgba(63, 154, 138, 0.35);
+}
+
+.salon-ui .skill-use-btn:disabled {
+  opacity: 0.4;
+}
+
+/* Modals */
+.salon-ui .modal-layer {
+  background: rgba(4, 5, 8, 0.72);
+}
+
+.salon-ui .modal-panel {
+  border-radius: var(--radius-lg);
+}
+
+.salon-ui .toast,
+.salon-ui .toast-item {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+/* FX toned down */
+.salon-ui .allin-text,
+.salon-ui .river-overload strong,
+.salon-ui .protocol-burst strong,
+.salon-ui .result-banner {
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.55);
+  filter: none;
+}
+
+.salon-ui .flash-overlay .allin-surge {
+  opacity: 0.35;
+}
+
+/* ══════════════════════════════════
+   RESPONSIVE — keep one-screen
+   ══════════════════════════════════ */
+@media (max-width: 960px) {
+  .salon-ui .poker-board,
+  .salon-ui #screen-game .poker-board {
+    border-radius: 24px;
+  }
+
+  .salon-ui .poker-board::before {
+    inset: 2%;
+    border-radius: 20px;
+    border-style: solid;
+  }
+
+  .salon-ui .protocol-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .salon-ui:has(#screen-auth.lobby-screen.active) .app-shell {
+    padding-top: calc(var(--safe-top) + 36px);
+  }
+
+  .salon-ui #screen-auth.lobby-screen.active {
+    gap: 6px;
+  }
+
+  .salon-ui .lobby-hero-compact {
+    padding: 4px 8px 4px 2px;
+    gap: 6px 10px;
+  }
+
+  .salon-ui .lobby-logo-wrap {
+    width: 72px;
+    height: 72px;
+    margin: -4px 0 -6px;
+  }
+
+  .salon-ui .lobby-logo-wrap::before {
+    filter: blur(6px);
+    opacity: 0.85;
+  }
+
+  .salon-ui .lobby-hero-compact .eyebrow,
+  .salon-ui .lobby-hero-compact .hero-kicker,
+  .salon-ui .lobby-hero-compact .hero-subtitle {
+    display: none;
+  }
+
+  .salon-ui .lobby-hero-meta .mode-pill:not(:last-child) {
+    display: none;
+  }
+
+  .salon-ui .skill-prep-bar {
+    padding: 6px 8px;
+  }
+
+  .salon-ui .skill-prep-copy h2 {
+    font-size: 0.88rem;
+  }
+
+  .salon-ui .skill-prep-status {
+    font-size: 0.7rem;
+  }
+
+  .salon-ui .protocol-section {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .salon-ui .protocol-grid {
+    gap: 6px;
+  }
+
+  .salon-ui .protocol-card {
+    padding: 8px;
+    gap: 4px;
+  }
+
+  .salon-ui .protocol-card::before {
+    width: 18px;
+    height: 2px;
+  }
+
+  .salon-ui .protocol-desc {
+    display: none;
+  }
+
+  .salon-ui .protocol-card > strong {
+    font-size: 0.84rem;
+  }
+
+  .salon-ui .protocol-actions {
+    padding-top: 4px;
+    gap: 4px;
+  }
+
+  .salon-ui .protocol-actions .button {
+    min-height: 30px;
+    font-size: 0.72rem;
+  }
+
+  .salon-ui .lobby-entry {
+    padding: 8px 10px;
+  }
+
+  .salon-ui .lobby-entry-head h2 {
+    margin-bottom: 4px;
+    font-size: 0.88rem;
+  }
+
+  .salon-ui .poker-board,
+  .salon-ui #screen-game .poker-board {
+    border-radius: 18px;
+    border-width: 2px;
+    padding: 8px;
+  }
+
+  .salon-ui .poker-board::before {
+    display: none;
+  }
+
+  .salon-ui .action-dock {
+    padding: 6px;
+    gap: 5px;
+  }
+
+  .salon-ui .action-button {
+    min-height: 38px;
+  }
+
+  .salon-ui .action-button small {
+    display: none;
+  }
+
+  .salon-ui .fairness-detail.compact {
+    display: none;
+  }
+
+  .salon-ui .settings-trigger {
+    min-width: 44px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+  }
+
+  .salon-ui .wait-primary {
+    padding: 12px;
+  }
+
+  .salon-ui .room-code-block {
+    margin: 8px auto;
+    padding: 10px 12px;
+  }
+
+  .salon-ui .room-code-block > strong {
+    font-size: clamp(1.35rem, 8vw, 1.75rem);
+  }
+}
+
+@media (max-height: 740px) {
+  .salon-ui .pot-core {
+    width: 84px;
+    height: 84px;
+  }
+
+  .salon-ui .player-console {
+    padding: 6px 8px;
+  }
+
+  .salon-ui .turn-status {
+    padding: 6px 8px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .salon-ui * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

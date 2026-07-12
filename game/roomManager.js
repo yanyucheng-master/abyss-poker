@@ -229,7 +229,8 @@ class RoomManager {
     const player = room.players[playerIndex];
     player.socketId = null;
     player.disconnectedAt = Date.now();
-    player.status = player.chips > 0 ? "disconnected" : "out";
+    // All-in players have 0 chips but are still in the hand — keep them in pot contention.
+    player.status = player.isAllIn || player.chips > 0 ? "disconnected" : "out";
     player.isReady = false;
     this.logger.warn("ROOM", "玩家断线", { roomId: room.roomId, playerId: player.playerId });
     this.eventBus.emit("player:disconnected", { roomId: room.roomId, playerId: player.playerId });

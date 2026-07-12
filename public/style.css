@@ -1012,7 +1012,7 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 
 .protocol-section {
   flex: 1 1 auto;
-  min-height: 168px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1033,11 +1033,13 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  flex: 1 1 auto;
-  min-height: 140px;
+  flex: 0 1 auto;
+  min-height: 0;
   margin: 0;
   padding: 0;
   border: 0;
+  align-items: stretch;
+  align-content: start;
 }
 
 .protocol-card {
@@ -1047,7 +1049,7 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   gap: 4px;
   min-width: 0;
   min-height: 0;
-  height: 100%;
+  height: auto;
   padding: 8px 10px;
   overflow: hidden;
   border: 1px solid rgba(116, 145, 213, 0.28);
@@ -3746,7 +3748,7 @@ body.low-performance .hand-settle-modal {
   }
 
   .protocol-section {
-    min-height: 186px;
+    min-height: 0;
     padding: 6px 8px;
   }
 
@@ -3759,13 +3761,13 @@ body.low-performance .hand-settle-modal {
   }
 
   .protocol-grid {
-    min-height: 156px;
+    min-height: 0;
     gap: 5px;
   }
 
   .protocol-card {
     padding: 6px 7px;
-    min-height: 72px;
+    min-height: 0;
   }
 
   .protocol-card > strong {

@@ -197,8 +197,10 @@ function getPublicSkillSummary(player) {
     overloadActive: Boolean(runtime.overloadDiscount?.remainingUses > 0),
     skillUsesThisHand: { ...(runtime.skillUsesThisHand || {}) },
     skillUsesThisGame: { ...(runtime.skillUsesThisGame || {}) },
+    activeSkillsUsedThisPhase: runtime.activeSkillsUsedThisPhase || 0,
     activeSkillsUsedThisHand: runtime.activeSkillsUsedThisHand || 0,
     successfulCardEditThisHand: Boolean(runtime.successfulCardEditThisHand),
+    firstStreetActionTaken: Boolean(runtime.firstStreetActionTaken),
   };
 }
 
@@ -219,6 +221,7 @@ function getPublicRoomSkillSnapshot(room) {
       : null,
     reactionWindow: state.reactionWindow
       ? {
+          requestId: state.reactionWindow.requestId,
           expiresAt: state.reactionWindow.expiresAt,
           casterId: state.reactionWindow.casterId,
           responderId: state.reactionWindow.responderId,
@@ -228,6 +231,7 @@ function getPublicRoomSkillSnapshot(room) {
       : null,
     skillChoice: state.skillChoice
       ? {
+          requestId: state.skillChoice.requestId,
           skillId: state.skillChoice.skillId,
           playerId: state.skillChoice.playerId,
           expiresAt: state.skillChoice.expiresAt,

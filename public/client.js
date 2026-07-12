@@ -278,14 +278,14 @@ const el = {
 };
 
 const PHASE_LABELS = Object.freeze({
-  waiting: "WAITING",
-  pre_flop: "PRE-FLOP",
-  flop: "FLOP",
-  turn: "TURN",
-  river: "RIVER",
-  showdown: "SHOWDOWN",
-  end: "JUDGMENT",
-  game_over: "GAME OVER",
+  waiting: "等待",
+  pre_flop: "翻牌前",
+  flop: "翻牌",
+  turn: "转牌",
+  river: "河牌",
+  showdown: "摊牌",
+  end: "结算",
+  game_over: "终局",
 });
 
 const ACTION_LABELS = Object.freeze({
@@ -412,12 +412,12 @@ function modeInfo(mode) {
   return mode === GAME_MODE.OVERDRIVE
     ? {
         name: "高爆局",
-        code: "OVERDRIVE",
+        code: "高爆",
         brief: "高潜力起手牌、强对抗公共牌、河牌过载。下注规则与标准局一致。",
       }
     : {
         name: "标准局",
-        code: "STANDARD",
+        code: "标准",
         brief: "每一手使用独立安全洗牌，不受高爆候选算法影响。",
       };
 }
@@ -514,13 +514,13 @@ function updateEyeButton() {
 }
 
 function playerStateLabel(player) {
-  if (!player) return "STANDBY";
-  if (player.status === "folded") return "FOLDED";
-  if (player.status === "disconnected") return "LINK LOST";
-  if (player.status === "out") return "OUT";
-  if (player.isAllIn) return "ALL IN";
-  if (state.currentTurnPlayerId === player.playerId) return "ACTING";
-  return "READY";
+  if (!player) return "待机";
+  if (player.status === "folded") return "已弃";
+  if (player.status === "disconnected") return "断线";
+  if (player.status === "out") return "出局";
+  if (player.isAllIn) return "全押";
+  if (state.currentTurnPlayerId === player.playerId) return "行动中";
+  return "就绪";
 }
 
 function renderPlayers() {
@@ -544,7 +544,7 @@ function renderPlayers() {
   el.opponentConnection.innerHTML = "";
   const opponentDot = document.createElement("i");
   opponentDot.className = "status-dot " + (opponent?.isConnected || opponent?.isBot ? "online" : "");
-  const connectionText = opponent?.isBot ? "AI LINK" : opponent?.isConnected ? "在线" : "连接中断";
+  const connectionText = opponent?.isBot ? "人机" : opponent?.isConnected ? "在线" : "连接中断";
   el.opponentConnection.append(opponentDot, document.createTextNode(connectionText));
   el.selfArea.classList.toggle("active-turn", state.currentTurnPlayerId === state.playerId);
   el.opponentArea.classList.toggle(
@@ -594,7 +594,7 @@ function setRaiseValue(value) {
   const target = clampRaise(value);
   el.raiseInput.value = String(target);
   el.raiseValue.textContent = String(target || 0);
-  el.raiseLabel.textContent = target > 0 ? "RAISE TO " + target : "RAISE";
+  el.raiseLabel.textContent = "加注";
 }
 
 function renderActions() {
@@ -608,8 +608,8 @@ function renderActions() {
     ? state.toCall
     : Math.max(0, state.currentBet - Number(me?.streetBet || 0));
 
-  el.callLabel.textContent = toCall > 0 ? "CALL " + toCall : "CALL";
-  el.callAmount.textContent = toCall > 0 ? "跟注 " + toCall : "无需跟注";
+  el.callLabel.textContent = "跟注";
+  el.callAmount.textContent = toCall > 0 ? String(toCall) : "—";
   el.actionButtons.forEach((button) => {
     const action = button.dataset.action;
     button.disabled = !(isMyTurn && state.validActions.includes(action));
@@ -632,14 +632,14 @@ function renderActions() {
   }
 
   if (isMyTurn) {
-    el.turnKicker.textContent = "YOUR TURN";
-    el.turnMessage.textContent = "选择一项服务器允许的行动";
+    el.turnKicker.textContent = "你的回合";
+    el.turnMessage.textContent = "选择一项行动";
   } else if (state.currentTurnPlayerId) {
-    el.turnKicker.textContent = "OPPONENT TURN";
+    el.turnKicker.textContent = "对手回合";
     el.turnMessage.textContent = getOpponent()?.status === "disconnected" ? "等待对手恢复连接" : "对手正在行动";
   } else {
-    el.turnKicker.textContent = "AWAITING TURN";
-    el.turnMessage.textContent = state.handSettling ? "正在执行牌局结算" : "等待服务器行动指令";
+    el.turnKicker.textContent = "等待";
+    el.turnMessage.textContent = state.handSettling ? "正在结算" : "等待行动指令";
   }
 }
 
@@ -1178,7 +1178,7 @@ function protocolValue(gameMode, skillMode) {
 
 function protocolSummaryText(gameMode, skillMode) {
   const deal = gameMode === GAME_MODE.OVERDRIVE ? "高爆局" : "标准局";
-  const skill = skillMode === "abyss" ? "深渊技能" : "技能关闭";
+  const skill = skillMode === "abyss" ? "深渊技能" : "无技能";
   return deal + " · " + skill;
 }
 
@@ -1942,8 +1942,8 @@ renderState();
 function setSkillMode(mode) {
   state.skillMode = mode === "abyss" ? "abyss" : "off";
   if (el.selectedSkillTag) {
-    el.selectedSkillTag.textContent = state.skillMode === "abyss" ? "ABYSS" : "OFF";
-    el.selectedSkillTag.className = "mode-pill " + (state.skillMode === "abyss" ? "overdrive" : "standard");
+    el.selectedSkillTag.textContent = state.skillMode === "abyss" ? "技能" : "无技能";
+    el.selectedSkillTag.className = "mode-pill " + (state.skillMode === "abyss" ? "abyss" : "standard");
   }
   el.skillModeInputs?.forEach((input) => {
     input.checked = input.value === state.skillMode;

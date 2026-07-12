@@ -3,29 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#050713" />
+    <meta name="theme-color" content="#0a0c10" />
     <meta
       name="description"
-      content="深渊德州：科技霓虹风格的双人实时联机德州扑克。"
+      content="深渊德州：双人实时联机德州扑克，可选高爆发牌与深渊技能。"
     />
-    <title>深渊德州 · ABYSS HOLD'EM</title>
+    <title>深渊德州</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Sora:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./salon.css" />
   </head>
-  <body>
+  <body class="salon-ui">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
 
     <div class="abyss-background" aria-hidden="true">
-      <div class="abyss-vortex"></div>
-      <div class="perspective-grid"></div>
-      <div class="scanlines"></div>
-      <div class="data-stream stream-a"></div>
-      <div class="data-stream stream-b"></div>
+      <div class="salon-wash"></div>
+      <div class="salon-vignette"></div>
     </div>
 
     <div id="connection-banner" class="connection-banner hidden" role="status" aria-live="assertive">
@@ -61,8 +59,7 @@
       aria-label="打开界面设置"
       aria-haspopup="dialog"
     >
-      <span aria-hidden="true">⚙</span>
-      <span class="settings-trigger-label">系统设置</span>
+      <span aria-hidden="true">设置</span>
     </button>
 
     <div id="settings-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -196,44 +193,53 @@
     <main id="main-content" class="app-shell">
       <section id="screen-auth" class="screen active lobby-screen" aria-labelledby="brand-title">
         <header class="lobby-hero lobby-hero-compact">
-          <div class="hero-copy">
-            <p class="eyebrow">ABYSS FACILITY // HOLD'EM TERMINAL</p>
-            <h1 id="brand-title" class="brand-title">深渊德州</h1>
-            <p class="hero-subtitle">选协议开打 · 技能局需先完成构筑</p>
+          <div class="lobby-brand">
+            <div class="lobby-logo-wrap">
+              <img
+                class="lobby-logo"
+                src="./assets/abyss-poker-logo.png"
+                alt="深渊德州 Abyss Poker"
+                width="220"
+                height="220"
+                decoding="async"
+              />
+            </div>
+            <div class="hero-copy">
+              <h1 id="brand-title" class="brand-title sr-only">深渊德州</h1>
+              <p class="hero-kicker">ABYSS POKER</p>
+              <p class="hero-subtitle">双人实时对局 · 选模式直接开打</p>
+            </div>
           </div>
           <div class="lobby-hero-meta">
-            <span id="selected-mode-tag" class="mode-pill standard">STANDARD</span>
-            <span id="selected-skill-tag" class="mode-pill standard">OFF</span>
-            <span id="lobby-connection" class="connection-chip"><i class="status-dot"></i>CONNECTING</span>
+            <span id="selected-mode-tag" class="mode-pill standard">标准</span>
+            <span id="selected-skill-tag" class="mode-pill standard">无技能</span>
+            <span id="lobby-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
           </div>
         </header>
 
         <section class="skill-prep-bar glass-panel" aria-labelledby="skill-prep-title">
           <div class="skill-prep-copy">
-            <p class="eyebrow">SKILL LOADOUT</p>
-            <h2 id="skill-prep-title">技能自定义</h2>
-            <p id="skill-prep-status" class="skill-prep-status">未配置 · 技能协议不可进入</p>
+            <h2 id="skill-prep-title">技能构筑</h2>
+            <p id="skill-prep-status" class="skill-prep-status">未配置 · 技能局不可进入</p>
           </div>
           <button id="btn-open-skill-lab" class="button button-secondary" type="button">
-            <span>配置技能</span><small>LOADOUT</small>
+            <span>去配置</span>
           </button>
         </section>
 
         <section class="mode-section protocol-section glass-panel" aria-labelledby="mode-title">
           <div class="section-heading compact">
             <div>
-              <p class="eyebrow">SELECT PROTOCOL</p>
-              <h2 id="mode-title">四种协议 · 人机 / 建房</h2>
+              <h2 id="mode-title">开局模式</h2>
             </div>
-            <p id="protocol-summary" class="protocol-summary">标准局 · 技能关闭</p>
+            <p id="protocol-summary" class="protocol-summary">标准局 · 无技能</p>
           </div>
 
           <div class="protocol-grid" role="list">
             <article class="protocol-card selected" data-game-mode="standard" data-skill-mode="off" role="listitem">
               <input type="radio" name="protocol" value="standard-off" checked tabindex="-1" />
-              <span class="protocol-index">01</span>
               <strong>标准局 <small>无技能</small></strong>
-              <span class="protocol-desc">完整随机洗牌，纯扑克对决。</span>
+              <span class="protocol-desc">完整随机牌堆</span>
               <div class="protocol-actions">
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
@@ -242,9 +248,8 @@
 
             <article class="protocol-card overdrive" data-game-mode="overdrive" data-skill-mode="off" role="listitem">
               <input type="radio" name="protocol" value="overdrive-off" tabindex="-1" />
-              <span class="protocol-index">02</span>
               <strong>高爆局 <small>无技能</small></strong>
-              <span class="protocol-desc">高潜力起手与河牌变局。</span>
+              <span class="protocol-desc">高潜力起手与河牌</span>
               <div class="protocol-actions">
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
@@ -253,9 +258,8 @@
 
             <article class="protocol-card abyss" data-game-mode="standard" data-skill-mode="abyss" role="listitem">
               <input type="radio" name="protocol" value="standard-abyss" tabindex="-1" />
-              <span class="protocol-index">03</span>
               <strong>标准局 <small>深渊技能</small></strong>
-              <span class="protocol-desc">常规发牌 + 技能构筑。</span>
+              <span class="protocol-desc">需先完成技能构筑</span>
               <div class="protocol-actions">
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
@@ -264,9 +268,8 @@
 
             <article class="protocol-card overdrive abyss" data-game-mode="overdrive" data-skill-mode="abyss" role="listitem">
               <input type="radio" name="protocol" value="overdrive-abyss" tabindex="-1" />
-              <span class="protocol-index">04</span>
               <strong>高爆局 <small>深渊技能</small></strong>
-              <span class="protocol-desc">高爆牌局与技能同时启用。</span>
+              <span class="protocol-desc">高爆 + 技能同开</span>
               <div class="protocol-actions">
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
@@ -284,18 +287,15 @@
 
         <section class="lobby-entry glass-panel" aria-labelledby="join-title">
           <div class="lobby-entry-head">
-            <div>
-              <p class="eyebrow">JOIN / IDENTITY</p>
-              <h2 id="join-title">加入房间</h2>
-            </div>
+            <h2 id="join-title">加入房间</h2>
           </div>
           <div class="lobby-entry-grid lobby-entry-join">
             <label for="input-name">昵称</label>
-            <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="默认 player" />
+            <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="你的昵称" />
             <label for="input-room">房间号</label>
-            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="A3B7K9" />
-            <button id="btn-join" class="button button-overdrive" type="button">
-              <span>加入房间</span><small>JOIN</small>
+            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="六位房间号" />
+            <button id="btn-join" class="button button-primary" type="button">
+              <span>加入</span>
             </button>
           </div>
         </section>
@@ -303,26 +303,25 @@
 
       <section id="screen-skill-lab" class="screen skill-lab-screen" aria-labelledby="skill-lab-title">
         <header class="screen-bar">
-          <button type="button" id="btn-back-skill-lab" class="button button-ghost back-button">← 返回大厅</button>
-          <div class="screen-brand"><span>ABYSS</span> SKILL LAB</div>
+          <button type="button" id="btn-back-skill-lab" class="button button-ghost back-button">返回</button>
+          <div class="screen-brand">技能构筑</div>
           <span id="lab-load-meter" class="mode-pill">0 / 8</span>
         </header>
         <section class="skill-lab-panel glass-panel">
           <div class="section-heading compact">
             <div>
-              <p class="eyebrow">CUSTOM LOADOUT</p>
-              <h2 id="skill-lab-title">技能构筑台</h2>
+              <h2 id="skill-lab-title">选择技能</h2>
             </div>
-            <p id="skill-lab-hint" class="protocol-summary">选 2–4 个技能，负载 ≤ 8</p>
+            <p id="skill-lab-hint" class="protocol-summary">2–4 个 · 负载 ≤ 8</p>
           </div>
-          <p id="skill-lab-status" class="panel-tip">配置将保存在本机，进入技能局后自动提交。</p>
+          <p id="skill-lab-status" class="panel-tip">配置保存在本机，进入技能局后自动提交。</p>
           <div id="skill-lab-catalog" class="skill-catalog"></div>
           <div class="button-stack horizontal skill-lab-actions">
             <button id="btn-clear-loadout" class="button button-ghost" type="button">
-              <span>清空</span><small>CLEAR</small>
+              <span>清空</span>
             </button>
             <button id="btn-save-loadout" class="button button-primary" type="button" disabled>
-              <span>保存构筑</span><small>SAVE</small>
+              <span>保存</span>
             </button>
           </div>
         </section>
@@ -330,26 +329,25 @@
 
       <section id="screen-wait" class="screen wait-screen" aria-labelledby="wait-title">
         <header class="screen-bar">
-          <button type="button" id="btn-back-wait" class="button button-ghost back-button">← 返回大厅</button>
-          <div class="screen-brand"><span>ABYSS</span> ROOM TERMINAL</div>
+          <button type="button" id="btn-back-wait" class="button button-ghost back-button">返回</button>
+          <div class="screen-brand">等待室</div>
           <span id="wait-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
         </header>
 
         <div class="wait-layout">
           <section class="wait-primary glass-panel">
-            <p class="eyebrow">AWAITING SECOND OPERATOR</p>
-            <h1 id="wait-title">等待对手接入</h1>
-            <p class="wait-lead">分享房间号；对手加入后将自动锁定模式开局。</p>
+            <h1 id="wait-title">等待对手</h1>
+            <p class="wait-lead">分享房间号，对手加入后自动开局。</p>
 
             <div class="room-code-block">
-              <span>ROOM ACCESS CODE</span>
+              <span>房间号</span>
               <strong id="wait-room-id">——</strong>
-              <button id="btn-copy-room" class="button button-primary" type="button">复制房间号</button>
+              <button id="btn-copy-room" class="button button-primary" type="button">复制</button>
             </div>
 
             <section id="wait-password-panel" class="wait-password-inline">
               <div class="wait-password-row">
-                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" placeholder="可选房间密码" />
+                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" placeholder="可选密码" />
                 <button id="btn-set-room-password" class="button button-secondary" type="button">设密码</button>
                 <span id="wait-password-status" class="wait-password-chip">未设置</span>
               </div>
@@ -357,14 +355,14 @@
 
             <div class="wait-player-slots">
               <div id="wait-host-slot" class="wait-player-slot ready">
-                <span class="slot-icon">01</span>
+                <span class="slot-icon">主</span>
                 <div><small>房主</small><strong id="wait-host-name">等待同步</strong></div>
-                <span id="wait-host-state" class="state-chip">校验中</span>
+                <span id="wait-host-state" class="state-chip">就绪</span>
               </div>
               <div id="wait-guest-slot" class="wait-player-slot">
-                <span class="slot-icon">02</span>
+                <span class="slot-icon">客</span>
                 <div><small>挑战者</small><strong id="wait-guest-name">等待接入</strong></div>
-                <span id="wait-guest-state" class="state-chip muted">空闲</span>
+                <span id="wait-guest-state" class="state-chip muted">空位</span>
               </div>
             </div>
           </section>
@@ -372,36 +370,35 @@
           <aside class="wait-side">
             <section class="glass-panel room-manifest">
               <div class="section-heading compact">
-                <div><p class="eyebrow">ROOM MANIFEST</p><h2>房间状态</h2></div>
-                <span id="wait-mode-badge" class="mode-pill standard">STANDARD</span>
+                <div><h2>房间信息</h2></div>
+                <span id="wait-mode-badge" class="mode-pill standard">标准</span>
               </div>
               <dl class="manifest-list">
-                <div><dt>当前模式</dt><dd id="wait-mode-name">标准局</dd></div>
-                <div><dt>技能模式</dt><dd id="wait-skill-mode">关闭</dd></div>
-                <div><dt>初始筹码</dt><dd id="wait-initial-chips">1000</dd></div>
-                <div><dt>初始能量</dt><dd id="wait-initial-energy">—</dd></div>
-                <div><dt>房间阶段</dt><dd id="wait-room-status">等待中</dd></div>
+                <div><dt>模式</dt><dd id="wait-mode-name">标准局</dd></div>
+                <div><dt>技能</dt><dd id="wait-skill-mode">关闭</dd></div>
+                <div><dt>筹码</dt><dd id="wait-initial-chips">1000</dd></div>
+                <div><dt>能量</dt><dd id="wait-initial-energy">—</dd></div>
+                <div><dt>阶段</dt><dd id="wait-room-status">等待中</dd></div>
               </dl>
             </section>
 
             <section id="skill-draft-panel" class="glass-panel skill-draft-panel hidden">
               <div class="section-heading compact">
-                <div><p class="eyebrow">LOADOUT</p><h2>技能构筑</h2></div>
+                <div><h2>技能确认</h2></div>
                 <span id="draft-load-meter" class="mode-pill">0 / 8</span>
               </div>
               <p id="draft-status" class="panel-tip">选择 2–4 个技能，总负载不超过 8。</p>
               <div id="skill-catalog" class="skill-catalog"></div>
               <div class="button-stack">
                 <button id="btn-confirm-loadout" class="button button-primary" type="button" disabled>
-                  <span>确认构筑</span><small>CONFIRM</small>
+                  <span>确认构筑</span>
                 </button>
               </div>
             </section>
 
             <section id="wait-mode-brief" class="glass-panel mode-brief standard">
-              <p class="eyebrow">PROTOCOL BRIEF</p>
               <h2>标准局</h2>
-              <p>安全随机洗牌，完整保留标准德州扑克的不确定性。</p>
+              <p>完整随机洗牌，保留标准德州的不确定性。</p>
             </section>
           </aside>
         </div>
@@ -409,17 +406,17 @@
 
       <section id="screen-game" class="screen game-screen" aria-labelledby="table-title">
         <header class="game-topbar">
-          <button type="button" id="btn-back-game" class="button button-ghost back-button">← 离开牌桌</button>
+          <button type="button" id="btn-back-game" class="button button-ghost back-button">离开</button>
           <div class="table-identity">
-            <p id="table-title">ABYSS JUDGE TABLE</p>
+            <p id="table-title">深渊牌桌</p>
             <div>
-              <span id="game-room-id">ROOM ——</span>
-              <span id="game-mode-badge" class="mode-pill standard">STANDARD</span>
+              <span id="game-room-id">房间 ——</span>
+              <span id="game-mode-badge" class="mode-pill standard">标准</span>
             </div>
           </div>
           <div class="topbar-status">
             <span id="game-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
-            <span id="fairness-summary" class="fairness-chip" title="牌堆承诺状态">◇ 等待承诺</span>
+            <span id="fairness-summary" class="fairness-chip" title="牌堆承诺状态">待验证</span>
           </div>
         </header>
 
@@ -432,31 +429,31 @@
               <div id="opponent-avatar" class="player-avatar"><span>?</span><i></i></div>
               <div class="player-main">
                 <div class="player-title-row">
-                  <strong id="opponent-name">等待对手</strong>
-                  <span id="opponent-connection" class="mini-status"><i class="status-dot"></i>未接入</span>
+                  <strong id="opponent-name">对手</strong>
+                  <span id="opponent-connection" class="mini-status"><i class="status-dot"></i>离线</span>
                 </div>
                 <div class="player-metrics">
                   <span>筹码 <strong id="opponent-chips">—</strong></span>
-                  <span>本轮下注 <strong id="opponent-bet">0</strong></span>
+                  <span>下注 <strong id="opponent-bet">0</strong></span>
                 </div>
               </div>
-              <div id="opponent-state" class="player-state">STANDBY</div>
+              <div id="opponent-state" class="player-state">等待</div>
             </div>
             <div id="opponent-cards" class="cards-row opponent-cards" aria-label="对手底牌"></div>
           </section>
 
           <section class="table-center" aria-label="公共牌与底池">
             <div class="street-header">
-              <span id="phase-text">WAITING</span>
+              <span id="phase-text">等待</span>
               <div class="street-line"><i></i></div>
-              <span id="action-log" class="action-log" aria-live="polite">等待服务器同步</span>
+              <span id="action-log" class="action-log" aria-live="polite">同步中</span>
             </div>
 
             <div id="community-cards" class="community-row" aria-label="公共牌"></div>
 
             <div class="core-console">
               <div class="table-stat">
-                <span>CURRENT BET</span>
+                <span>跟注额</span>
                 <strong id="current-bet">0</strong>
               </div>
 
@@ -464,14 +461,14 @@
                 <div class="core-ring ring-outer"></div>
                 <div class="core-ring ring-inner"></div>
                 <div class="core-value">
-                  <span>ENERGY POT</span>
+                  <span>底池</span>
                   <strong id="pot-value">0</strong>
                 </div>
               </div>
 
               <div class="table-stat fairness-stat">
-                <span>DECK COMMIT</span>
-                <strong id="commitment-short">PENDING</strong>
+                <span>牌堆</span>
+                <strong id="commitment-short">待定</strong>
               </div>
             </div>
 
@@ -481,7 +478,7 @@
             </div>
 
             <div id="overdrive-profile" class="overdrive-profile hidden">
-              <span>OVERDRIVE</span>
+              <span>高爆</span>
               <strong id="overdrive-profile-label">高能牌局</strong>
             </div>
           </section>
@@ -498,12 +495,12 @@
                   aria-label="显示我的底牌"
                   aria-pressed="false"
                 >
-                  <span class="eye-open" aria-hidden="true">◉</span>
-                  <span class="eye-closed hidden" aria-hidden="true">⊘</span>
+                  <span class="eye-open" aria-hidden="true">显</span>
+                  <span class="eye-closed hidden" aria-hidden="true">隐</span>
                 </button>
               </div>
               <div class="hand-hint">
-                <span>CURRENT HAND</span>
+                <span>牌力</span>
                 <strong id="self-hand-type">等待发牌</strong>
               </div>
             </div>
@@ -517,10 +514,10 @@
                 </div>
                 <div class="player-metrics">
                   <span>筹码 <strong id="self-chips">—</strong></span>
-                  <span>本轮下注 <strong id="self-bet">0</strong></span>
+                  <span>下注 <strong id="self-bet">0</strong></span>
                 </div>
               </div>
-              <div id="self-state" class="player-state">STANDBY</div>
+              <div id="self-state" class="player-state">等待</div>
             </div>
           </section>
         </div>
@@ -540,28 +537,28 @@
               <span id="action-countdown-value">—</span>
             </div>
             <div>
-              <span id="turn-kicker">AWAITING TURN</span>
-              <strong id="turn-message">等待服务器行动指令</strong>
+              <span id="turn-kicker">回合</span>
+              <strong id="turn-message">等待行动</strong>
             </div>
           </div>
 
           <div class="primary-actions">
-            <button data-action="fold" class="action-button fold" type="button"><span>FOLD</span><small>弃牌</small></button>
-            <button data-action="check" class="action-button check" type="button"><span>CHECK</span><small>过牌</small></button>
-            <button data-action="call" class="action-button call" type="button"><span id="call-label">CALL</span><small id="call-amount">跟注</small></button>
-            <button data-action="allin" class="action-button allin" type="button"><span>ALL IN</span><small>全押</small></button>
+            <button data-action="fold" class="action-button fold" type="button"><span>弃牌</span><small>FOLD</small></button>
+            <button data-action="check" class="action-button check" type="button"><span>过牌</span><small>CHECK</small></button>
+            <button data-action="call" class="action-button call" type="button"><span id="call-label">跟注</span><small id="call-amount">—</small></button>
+            <button data-action="allin" class="action-button allin" type="button"><span>全押</span><small>ALL IN</small></button>
           </div>
 
           <div class="raise-console">
             <div class="raise-heading">
-              <div><span>RAISE TARGET</span><strong id="raise-value">0</strong></div>
+              <div><span>加注至</span><strong id="raise-value">0</strong></div>
               <button data-action="raise" id="btn-raise" class="action-button raise" type="button">
-                <span id="raise-label">RAISE</span><small>加注至最终额</small>
+                <span id="raise-label">加注</span><small>RAISE</small>
               </button>
             </div>
             <label class="sr-only" for="raise-input">加注到</label>
             <input id="raise-input" type="range" min="0" max="0" step="1" value="0" />
-            <div class="raise-range-labels"><span id="raise-min-label">MIN —</span><span id="raise-max-label">MAX —</span></div>
+            <div class="raise-range-labels"><span id="raise-min-label">最小 —</span><span id="raise-max-label">最大 —</span></div>
             <div class="raise-presets" aria-label="加注快捷值">
               <button type="button" data-raise-preset="min">最小</button>
               <button type="button" data-raise-preset="half">半池</button>

@@ -853,8 +853,24 @@ class GameEngine {
     result.sort((a, b) => compareEvaluatedHands(b.hand, a.hand));
     const first = result[0];
     const second = result[1];
-    const tie = second ? compareEvaluatedHands(first.hand, second.hand) === 0 : false;
     const potBefore = room.pot;
+
+    if (!first) {
+      // No evaluable hands (e.g. mid-hand disconnect edge) — return pot to remaining players.
+      const recipients = alive.length ? alive : room.players.filter((p) => p.status !== "folded");
+      if (recipients.length && room.pot > 0) {
+        const share = Math.floor(room.pot / recipients.length);
+        recipients.forEach((p) => {
+          p.chips += share;
+        });
+        room.pot = 0;
+      }
+      this.logger.warn("GAME", "摊牌无有效牌型，已退还底池", { roomId: room.roomId, pot: potBefore });
+      this.broadcastRoomState(room);
+      return;
+    }
+
+    const tie = second ? compareEvaluatedHands(first.hand, second.hand) === 0 : false;
 
     if (tie) {
       const half = Math.floor(room.pot / 2);
