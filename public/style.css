@@ -3542,8 +3542,29 @@ body.low-performance .hand-settle-modal {
 
   #screen-game .action-dock {
     grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 6px 8px;
+    gap: 4px;
+    padding: 4px 6px;
+  }
+
+  #screen-game .turn-status {
+    min-height: 0;
+    padding: 4px 6px;
+  }
+
+  #screen-game .turn-status small,
+  #screen-game .action-countdown {
+    transform: scale(0.9);
+  }
+
+  #screen-game .skill-hud {
+    margin-top: 4px;
+    padding: 4px 6px;
+  }
+
+  #screen-game .skill-use-btn {
+    min-height: 28px;
+    padding: 3px 6px;
+    font-size: 0.68rem;
   }
 
   #screen-game .primary-actions {
@@ -3551,7 +3572,7 @@ body.low-performance .hand-settle-modal {
   }
 
   #screen-game .action-button {
-    min-height: 40px;
+    min-height: 36px;
   }
 
   #screen-game .action-button small {
@@ -3561,6 +3582,22 @@ body.low-performance .hand-settle-modal {
   #screen-game .raise-presets {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #screen-game .raise-console {
+    gap: 4px;
+  }
+
+  #screen-game .pot-core {
+    width: 88px;
+  }
+
+  #screen-game .core-console {
+    gap: 4px;
+  }
+
+  #screen-game .fairness-detail.compact {
+    display: none;
   }
 
   #skill-lab-catalog.skill-catalog {
