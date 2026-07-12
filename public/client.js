@@ -60,7 +60,10 @@ const state = {
   savedLoadout: [],
   skillConfig: { minEquipped: 2, maxEquipped: 4, maxLoad: 8 },
   pendingRoomAction: null,
+  pendingJoinRoomId: null,
   autoLoadoutSubmitted: false,
+  hasPassword: false,
+  isHost: false,
   skillState: null,
   skillSelf: null,
   nullifiedCommunityCardIds: [],
@@ -165,10 +168,12 @@ const el = {
   selectedModeTag: byId("selected-mode-tag"),
   protocolSummary: byId("protocol-summary"),
   inputName: byId("input-name"),
-  inputPwd: byId("input-password"),
   inputRoom: byId("input-room"),
-  inputJoinPwd: byId("input-join-password"),
   btnJoin: byId("btn-join"),
+  joinPasswordModal: byId("join-password-modal"),
+  modalJoinPassword: byId("modal-join-password"),
+  btnJoinPasswordConfirm: byId("btn-join-password-confirm"),
+  btnJoinPasswordCancel: byId("btn-join-password-cancel"),
   btnOpenSkillLab: byId("btn-open-skill-lab"),
   btnBackSkillLab: byId("btn-back-skill-lab"),
   btnSaveLoadout: byId("btn-save-loadout"),
@@ -178,6 +183,10 @@ const el = {
   skillLabStatus: byId("skill-lab-status"),
   labLoadMeter: byId("lab-load-meter"),
   lobbyConnection: byId("lobby-connection"),
+  inputWaitPassword: byId("input-wait-password"),
+  btnSetRoomPassword: byId("btn-set-room-password"),
+  waitPasswordStatus: byId("wait-password-status"),
+  waitPasswordPanel: byId("wait-password-panel"),
   btnBackWait: byId("btn-back-wait"),
   waitConnection: byId("wait-connection"),
   waitRoomId: byId("wait-room-id"),
@@ -190,7 +199,6 @@ const el = {
   waitModeName: byId("wait-mode-name"),
   waitInitialChips: byId("wait-initial-chips"),
   waitRoomStatus: byId("wait-room-status"),
-  waitHostReady: byId("wait-host-ready"),
   waitModeBrief: byId("wait-mode-brief"),
   btnBackGame: byId("btn-back-game"),
   gameRoomId: byId("game-room-id"),
@@ -706,9 +714,16 @@ function renderWaitingRoom() {
       : state.phase === "waiting"
         ? "等待中"
         : PHASE_LABELS[state.phase] || state.phase;
-  el.waitHostReady.textContent = host?.isReady ? "是" : "否";
   if (el.waitSkillMode) el.waitSkillMode.textContent = state.skillMode === "abyss" ? "深渊技能" : "关闭";
   if (el.waitInitialEnergy) el.waitInitialEnergy.textContent = state.skillMode === "abyss" ? "4" : "—";
+  if (el.waitPasswordStatus) {
+    el.waitPasswordStatus.textContent = state.hasPassword ? "已设置" : "未设置";
+  }
+  const isHost = Boolean(host && host.playerId === state.playerId);
+  state.isHost = isHost;
+  if (el.waitPasswordPanel) {
+    el.waitPasswordPanel.classList.toggle("hidden", !isHost || !["waiting", "drafting"].includes(state.phase || "waiting"));
+  }
 }
 
 function renderFairness() {
@@ -1349,17 +1364,7 @@ function startRoomAction(type, gameMode, skillMode) {
 
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
-  if (type === "join") {
-    const roomId = (el.inputRoom.value || "").trim().toUpperCase();
-    if (!roomId) return showToast("请输入房间号", "error");
-    state.myName = (el.inputName.value || "").trim() || "player2";
-    state.atLobby = false;
-    sessionStorage.setItem(STORAGE.playerName, state.myName);
-    emitJoin(roomId, (el.inputJoinPwd.value || "").trim() || null);
-    return;
-  }
-
-  state.myName = (el.inputName.value || "").trim() || (type === "solo" ? "player1" : "player1");
+  state.myName = (el.inputName.value || "").trim() || "player1";
   state.atLobby = false;
   sessionStorage.setItem(STORAGE.playerName, state.myName);
   if (type === "solo") {
@@ -1373,13 +1378,39 @@ function startRoomAction(type, gameMode, skillMode) {
     return;
   }
   socket.emit("create_room", {
-    password: (el.inputPwd.value || "").trim() || null,
+    password: null,
     playerName: state.myName,
     playerId: state.playerId,
     reconnectToken: state.reconnectToken || undefined,
     gameMode: state.gameMode,
     skillMode: state.skillMode,
   });
+}
+
+function openJoinPasswordModal(roomId) {
+  state.pendingJoinRoomId = roomId;
+  if (el.modalJoinPassword) el.modalJoinPassword.value = "";
+  el.joinPasswordModal?.classList.remove("hidden");
+  el.modalJoinPassword?.focus();
+}
+
+function closeJoinPasswordModal() {
+  el.joinPasswordModal?.classList.add("hidden");
+  state.pendingJoinRoomId = null;
+}
+
+function confirmJoinWithPassword() {
+  const roomId = state.pendingJoinRoomId || (el.inputRoom.value || "").trim().toUpperCase();
+  const password = (el.modalJoinPassword?.value || "").trim();
+  if (!roomId) return showToast("请输入房间号", "error");
+  if (!password) return showToast("请输入房间密码", "error");
+  el.joinPasswordModal?.classList.add("hidden");
+  prepareManualRoomRequest();
+  state.autoLoadoutSubmitted = false;
+  state.myName = (el.inputName.value || "").trim() || "player2";
+  state.atLobby = false;
+  sessionStorage.setItem(STORAGE.playerName, state.myName);
+  emitJoin(roomId, password);
 }
 
 function maybeAutoSubmitLoadout() {
@@ -1419,10 +1450,25 @@ el.btnJoin.addEventListener("click", () => {
   if (!roomId) return showToast("请输入房间号", "error");
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
+  state.pendingJoinRoomId = roomId;
   state.myName = (el.inputName.value || "").trim() || "player2";
   state.atLobby = false;
   sessionStorage.setItem(STORAGE.playerName, state.myName);
-  emitJoin(roomId, (el.inputJoinPwd.value || "").trim() || null);
+  emitJoin(roomId, null);
+});
+el.btnJoinPasswordConfirm?.addEventListener("click", confirmJoinWithPassword);
+el.btnJoinPasswordCancel?.addEventListener("click", () => {
+  closeJoinPasswordModal();
+  state.atLobby = true;
+  showScreen("auth");
+});
+el.modalJoinPassword?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") confirmJoinWithPassword();
+});
+el.btnSetRoomPassword?.addEventListener("click", () => {
+  socket.emit("room:set_password", {
+    password: (el.inputWaitPassword?.value || "").trim() || "",
+  });
 });
 el.btnOpenSkillLab?.addEventListener("click", async () => {
   await ensureSkillCatalog();
@@ -1543,6 +1589,7 @@ document.addEventListener("keydown", (event) => {
   el.settingsModal.classList.add("hidden");
   closeAllInConfirmation();
   el.leaveConfirmModal.classList.add("hidden");
+  el.joinPasswordModal?.classList.add("hidden");
   if (wasLeaveOpen) el.btnBackGame.focus();
 });
 
@@ -1613,6 +1660,9 @@ socket.on("room_state", (payload) => {
   state.gameMode = payload.gameMode || state.gameMode;
   state.skillMode = payload.skillMode || state.skillMode;
   state.phase = payload.phase || state.phase;
+  if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
+    state.hasPassword = Boolean(payload.hasPassword);
+  }
   state.pot = payload.pot ?? state.pot;
   state.currentBet = payload.currentBet ?? state.currentBet;
   state.dealer = payload.dealer || null;
@@ -1795,6 +1845,17 @@ socket.on("left_room", (payload) => {
 socket.on("join_error", (payload) => {
   const wasReconnect = state.reconnecting;
   state.reconnecting = false;
+  const needsPassword =
+    payload?.code === "PASSWORD_REQUIRED" ||
+    String(payload?.message || "").includes("密码错误") ||
+    String(payload?.message || "").includes("房间密码");
+  if (needsPassword && !wasReconnect) {
+    state.atLobby = true;
+    showScreen("auth");
+    openJoinPasswordModal(payload.roomId || state.pendingJoinRoomId || (el.inputRoom.value || "").trim().toUpperCase());
+    showToast("请输入房间密码", "error");
+    return;
+  }
   state.atLobby = true;
   if (wasReconnect) {
     resetLocalRoom();
@@ -1802,6 +1863,11 @@ socket.on("join_error", (payload) => {
     showScreen("auth");
   }
   showToast(payload.message || "加入房间失败", "error");
+});
+socket.on("room:password_updated", (payload) => {
+  state.hasPassword = Boolean(payload?.hasPassword);
+  if (el.waitPasswordStatus) el.waitPasswordStatus.textContent = state.hasPassword ? "已设置" : "未设置";
+  showToast(state.hasPassword ? "房间密码已设置" : "已清除房间密码", "success");
 });
 socket.on("action_error", (payload) => showToast(payload.message || "操作失败", "error"));
 

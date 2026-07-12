@@ -47,5 +47,10 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('data-raise-preset="max"');
     expect(html).toContain('id="skill-draft-panel"');
     expect(html).toContain('id="skill-hud"');
+    expect(html).toContain('id="join-password-modal"');
+    expect(html).toContain('id="input-wait-password"');
+    expect(html).toContain('id="btn-set-room-password"');
+    expect(html).not.toContain('id="input-password"');
+    expect(html).not.toContain('id="input-join-password"');
   });
 });

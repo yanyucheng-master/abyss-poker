@@ -115,6 +115,20 @@
       </section>
     </div>
 
+    <div id="join-password-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="join-password-title">
+      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
+        <p class="eyebrow">SECURE ACCESS</p>
+        <h2 id="join-password-title">房间需要密码</h2>
+        <p>该房间已设置访问密码，请输入后继续加入。</p>
+        <label class="modal-field" for="modal-join-password">房间密码</label>
+        <input id="modal-join-password" type="password" maxlength="16" autocomplete="current-password" placeholder="输入房间密码" />
+        <div class="modal-actions">
+          <button id="btn-join-password-cancel" class="button button-ghost" type="button">取消</button>
+          <button id="btn-join-password-confirm" class="button button-primary" type="button">确认加入</button>
+        </div>
+      </section>
+    </div>
+
     <div id="allin-confirm-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="allin-confirm-title">
       <section class="modal-panel confirm-panel danger-panel glass-panel" tabindex="-1">
         <p class="eyebrow danger-text">CORE LIMIT RELEASE</p>
@@ -290,18 +304,14 @@
           <div class="lobby-entry-head">
             <div>
               <p class="eyebrow">JOIN / IDENTITY</p>
-              <h2 id="join-title">身份与加入</h2>
+              <h2 id="join-title">加入房间</h2>
             </div>
           </div>
-          <div class="lobby-entry-grid">
+          <div class="lobby-entry-grid lobby-entry-join">
             <label for="input-name">昵称</label>
             <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="默认 player" />
-            <label for="input-password">建房密码</label>
-            <input id="input-password" type="password" maxlength="16" autocomplete="new-password" placeholder="可选" />
             <label for="input-room">房间号</label>
             <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="A3B7K9" />
-            <label for="input-join-password">加入密码</label>
-            <input id="input-join-password" type="password" maxlength="16" autocomplete="current-password" placeholder="可选" />
             <button id="btn-join" class="button button-overdrive" type="button">
               <span>加入房间</span><small>JOIN</small>
             </button>
@@ -336,7 +346,7 @@
         </section>
       </section>
 
-      <section id="screen-wait" class="screen" aria-labelledby="wait-title">
+      <section id="screen-wait" class="screen wait-screen" aria-labelledby="wait-title">
         <header class="screen-bar">
           <button type="button" id="btn-back-wait" class="button button-ghost back-button">← 返回大厅</button>
           <div class="screen-brand"><span>ABYSS</span> ROOM TERMINAL</div>
@@ -345,12 +355,9 @@
 
         <div class="wait-layout">
           <section class="wait-primary glass-panel">
-            <div class="wait-beacon" aria-hidden="true">
-              <span></span><span></span><span></span>
-            </div>
             <p class="eyebrow">AWAITING SECOND OPERATOR</p>
             <h1 id="wait-title">等待对手接入</h1>
-            <p>分享房间编号。第二位玩家完成验证后，服务器将自动锁定模式并发牌。</p>
+            <p class="wait-lead">分享房间号；对手加入后将自动锁定模式开局。</p>
 
             <div class="room-code-block">
               <span>ROOM ACCESS CODE</span>
@@ -384,8 +391,19 @@
                 <div><dt>初始筹码</dt><dd id="wait-initial-chips">1000</dd></div>
                 <div><dt>初始能量</dt><dd id="wait-initial-energy">—</dd></div>
                 <div><dt>房间阶段</dt><dd id="wait-room-status">等待中</dd></div>
-                <div><dt>房主准备</dt><dd id="wait-host-ready">确认中</dd></div>
+                <div><dt>密码状态</dt><dd id="wait-password-status">未设置</dd></div>
               </dl>
+            </section>
+
+            <section id="wait-password-panel" class="glass-panel wait-password-panel">
+              <div class="section-heading compact">
+                <div><p class="eyebrow">OPTIONAL LOCK</p><h2>房间密码</h2></div>
+              </div>
+              <p class="panel-tip">可选。设置后对手加入需输入密码。</p>
+              <div class="wait-password-row">
+                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" placeholder="留空表示无密码" />
+                <button id="btn-set-room-password" class="button button-secondary" type="button">保存</button>
+              </div>
             </section>
 
             <section id="skill-draft-panel" class="glass-panel skill-draft-panel hidden">
@@ -397,7 +415,7 @@
               <div id="skill-catalog" class="skill-catalog"></div>
               <div class="button-stack">
                 <button id="btn-confirm-loadout" class="button button-primary" type="button" disabled>
-                  <span>确认构筑</span><small>CONFIRM LOADOUT</small>
+                  <span>确认构筑</span><small>CONFIRM</small>
                 </button>
               </div>
             </section>
@@ -479,24 +497,24 @@
               </div>
             </div>
 
-            <div class="fairness-detail" aria-live="polite">
+            <div class="fairness-detail compact" aria-live="polite">
               <span id="fairness-hand-id">HAND —</span>
-              <span id="fairness-result">牌局开始前将锁定牌堆承诺</span>
+              <span id="fairness-result">等待牌堆承诺</span>
             </div>
 
             <div id="overdrive-profile" class="overdrive-profile hidden">
-              <span>OVERDRIVE SIGNAL</span>
+              <span>OVERDRIVE</span>
               <strong id="overdrive-profile-label">高能牌局</strong>
             </div>
 
             <div id="skill-hud" class="skill-hud hidden">
               <div class="skill-energy-row">
-                <span>ABYSS ENERGY <strong id="self-energy">0</strong>/10</span>
-                <span>对手能量 <strong id="opponent-energy">0</strong></span>
-                <span id="skill-silence-flag" class="hidden">静默区</span>
+                <span>能量 <strong id="self-energy">0</strong>/10</span>
+                <span>对手 <strong id="opponent-energy">0</strong></span>
+                <span id="skill-silence-flag" class="hidden">静默</span>
               </div>
               <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
-              <div id="skill-log" class="skill-log" aria-live="polite"></div>
+              <div id="skill-log" class="skill-log sr-only" aria-live="polite"></div>
             </div>
           </section>
 

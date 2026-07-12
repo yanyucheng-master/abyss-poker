@@ -120,6 +120,21 @@ class RoomManager {
     return room;
   }
 
+  setRoomPassword(room, player, password) {
+    if (!room || !player) return { ok: false, error: "房间不存在" };
+    if (!["waiting", "drafting"].includes(room.phase)) {
+      return { ok: false, error: "对局开始后不能修改密码" };
+    }
+    const host = room.players[0];
+    if (!host || host.playerId !== player.playerId) {
+      return { ok: false, error: "仅房主可设置房间密码" };
+    }
+    const next = typeof password === "string" ? password.trim() : "";
+    if (next.length > 16) return { ok: false, error: "房间密码长度不能超过 16" };
+    room.password = next || null;
+    return { ok: true, hasPassword: Boolean(room.password) };
+  }
+
   getRoom(roomId) {
     return this.rooms.get(String(roomId || "").toUpperCase());
   }

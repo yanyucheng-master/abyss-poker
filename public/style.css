@@ -1126,6 +1126,8 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 }
 
 .protocol-actions {
+  position: relative;
+  z-index: 2;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -1134,9 +1136,12 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 }
 
 .protocol-actions .button {
+  position: relative;
+  z-index: 2;
   min-height: 34px;
   padding: 6px 4px;
   font-size: 0.78rem;
+  pointer-events: auto;
 }
 
 .protocol-actions .button small {
@@ -1163,6 +1168,17 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   margin-top: 6px;
 }
 
+.lobby-entry-grid.lobby-entry-join {
+  grid-template-columns: auto minmax(120px, 1fr) auto minmax(140px, 1.1fr) auto;
+}
+
+.lobby-entry-grid.lobby-entry-join #btn-join {
+  grid-column: auto;
+  grid-row: auto;
+  align-self: stretch;
+  min-width: 110px;
+}
+
 .lobby-entry-grid label {
   margin: 0;
   color: #c8d4f3;
@@ -1176,28 +1192,11 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   padding: 8px 10px;
 }
 
-.lobby-entry-grid #btn-join {
-  grid-column: 5;
-  grid-row: 1 / span 2;
+.lobby-entry-grid.lobby-entry-join #btn-join {
+  grid-column: auto;
+  grid-row: auto;
   align-self: stretch;
   min-width: 110px;
-}
-
-.skill-lab-screen.active {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 76px);
-}
-
-.skill-lab-panel {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  overflow: auto;
 }
 
 .skill-lab-actions {
@@ -1667,8 +1666,25 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 .wait-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(270px, 0.72fr);
-  gap: 20px;
-  min-height: calc(100dvh - 170px);
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+#screen-wait.wait-screen.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  gap: 8px;
+  overflow: hidden;
+}
+
+#screen-wait .screen-bar {
+  flex: 0 0 auto;
+  margin-bottom: 0;
 }
 
 .wait-primary {
@@ -1676,10 +1692,120 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  padding: clamp(26px, 6vw, 70px);
+  min-height: 0;
+  padding: clamp(16px, 3vw, 36px);
   overflow: hidden;
   border-radius: var(--radius-xl);
   text-align: center;
+}
+
+.wait-primary h1 {
+  margin-bottom: 8px;
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+}
+
+.wait-lead {
+  max-width: 520px;
+  margin: 0 auto 12px;
+  font-size: 0.88rem;
+}
+
+.wait-password-panel {
+  padding: 10px 12px;
+}
+
+.wait-password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wait-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.mode-brief {
+  padding: 10px 12px;
+}
+
+.mode-brief p:last-child {
+  margin-bottom: 0;
+  font-size: 0.78rem;
+}
+
+.modal-field {
+  display: block;
+  margin: 10px 0 6px;
+  color: #c8d4f3;
+  font-size: 0.78rem;
+}
+
+#join-password-modal input {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+/* Skill lab one-screen */
+#screen-skill-lab.skill-lab-screen.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  gap: 8px;
+  overflow: hidden;
+}
+
+#screen-skill-lab .screen-bar {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+
+.skill-lab-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+#skill-lab-catalog.skill-catalog {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 0;
+  overflow: auto;
+}
+
+#skill-lab-catalog .skill-card {
+  padding: 8px 10px;
+}
+
+#skill-lab-catalog .skill-card strong {
+  font-size: 0.88rem;
+}
+
+#skill-lab-catalog .skill-card span {
+  font-size: 0.72rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skill-lab-actions {
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .wait-primary::before {
@@ -1891,10 +2017,136 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   margin-bottom: 0;
 }
 
-/* Game table */
+/* Game table — force single viewport */
+body:has(#screen-game.game-screen.active),
+body:has(#screen-wait.wait-screen.active),
+body:has(#screen-skill-lab.skill-lab-screen.active) {
+  overflow: hidden;
+}
+
+body:has(#screen-game.game-screen.active) .app-shell,
+body:has(#screen-wait.wait-screen.active) .app-shell,
+body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding-top: calc(var(--safe-top) + 44px);
+  padding-bottom: calc(var(--safe-bottom) + 8px);
+  display: flex;
+  flex-direction: column;
+}
+
 .game-screen {
-  --card-w: clamp(58px, 5.7vw, 82px);
+  --card-w: clamp(48px, 4.6vw, 72px);
   --card-h: calc(var(--card-w) * 1.42);
+}
+
+#screen-game.game-screen.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  gap: 8px;
+  overflow: hidden;
+}
+
+#screen-game .game-topbar {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  padding: 8px 10px;
+}
+
+#screen-game .poker-board {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: clamp(10px, 1.6vw, 20px);
+  border-radius: 24px;
+}
+
+#screen-game .action-dock {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+#screen-game .action-button {
+  min-height: 46px;
+  padding: 6px 8px;
+}
+
+#screen-game .turn-status {
+  min-height: 0;
+  padding: 6px 8px;
+}
+
+#screen-game .action-countdown {
+  width: 42px;
+  height: 42px;
+}
+
+#screen-game .fairness-detail.compact {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  gap: 8px;
+}
+
+#screen-game .skill-hud {
+  margin-top: 6px;
+  padding: 6px 8px;
+}
+
+#screen-game .skill-log {
+  display: none;
+}
+
+#screen-game .skill-bar {
+  gap: 4px;
+}
+
+#screen-game .skill-use-btn {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+
+#screen-game .pot-core {
+  width: min(118px, 18vw);
+  height: min(118px, 18vw);
+}
+
+#screen-game .street-header {
+  margin-bottom: 6px;
+}
+
+#screen-game .core-console {
+  margin-top: 6px;
+  gap: 10px;
+}
+
+.poker-board {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 1.5fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: clamp(18px, 3vw, 38px);
+  overflow: hidden;
+  border: 1px solid rgba(98, 111, 255, 0.48);
+  border-radius: 34px;
+  background:
+    linear-gradient(180deg, rgba(3, 5, 17, 0.25), rgba(3, 5, 17, 0.55)),
+    radial-gradient(ellipse at center, transparent 0 30%, rgba(4, 5, 18, 0.32) 72%),
+    var(--asset-table) center / cover no-repeat,
+    #050718;
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.56),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 0 90px rgba(89, 55, 196, 0.1);
 }
 
 .game-topbar {
@@ -1943,28 +2195,6 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 .fairness-chip.failed {
   border-color: rgba(255, 87, 122, 0.46);
   color: var(--red);
-}
-
-.poker-board {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 1.5fr) minmax(0, 1fr);
-  grid-template-rows: auto minmax(330px, 1fr) auto;
-  min-height: clamp(700px, 74vh, 900px);
-  padding: clamp(18px, 3vw, 38px);
-  overflow: hidden;
-  border: 1px solid rgba(98, 111, 255, 0.48);
-  border-radius: 34px;
-  background:
-    linear-gradient(180deg, rgba(3, 5, 17, 0.25), rgba(3, 5, 17, 0.55)),
-    radial-gradient(ellipse at center, transparent 0 30%, rgba(4, 5, 18, 0.32) 72%),
-    var(--asset-table) center / cover no-repeat,
-    #050718;
-  box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.56),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 0 90px rgba(89, 55, 196, 0.1);
 }
 
 .poker-board::before {
@@ -3069,23 +3299,35 @@ body.low-performance .hand-settle-modal {
   }
 
   .mode-selector,
-  .lobby-grid:not(.lobby-grid-compact),
-  .wait-layout {
+  .lobby-grid:not(.lobby-grid-compact) {
     grid-template-columns: 1fr;
+  }
+
+  .wait-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+    gap: 8px;
   }
 
   .lobby-grid-compact {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .lobby-entry-grid {
-    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  .lobby-entry-grid.lobby-entry-join {
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1.1fr);
   }
 
-  .lobby-entry-grid #btn-join {
+  .lobby-entry-grid.lobby-entry-join #btn-join {
     grid-column: 1 / -1;
     grid-row: auto;
     min-height: 40px;
+  }
+
+  #screen-game .action-dock {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  }
+
+  #screen-game .poker-board {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr) minmax(0, 0.85fr);
   }
 
   #screen-auth.lobby-screen.active {
@@ -3160,6 +3402,53 @@ body.low-performance .hand-settle-modal {
 @media (max-width: 640px) {
   body {
     font-size: calc(15px * var(--ui-scale));
+  }
+
+  .wait-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .wait-primary h1 {
+    font-size: 1.45rem;
+  }
+
+  .wait-mode-brief,
+  #wait-mode-brief {
+    display: none;
+  }
+
+  #screen-game .poker-board {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding: 8px;
+    border-radius: 16px;
+  }
+
+  #screen-game .action-dock {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  #screen-game .primary-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #screen-game .action-button {
+    min-height: 40px;
+  }
+
+  #screen-game .action-button small {
+    display: none;
+  }
+
+  #screen-game .raise-presets {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #skill-lab-catalog.skill-catalog {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .app-shell {
@@ -3295,29 +3584,16 @@ body.low-performance .hand-settle-modal {
     display: none;
   }
 
-  .lobby-entry-grid {
+  .lobby-entry-grid.lobby-entry-join {
     grid-template-columns: 1fr 1fr;
-    gap: 5px;
-    margin-top: 0;
   }
 
-  .lobby-entry-grid label {
+  .lobby-entry-grid.lobby-entry-join label {
     display: none;
   }
 
-  .lobby-entry-grid input {
-    padding: 7px 8px;
-    font-size: 0.82rem;
-  }
-
-  .lobby-entry-grid #btn-join {
+  .lobby-entry-grid.lobby-entry-join #btn-join {
     grid-column: 1 / -1;
-    min-height: 34px;
-    padding-block: 6px;
-  }
-
-  .lobby-entry-grid #btn-join small {
-    display: none;
   }
 
   .protocol-section {

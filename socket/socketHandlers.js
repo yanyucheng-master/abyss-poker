@@ -72,8 +72,8 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       return false;
     }
 
-    function emitJoinError(error) {
-      socket.emit("join_error", { message: error });
+    function emitJoinError(error, extra = {}) {
+      socket.emit("join_error", { message: error, ...extra });
     }
 
     function parseIdentity(payload) {
@@ -229,6 +229,32 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       gameEngine.tryStartGame(room);
     });
 
+    socket.on("room:set_password", (rawPayload = {}) => {
+      if (!allowRate("room", "action_error")) return;
+      const payload = safePayload(rawPayload);
+      const found = roomManager.getRoomBySocket(socket.id);
+      if (!found) {
+        socket.emit("action_error", { message: "当前未加入房间" });
+        return;
+      }
+      const password = readText(payload.password, {
+        label: "房间密码",
+        max: INPUT_LIMITS.password,
+      });
+      if (!password.ok) {
+        socket.emit("action_error", { message: password.error });
+        return;
+      }
+      const player = found.room.players[found.playerIndex];
+      const result = roomManager.setRoomPassword(found.room, player, password.value || "");
+      if (!result.ok) {
+        socket.emit("action_error", { message: result.error });
+        return;
+      }
+      socket.emit("room:password_updated", { hasPassword: result.hasPassword });
+      gameEngine.broadcastRoomState(found.room);
+    });
+
     socket.on("join_room", (rawPayload = {}) => {
       if (!allowRate("room", "join_error")) return;
       const payload = safePayload(rawPayload);
@@ -260,7 +286,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         targetRoom.password !== (password.value || null) &&
         !hasReconnectCredential
       ) {
-        return emitJoinError("房间密码错误");
+        return emitJoinError("房间密码错误", { code: "PASSWORD_REQUIRED", roomId: roomId.value });
       }
       if (
         reconnectPlayer &&

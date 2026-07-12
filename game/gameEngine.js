@@ -270,6 +270,7 @@ class GameEngine {
           ? { enabled: true, label: "OVERDRIVE PROTOCOL" }
           : null,
       players: this.roomManager.getPublicPlayers(room),
+      hasPassword: Boolean(room.password),
     };
     if (isSkillEnabled(room.skillMode)) {
       snapshot.skillState = getPublicRoomSkillSnapshot(room);
