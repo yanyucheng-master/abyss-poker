@@ -136,7 +136,10 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         removed.push(result);
         if (!result.destroyed && roomManager.getRoom(result.room.roomId)) {
           gameEngine.broadcastRoomState(result.room);
-          io.to(result.room.roomId).emit("player_left", { playerId: result.player.playerId });
+          io.to(result.room.roomId).emit("player_left", {
+            playerId: result.player.playerId,
+            players: roomManager.getPublicPlayers(result.room),
+          });
         }
       }
       return removed;
@@ -147,6 +150,8 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         roomId: room.roomId,
         gameMode: room.gameMode,
         skillMode: room.skillMode,
+        phase: room.phase,
+        hasPassword: Boolean(room.password),
         playerId: player.playerId,
         reconnectToken: player.reconnectToken,
         players: roomManager.getPublicPlayers(room),
@@ -464,7 +469,10 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         gameEngine.resolveDisconnectTimeout(room, loser);
       });
       if (!found) return;
-      io.to(found.room.roomId).emit("player_disconnected", { playerId: found.player.playerId });
+      io.to(found.room.roomId).emit("player_disconnected", {
+        playerId: found.player.playerId,
+        players: roomManager.getPublicPlayers(found.room),
+      });
       gameEngine.broadcastRoomState(found.room);
       logger.warn("SOCKET", "连接断开", { socketId: socket.id });
     });

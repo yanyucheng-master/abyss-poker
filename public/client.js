@@ -937,7 +937,9 @@ function emitJoin(roomId, password) {
 function prepareManualRoomRequest() {
   state.deliberateLeave = true;
   state.reconnecting = false;
+  state.autoLoadoutSubmitted = false;
   clearRoomSession();
+  resetLocalRoom();
 }
 
 function completeReturnToLobby() {
@@ -1518,8 +1520,8 @@ el.raisePresets.forEach((button) => {
     setRaiseValue(value);
   });
 });
-el.btnAllinCancel.addEventListener("click", closeAllInConfirmation);
-el.btnAllinConfirm.addEventListener("click", () => {
+el.btnAllinCancel?.addEventListener("click", closeAllInConfirmation);
+el.btnAllinConfirm?.addEventListener("click", () => {
   closeAllInConfirmation();
   socket.emit("player_action", { action: "allin" });
 });
@@ -1626,31 +1628,62 @@ socket.on("room_created", (payload) => {
   el.inputRoom.value = state.roomId;
   persistSession();
 });
-socket.on("room_joined", (payload) => {
-  if (state.atLobby && state.deliberateLeave) return;
-  state.atLobby = false;
-  state.reconnecting = false;
+function applyRoomJoinedPayload(payload, { fromLobby = false } = {}) {
   state.roomId = payload.roomId;
   state.gameMode = payload.gameMode || state.gameMode;
   state.skillMode = payload.skillMode || state.skillMode;
+  if (Object.prototype.hasOwnProperty.call(payload, "phase") && payload.phase) {
+    state.phase = payload.phase;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
+    state.hasPassword = Boolean(payload.hasPassword);
+  }
   if (Array.isArray(payload.skillCatalog) && payload.skillCatalog.length) {
     state.skillCatalog = payload.skillCatalog;
   }
   state.playerId = payload.playerId || state.playerId;
   state.reconnectToken = payload.reconnectToken || state.reconnectToken;
-  state.players = payload.players || [];
-  state.deliberateLeave = false;
+  if (Array.isArray(payload.players)) state.players = payload.players;
   persistSession();
+}
 
-  if (state.skillMode === "abyss" && !isLoadoutConfigured()) {
+function resolveLobbyScreenAfterJoin() {
+  const handPhases = new Set([
+    "pre_flop",
+    "flop",
+    "turn",
+    "river",
+    "showdown",
+    "end",
+    "before_turn",
+    "before_river",
+  ]);
+  if (handPhases.has(state.phase)) {
+    showScreen("game");
+    return;
+  }
+  const waitingForDraft =
+    state.skillMode === "abyss" && ["waiting", "drafting"].includes(state.phase || "waiting");
+  if (waitingForDraft || state.players.length < 2) showScreen("wait");
+  else showScreen("game");
+}
+
+socket.on("room_joined", (payload) => {
+  if (state.atLobby && state.deliberateLeave) return;
+  const enteringFromLobby = state.atLobby || !state.roomId || state.roomId !== payload.roomId;
+  state.atLobby = false;
+  state.reconnecting = false;
+  state.deliberateLeave = false;
+  applyRoomJoinedPayload(payload, { fromLobby: enteringFromLobby });
+
+  if (enteringFromLobby && state.skillMode === "abyss" && !isLoadoutConfigured()) {
     showToast("技能局需先完成技能自定义配置", "error");
     completeReturnToLobby();
     ensureSkillCatalog().then(() => openSkillLab(null));
     return;
   }
 
-  const showDraft = state.skillMode === "abyss" && (state.phase === "waiting" || state.phase === "drafting");
-  showScreen(state.players.length >= 2 && !showDraft ? "game" : "wait");
+  resolveLobbyScreenAfterJoin();
   maybeAutoSubmitLoadout();
   renderSkillDraft();
   renderState();
@@ -1690,10 +1723,22 @@ socket.on("room_state", (payload) => {
     state.fairnessStatus = "locked";
   }
   if (payload.phase === "game_over") state.gameOver = true;
-  if ((state.phase === "waiting" || state.phase === "drafting") && (state.players.length < 2 || state.skillMode === "abyss")) {
-    if (state.phase === "drafting" || state.players.length < 2) showScreen("wait");
-    else if (!state.atLobby) showScreen("game");
-  } else if (!state.atLobby) showScreen("game");
+  if (!state.atLobby) {
+    const handPhases = new Set([
+      "pre_flop",
+      "flop",
+      "turn",
+      "river",
+      "showdown",
+      "end",
+      "before_turn",
+      "before_river",
+      "game_over",
+    ]);
+    if (handPhases.has(state.phase)) showScreen("game");
+    else if (state.phase === "drafting" || state.players.length < 2) showScreen("wait");
+    else showScreen("game");
+  }
   maybeAutoSubmitLoadout();
   renderSkillDraft();
   renderState();
@@ -1822,10 +1867,18 @@ socket.on("player_reconnected", (payload) => {
   playTone("connect");
 });
 socket.on("player_disconnected", (payload) => {
+  if (Array.isArray(payload.players)) syncPlayers(payload.players);
   showToast("玩家 " + payload.playerId + " 连接中断", "error");
   playTone("disconnect");
 });
-socket.on("player_left", (payload) => showToast("玩家 " + payload.playerId + " 已离开", "info"));
+socket.on("player_left", (payload) => {
+  if (Array.isArray(payload.players)) syncPlayers(payload.players);
+  else if (payload.playerId) {
+    state.players = state.players.filter((p) => p.playerId !== payload.playerId);
+    renderState();
+  }
+  showToast("玩家 " + payload.playerId + " 已离开", "info");
+});
 socket.on("room_closed", (payload) => {
   resetLocalRoom();
   clearRoomSession();

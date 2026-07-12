@@ -365,6 +365,14 @@
               <button id="btn-copy-room" class="button button-primary" type="button">复制房间号</button>
             </div>
 
+            <section id="wait-password-panel" class="wait-password-inline">
+              <div class="wait-password-row">
+                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" placeholder="可选房间密码" />
+                <button id="btn-set-room-password" class="button button-secondary" type="button">设密码</button>
+                <span id="wait-password-status" class="wait-password-chip">未设置</span>
+              </div>
+            </section>
+
             <div class="wait-player-slots">
               <div id="wait-host-slot" class="wait-player-slot ready">
                 <span class="slot-icon">01</span>
@@ -391,19 +399,7 @@
                 <div><dt>初始筹码</dt><dd id="wait-initial-chips">1000</dd></div>
                 <div><dt>初始能量</dt><dd id="wait-initial-energy">—</dd></div>
                 <div><dt>房间阶段</dt><dd id="wait-room-status">等待中</dd></div>
-                <div><dt>密码状态</dt><dd id="wait-password-status">未设置</dd></div>
               </dl>
-            </section>
-
-            <section id="wait-password-panel" class="glass-panel wait-password-panel">
-              <div class="section-heading compact">
-                <div><p class="eyebrow">OPTIONAL LOCK</p><h2>房间密码</h2></div>
-              </div>
-              <p class="panel-tip">可选。设置后对手加入需输入密码。</p>
-              <div class="wait-password-row">
-                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" placeholder="留空表示无密码" />
-                <button id="btn-set-room-password" class="button button-secondary" type="button">保存</button>
-              </div>
             </section>
 
             <section id="skill-draft-panel" class="glass-panel skill-draft-panel hidden">

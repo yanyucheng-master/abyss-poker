@@ -1710,15 +1710,25 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   font-size: 0.88rem;
 }
 
-.wait-password-panel {
-  padding: 10px 12px;
+.wait-password-inline {
+  width: min(420px, 100%);
+  margin: 0 auto 12px;
 }
 
 .wait-password-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
-  margin-top: 8px;
+  align-items: center;
+}
+
+.wait-password-chip {
+  min-width: 52px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .wait-side {
@@ -3406,15 +3416,115 @@ body.low-performance .hand-settle-modal {
 
   .wait-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .wait-primary {
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .wait-primary > .eyebrow {
+    display: none;
   }
 
   .wait-primary h1 {
-    font-size: 1.45rem;
+    font-size: 1.15rem;
+    margin-bottom: 0;
+  }
+
+  .wait-lead {
+    display: none;
+  }
+
+  .room-code-block {
+    gap: 4px;
+    width: 100%;
+    margin: 0;
+    padding: 8px 10px;
+  }
+
+  .room-code-block > strong {
+    font-size: clamp(1.35rem, 8vw, 1.8rem);
+    letter-spacing: 0.12em;
+  }
+
+  .room-code-block .button {
+    min-height: 34px;
+    padding-block: 6px;
+  }
+
+  .wait-password-inline {
+    flex: 0 0 auto;
+    width: 100%;
+    margin: 0;
+  }
+
+  .wait-password-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .wait-password-row input {
+    min-height: 34px;
+  }
+
+  .wait-password-row .button {
+    min-height: 34px;
+    padding-block: 6px;
+  }
+
+  .wait-password-chip {
+    display: none;
+  }
+
+  .wait-player-slots {
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+  }
+
+  .wait-player-slot {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .slot-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .wait-side {
+    gap: 6px;
+    max-height: 28%;
+    overflow: auto;
+  }
+
+  .wait-side .room-manifest {
+    padding: 8px 10px;
+  }
+
+  .wait-side .manifest-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 8px;
+    margin-top: 6px;
+  }
+
+  .wait-side .manifest-list > div {
+    padding: 4px 0;
   }
 
   .wait-mode-brief,
   #wait-mode-brief {
     display: none;
+  }
+
+  #screen-wait .screen-bar {
+    padding: 8px 10px;
+    gap: 8px;
   }
 
   #screen-game .poker-board {
