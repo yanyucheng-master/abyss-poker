@@ -408,15 +408,28 @@
         <header class="game-topbar">
           <button type="button" id="btn-back-game" class="button button-ghost back-button">离开</button>
           <div class="table-identity">
-            <p id="table-title">深渊牌桌</p>
-            <div>
-              <span id="game-room-id">房间 ——</span>
-              <span id="game-mode-badge" class="mode-pill standard">标准</span>
+            <p id="table-title" class="sr-only">深渊牌桌</p>
+            <div class="table-identity-row">
+              <span id="game-room-id">——</span>
+              <span class="identity-sep" aria-hidden="true">·</span>
+              <span id="game-mode-badge" class="mode-pill standard">标准局</span>
+            </div>
+            <div class="fairness-detail compact" aria-live="polite">
+              <span id="fairness-hand-id">HAND —</span>
+              <span id="fairness-result">等待牌堆承诺</span>
             </div>
           </div>
           <div class="topbar-status">
+            <span class="table-stat inline-stat" title="当前跟注额">
+              <span>跟注</span>
+              <strong id="current-bet">0</strong>
+            </span>
+            <span class="table-stat inline-stat fairness-stat" title="牌堆承诺摘要">
+              <span>承诺</span>
+              <strong id="commitment-short">待定</strong>
+            </span>
             <span id="game-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
-            <span id="fairness-summary" class="fairness-chip" title="牌堆承诺状态">待验证</span>
+            <span id="fairness-summary" class="fairness-chip" title="牌堆承诺状态">待锁</span>
           </div>
         </header>
 
@@ -449,32 +462,22 @@
               <span id="action-log" class="action-log" aria-live="polite">同步中</span>
             </div>
 
-            <div id="community-cards" class="community-row" aria-label="公共牌"></div>
-
-            <div class="core-console">
-              <div class="table-stat">
-                <span>跟注额</span>
-                <strong id="current-bet">0</strong>
-              </div>
-
-              <div id="pot-core" class="pot-core" aria-label="当前底池 0">
-                <div class="core-ring ring-outer"></div>
-                <div class="core-ring ring-inner"></div>
-                <div class="core-value">
-                  <span>底池</span>
-                  <strong id="pot-value">0</strong>
-                </div>
-              </div>
-
-              <div class="table-stat fairness-stat">
-                <span>牌堆</span>
-                <strong id="commitment-short">待定</strong>
+            <div class="board-midline">
+              <div id="community-cards" class="community-row" aria-label="公共牌"></div>
+              <div id="deck-stack" class="deck-stack" aria-hidden="true">
+                <span class="deck-card"></span>
+                <span class="deck-card"></span>
+                <span class="deck-card face"></span>
               </div>
             </div>
 
-            <div class="fairness-detail compact" aria-live="polite">
-              <span id="fairness-hand-id">HAND —</span>
-              <span id="fairness-result">等待牌堆承诺</span>
+            <div id="pot-core" class="pot-core" aria-label="当前底池 0">
+              <div class="core-ring ring-outer"></div>
+              <div class="core-ring ring-inner"></div>
+              <div class="core-value">
+                <span>底池</span>
+                <strong id="pot-value">0</strong>
+              </div>
             </div>
 
             <div id="overdrive-profile" class="overdrive-profile hidden">
@@ -484,7 +487,7 @@
           </section>
 
           <section id="self-area" class="player-zone self-zone" aria-label="你的状态">
-            <div class="self-hand-console">
+            <div class="self-stage">
               <div class="self-cards-wrap">
                 <div id="self-cards" class="cards-row self-cards" aria-label="你的底牌"></div>
                 <button
@@ -499,25 +502,24 @@
                   <span class="eye-closed hidden" aria-hidden="true">隐</span>
                 </button>
               </div>
-              <div class="hand-hint">
-                <span>牌力</span>
-                <strong id="self-hand-type">等待发牌</strong>
-              </div>
-            </div>
-
-            <div class="player-console">
-              <div id="self-avatar" class="player-avatar"><span>我</span><i></i></div>
-              <div class="player-main">
-                <div class="player-title-row">
-                  <strong id="self-name">你</strong>
-                  <span id="self-connection" class="mini-status online"><i class="status-dot online"></i>在线</span>
+              <div class="player-console">
+                <div id="self-avatar" class="player-avatar"><span>我</span><i></i></div>
+                <div class="player-main">
+                  <div class="player-title-row">
+                    <strong id="self-name">你</strong>
+                    <span id="self-connection" class="mini-status online"><i class="status-dot online"></i>在线</span>
+                  </div>
+                  <div class="player-metrics">
+                    <span>筹码 <strong id="self-chips">—</strong></span>
+                    <span>下注 <strong id="self-bet">0</strong></span>
+                  </div>
+                  <div class="hand-hint">
+                    <span>牌力</span>
+                    <strong id="self-hand-type">等待发牌</strong>
+                  </div>
                 </div>
-                <div class="player-metrics">
-                  <span>筹码 <strong id="self-chips">—</strong></span>
-                  <span>下注 <strong id="self-bet">0</strong></span>
-                </div>
+                <div id="self-state" class="player-state">等待</div>
               </div>
-              <div id="self-state" class="player-state">等待</div>
             </div>
           </section>
         </div>
@@ -549,21 +551,23 @@
             <button data-action="allin" class="action-button allin" type="button"><span>全押</span><small>ALL IN</small></button>
           </div>
 
-          <div class="raise-console">
+          <div class="raise-console collapsed">
             <div class="raise-heading">
-              <div><span>加注至</span><strong id="raise-value">0</strong></div>
+              <div class="raise-amount-meta"><span>加注至</span><strong id="raise-value">0</strong></div>
               <button data-action="raise" id="btn-raise" class="action-button raise" type="button">
                 <span id="raise-label">加注</span><small>RAISE</small>
               </button>
             </div>
-            <label class="sr-only" for="raise-input">加注到</label>
-            <input id="raise-input" type="range" min="0" max="0" step="1" value="0" />
-            <div class="raise-range-labels"><span id="raise-min-label">最小 —</span><span id="raise-max-label">最大 —</span></div>
-            <div class="raise-presets" aria-label="加注快捷值">
-              <button type="button" data-raise-preset="min">最小</button>
-              <button type="button" data-raise-preset="half">半池</button>
-              <button type="button" data-raise-preset="pot">满池</button>
-              <button type="button" data-raise-preset="max">最大</button>
+            <div class="raise-panel">
+              <label class="sr-only" for="raise-input">加注到</label>
+              <input id="raise-input" type="range" min="0" max="0" step="1" value="0" />
+              <div class="raise-range-labels"><span id="raise-min-label">最小 —</span><span id="raise-max-label">最大 —</span></div>
+              <div class="raise-presets" aria-label="加注快捷值">
+                <button type="button" data-raise-preset="min">最小</button>
+                <button type="button" data-raise-preset="half">半池</button>
+                <button type="button" data-raise-preset="pot">满池</button>
+                <button type="button" data-raise-preset="max">最大</button>
+              </div>
             </div>
           </div>
         </section>

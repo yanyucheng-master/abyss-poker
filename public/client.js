@@ -268,6 +268,8 @@ const el = {
   raiseInput: byId("raise-input"),
   raiseMinLabel: byId("raise-min-label"),
   raiseMaxLabel: byId("raise-max-label"),
+  raiseConsole: document.querySelector("#screen-game .raise-console"),
+  btnRaise: byId("btn-raise"),
   actionButtons: document.querySelectorAll(".action-button[data-action]"),
   raisePresets: document.querySelectorAll("[data-raise-preset]"),
   modeInputs: document.querySelectorAll('input[name="game-mode"]'),
@@ -586,7 +588,7 @@ function renderCards() {
 function clampRaise(value) {
   const min = Number(state.minRaise || 0);
   const max = Number(state.maxBet || 0);
-  if (max <= 0) return 0;
+  if (max <= 0 || max < min) return 0;
   return Math.max(min, Math.min(max, Math.round(Number(value) || min)));
 }
 
@@ -594,7 +596,13 @@ function setRaiseValue(value) {
   const target = clampRaise(value);
   el.raiseInput.value = String(target);
   el.raiseValue.textContent = String(target || 0);
-  el.raiseLabel.textContent = "加注";
+}
+
+function setRaiseExpanded(expanded) {
+  if (!el.raiseConsole) return;
+  el.raiseConsole.classList.toggle("collapsed", !expanded);
+  el.raiseConsole.classList.toggle("expanded", expanded);
+  if (el.raiseLabel) el.raiseLabel.textContent = expanded ? "确认加注" : "加注";
 }
 
 function renderActions() {
@@ -606,21 +614,51 @@ function renderActions() {
     !state.gameOver;
   const toCall = Number.isFinite(state.toCall)
     ? state.toCall
-    : Math.max(0, state.currentBet - Number(me?.streetBet || 0));
+    : Math.max(0, Number(state.currentBet || 0) - Number(me?.streetBet || 0));
+  const canCheck = isMyTurn && state.validActions.includes("check");
+  const canCall = isMyTurn && state.validActions.includes("call");
 
   el.callLabel.textContent = "跟注";
   el.callAmount.textContent = toCall > 0 ? String(toCall) : "—";
   el.actionButtons.forEach((button) => {
     const action = button.dataset.action;
+    if (action === "check") {
+      button.classList.toggle("hidden", !canCheck);
+      button.disabled = !canCheck;
+      return;
+    }
+    if (action === "call") {
+      button.classList.toggle("hidden", !canCall);
+      button.disabled = !canCall;
+      return;
+    }
+    if (action === "raise") {
+      // Raise availability handled below with expand UX.
+      return;
+    }
+    button.classList.remove("hidden");
     button.disabled = !(isMyTurn && state.validActions.includes(action));
   });
 
-  const canRaise = isMyTurn && state.validActions.includes("raise") && state.maxBet >= state.minRaise;
+  const canRaise =
+    isMyTurn &&
+    state.validActions.includes("raise") &&
+    Number(state.maxBet) > 0 &&
+    Number(state.maxBet) >= Number(state.minRaise);
+  if (el.btnRaise) el.btnRaise.disabled = !canRaise;
   el.raiseInput.disabled = !canRaise;
-  el.raiseInput.min = String(state.minRaise || 0);
-  el.raiseInput.max = String(state.maxBet || 0);
-  el.raiseMinLabel.textContent = "MIN " + (state.minRaise || "—");
-  el.raiseMaxLabel.textContent = "MAX " + (state.maxBet || "—");
+  if (canRaise) {
+    el.raiseInput.min = String(state.minRaise);
+    el.raiseInput.max = String(state.maxBet);
+    el.raiseMinLabel.textContent = "MIN " + state.minRaise;
+    el.raiseMaxLabel.textContent = "MAX " + state.maxBet;
+  } else {
+    el.raiseInput.min = "0";
+    el.raiseInput.max = "0";
+    el.raiseMinLabel.textContent = "MIN —";
+    el.raiseMaxLabel.textContent = "MAX —";
+    setRaiseExpanded(false);
+  }
   el.raisePresets.forEach((button) => {
     button.disabled = !canRaise;
   });
@@ -675,10 +713,14 @@ function animatePot(value) {
 
 function renderMode() {
   const info = modeInfo(state.gameMode);
-  [el.waitModeBadge, el.gameModeBadge].forEach((badge) => {
-    badge.textContent = info.code;
-    badge.className = "mode-pill " + state.gameMode;
-  });
+  if (el.waitModeBadge) {
+    el.waitModeBadge.textContent = info.code;
+    el.waitModeBadge.className = "mode-pill " + state.gameMode;
+  }
+  if (el.gameModeBadge) {
+    el.gameModeBadge.textContent = info.name;
+    el.gameModeBadge.className = "mode-pill " + state.gameMode;
+  }
   el.waitModeName.textContent = info.name;
   el.waitModeBrief.className = "glass-panel mode-brief " + state.gameMode;
   const briefTitle = el.waitModeBrief.querySelector("h2");
@@ -725,8 +767,8 @@ function renderWaitingRoom() {
 function renderFairness() {
   const commitment = state.activeCommitment;
   el.commitmentShort.textContent = commitment?.commitment
-    ? commitment.commitment.slice(0, 10).toUpperCase()
-    : "PENDING";
+    ? commitment.commitment.slice(0, 8).toUpperCase()
+    : "待定";
   el.fairnessHandId.textContent = commitment?.handId ? "HAND " + commitment.handId.slice(0, 12) : "HAND —";
   const labels = {
     pending: "牌局开始前将锁定牌堆承诺",
@@ -735,14 +777,16 @@ function renderFairness() {
     failed: "承诺验证失败，请检查服务器日志",
   };
   el.fairnessResult.textContent = labels[state.fairnessStatus] || labels.pending;
-  el.fairnessSummary.textContent =
+  const summary =
     state.fairnessStatus === "verified"
-      ? "✓ 承诺通过"
+      ? "通过"
       : state.fairnessStatus === "failed"
-        ? "⚠ 承诺异常"
+        ? "异常"
         : commitment
-          ? "◇ 承诺锁定"
-          : "◇ 等待承诺";
+          ? "已锁"
+          : "待锁";
+  el.fairnessSummary.textContent = summary;
+  el.fairnessSummary.title = labels[state.fairnessStatus] || labels.pending;
   el.fairnessSummary.dataset.status = state.fairnessStatus;
   el.fairnessSummary.classList.toggle("verified", state.fairnessStatus === "verified");
   el.fairnessSummary.classList.toggle("failed", state.fairnessStatus === "failed");
@@ -759,7 +803,7 @@ function renderState() {
   el.board.classList.toggle("river", state.phase === "river");
   document.body.classList.toggle("river-phase", state.phase === "river");
   el.currentBet.textContent = String(state.currentBet || 0);
-  el.gameRoomId.textContent = "ROOM " + (state.roomId || "——");
+  el.gameRoomId.textContent = state.roomId || "——";
   el.selfHandType.textContent = state.handHint || "等待发牌";
   animatePot(state.pot);
   updateActionCountdown();
@@ -1494,6 +1538,16 @@ el.actionButtons.forEach((button) => {
     const action = button.dataset.action;
     if (!action || button.disabled) return;
     ensureAudioContext();
+    if (action === "raise") {
+      const expanded = el.raiseConsole?.classList.contains("expanded");
+      if (!expanded) {
+        setRaiseExpanded(true);
+        return;
+      }
+      setRaiseExpanded(false);
+    } else {
+      setRaiseExpanded(false);
+    }
     const payload = { action };
     if (action === "raise") payload.amount = Number(el.raiseInput.value);
     socket.emit("player_action", payload);

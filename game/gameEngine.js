@@ -1076,7 +1076,7 @@ class GameEngine {
       } else {
         const paid = collectBet(room, player, toCall);
         appliedAmount = paid;
-        if (paid < toCall) appliedAction = "allin";
+        if (player.isAllIn || paid < toCall) appliedAction = "allin";
         player.hasActed = true;
       }
     } else if (action === "raise") {
@@ -1097,27 +1097,36 @@ class GameEngine {
         if (p.playerId !== player.playerId && p.status === "active" && !p.isAllIn) p.hasActed = false;
       });
       player.hasActed = true;
+      if (player.isAllIn) appliedAction = "allin";
     } else if (action === "allin") {
       if (player.chips <= 0) return { ok: false, error: "无可用筹码" };
-      if (opponent.isAllIn) return { ok: false, error: "对手已All In，只能跟注或弃牌" };
-      const targetTotal = Math.min(player.streetBet + player.chips, maxTotal);
-      if (targetTotal <= player.streetBet) return { ok: false, error: "当前不可全押" };
-      const need = targetTotal - player.streetBet;
-      const paid = collectBet(room, player, need);
-      appliedAmount = paid;
+      if (opponent.isAllIn) {
+        // Facing an all-in: commit remaining chips toward the call only.
+        if (toCall <= 0) return { ok: false, error: "对手已All In，只能过牌或等待" };
+        const paid = collectBet(room, player, toCall);
+        appliedAmount = paid;
+        player.hasActed = true;
+        appliedAction = player.isAllIn ? "allin" : "call";
+      } else {
+        const targetTotal = Math.min(player.streetBet + player.chips, maxTotal);
+        if (targetTotal <= player.streetBet) return { ok: false, error: "当前不可全押" };
+        const need = targetTotal - player.streetBet;
+        const paid = collectBet(room, player, need);
+        appliedAmount = paid;
 
-      if (player.streetBet > room.currentBet) {
-        const raiseSize = player.streetBet - room.currentBet;
-        room.currentBet = player.streetBet;
-        if (raiseSize >= room.lastRaiseSize) {
-          room.lastRaiseSize = raiseSize;
-          room.players.forEach((p) => {
-            if (p.playerId !== player.playerId && p.status === "active" && !p.isAllIn) p.hasActed = false;
-          });
+        if (player.streetBet > room.currentBet) {
+          const raiseSize = player.streetBet - room.currentBet;
+          room.currentBet = player.streetBet;
+          if (raiseSize >= room.lastRaiseSize) {
+            room.lastRaiseSize = raiseSize;
+            room.players.forEach((p) => {
+              if (p.playerId !== player.playerId && p.status === "active" && !p.isAllIn) p.hasActed = false;
+            });
+          }
         }
+        player.hasActed = true;
+        appliedAction = player.isAllIn ? "allin" : player.streetBet > oldCurrentBet ? "raise" : "call";
       }
-      player.hasActed = true;
-      appliedAction = player.isAllIn ? "allin" : player.streetBet > oldCurrentBet ? "raise" : "call";
     } else {
       return { ok: false, error: "未知操作" };
     }

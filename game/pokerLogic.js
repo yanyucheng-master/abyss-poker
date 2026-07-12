@@ -35,7 +35,6 @@ function getValidActions(room, playerIndex) {
   const validActions = ["fold"];
   if (toCall === 0) validActions.push("check");
   if (toCall > 0 && player.chips > 0) validActions.push("call");
-  if (player.chips > 0 && !opponent.isAllIn) validActions.push("allin");
 
   const maxTotalBet = getEffectiveMaxTotal(room, playerIndex);
   const minRaiseTo = getMinRaiseTo(room);
@@ -46,7 +45,20 @@ function getValidActions(room, playerIndex) {
     maxTotalBet >= minRaiseTo;
   if (canRaise) validActions.push("raise");
 
-  return { validActions, minRaiseTo, maxTotalBet, toCall };
+  // All-in is always available with chips left, except when facing an opponent
+  // all-in with nothing left to call (already matched). Facing all-in with a
+  // deficit, all-in = commit remaining chips toward the call.
+  if (player.chips > 0 && (!opponent.isAllIn || toCall > 0)) {
+    validActions.push("allin");
+  }
+
+  return {
+    validActions,
+    // Only expose a raise window when raise is legal — avoids MIN > MAX UI.
+    minRaiseTo: canRaise ? minRaiseTo : 0,
+    maxTotalBet: canRaise ? maxTotalBet : 0,
+    toCall,
+  };
 }
 
 function collectBet(room, player, amount) {
