@@ -2093,8 +2093,130 @@ body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
 
 #screen-game .skill-hud {
   margin: 0;
-  padding: 6px 8px;
+  padding: 8px 10px;
   grid-column: 1 / -1;
+}
+
+/* Skill mode: park skills in the left control column — no full-width crush */
+#screen-game .action-dock:has(.skill-hud:not(.hidden)) {
+  grid-template-columns: minmax(220px, 0.92fr) minmax(340px, 1.28fr) minmax(260px, 0.95fr);
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 10px 12px;
+}
+
+#screen-game .action-dock:has(.skill-hud:not(.hidden)) .skill-hud {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(65, 232, 255, 0.28);
+  border-radius: 14px;
+  background:
+    linear-gradient(160deg, rgba(20, 48, 78, 0.72), rgba(6, 12, 28, 0.82));
+  box-shadow:
+    inset 0 0 0 1px rgba(124, 245, 226, 0.06),
+    0 0 18px rgba(65, 232, 255, 0.08);
+}
+
+#screen-game .action-dock:has(.skill-hud:not(.hidden)) .turn-status {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+#screen-game .action-dock:has(.skill-hud:not(.hidden)) .primary-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+#screen-game .action-dock:has(.skill-hud:not(.hidden)) .raise-console {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+#screen-game .skill-energy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+#screen-game .skill-energy-row strong {
+  color: var(--cyan);
+  font-family: var(--font-mono);
+}
+
+#screen-game #skill-silence-flag:not(.hidden) {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 90, 120, 0.45);
+  color: #ff9db3;
+  background: rgba(255, 66, 120, 0.12);
+  font-size: 0.66rem;
+}
+
+#screen-game .skill-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#screen-game .skill-use-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  min-width: 0;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid rgba(124, 245, 226, 0.32);
+  border-radius: 10px;
+  background: rgba(10, 22, 44, 0.92);
+  color: #e7fbff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 0 12px rgba(65, 232, 255, 0.05);
+}
+
+#screen-game .skill-use-btn:hover {
+  border-color: rgba(124, 245, 226, 0.7);
+  box-shadow: 0 0 14px rgba(65, 232, 255, 0.18);
+}
+
+#screen-game .skill-use-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#screen-game .skill-use-cost {
+  flex: 0 0 auto;
+  min-width: 1.4em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(65, 232, 255, 0.35);
+  background: rgba(65, 232, 255, 0.12);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+#screen-game .skill-log {
+  display: none;
 }
 
 #screen-game .action-button {
@@ -2116,20 +2238,6 @@ body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
   margin-top: 4px;
   font-size: 0.68rem;
   gap: 8px;
-}
-
-#screen-game .skill-log {
-  display: none;
-}
-
-#screen-game .skill-bar {
-  gap: 4px;
-}
-
-#screen-game .skill-use-btn {
-  min-height: 28px;
-  padding: 4px 8px;
-  font-size: 0.72rem;
 }
 
 #screen-game .pot-core {
@@ -3549,20 +3657,52 @@ body.low-performance .hand-settle-modal {
     padding: 4px 6px;
   }
 
-  #screen-game .skill-hud {
+  #screen-game .action-dock:has(.skill-hud:not(.hidden)) {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    gap: 5px;
+  }
+
+  #screen-game .action-dock:has(.skill-hud:not(.hidden)) .skill-hud,
+  #screen-game .action-dock:has(.skill-hud:not(.hidden)) .turn-status,
+  #screen-game .action-dock:has(.skill-hud:not(.hidden)) .primary-actions,
+  #screen-game .action-dock:has(.skill-hud:not(.hidden)) .raise-console {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  #screen-game .skill-hud,
+  #screen-game .action-dock:has(.skill-hud:not(.hidden)) .skill-hud {
     margin: 0;
-    padding: 4px 6px;
+    padding: 5px 6px;
+    gap: 5px;
+  }
+
+  #screen-game .skill-energy-row {
+    font-size: 0.66rem;
+    gap: 6px 8px;
+  }
+
+  #screen-game .skill-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  #screen-game .skill-use-btn {
+    min-height: 30px;
+    padding: 4px 5px;
+    font-size: 0.64rem;
+    gap: 4px;
+  }
+
+  #screen-game .skill-use-cost {
+    padding: 0 4px;
+    font-size: 0.6rem;
   }
 
   #screen-game .turn-status {
     min-height: 0;
     padding: 4px 6px;
-  }
-
-  #screen-game .skill-use-btn {
-    min-height: 28px;
-    padding: 3px 6px;
-    font-size: 0.68rem;
   }
 
   #screen-game .primary-actions {

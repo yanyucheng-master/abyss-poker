@@ -2027,8 +2027,13 @@ function renderSkillHud() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "skill-use-btn";
-    btn.textContent = def.name + " (" + def.energyCost + ")";
     btn.title = def.description || skillId;
+    btn.innerHTML =
+      "<span class=\"skill-use-name\">" +
+      def.name +
+      "</span><span class=\"skill-use-cost\">" +
+      def.energyCost +
+      "</span>";
     btn.addEventListener("click", () => useSkill(skillId, def));
     el.skillBar.appendChild(btn);
   });
