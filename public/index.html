@@ -502,16 +502,6 @@
               <span>OVERDRIVE</span>
               <strong id="overdrive-profile-label">高能牌局</strong>
             </div>
-
-            <div id="skill-hud" class="skill-hud hidden">
-              <div class="skill-energy-row">
-                <span>能量 <strong id="self-energy">0</strong>/10</span>
-                <span>对手 <strong id="opponent-energy">0</strong></span>
-                <span id="skill-silence-flag" class="hidden">静默</span>
-              </div>
-              <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
-              <div id="skill-log" class="skill-log sr-only" aria-live="polite"></div>
-            </div>
           </section>
 
           <section id="self-area" class="player-zone self-zone" aria-label="你的状态">
@@ -554,6 +544,15 @@
         </div>
 
         <section class="action-dock" aria-label="玩家操作">
+          <div id="skill-hud" class="skill-hud hidden">
+            <div class="skill-energy-row">
+              <span>能量 <strong id="self-energy">0</strong>/10</span>
+              <span>对手 <strong id="opponent-energy">0</strong></span>
+              <span id="skill-silence-flag" class="hidden">静默</span>
+            </div>
+            <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
+            <div id="skill-log" class="skill-log sr-only" aria-live="polite"></div>
+          </div>
           <div class="turn-status">
             <div id="action-countdown" class="action-countdown" aria-label="行动倒计时">
               <span id="action-countdown-value">—</span>
