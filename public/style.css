@@ -3825,15 +3825,13 @@ body.low-performance .hand-settle-modal {
   }
 
   .wait-primary {
-    padding: 28px 16px;
+    padding: 10px;
   }
 
   .room-code-block > strong {
     letter-spacing: 0.1em;
   }
 
-  .wait-player-slots,
-  .wait-side,
   .settle-hands-grid {
     grid-template-columns: 1fr;
   }
