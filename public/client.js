@@ -1746,11 +1746,13 @@ socket.on("room_state", (payload) => {
 socket.on("game_started", (payload) => {
   if (state.atLobby && state.deliberateLeave) return;
   state.gameMode = payload.gameMode || state.gameMode;
+  if (payload.skillMode) state.skillMode = payload.skillMode;
+  state.phase = "pre_flop";
   state.gameOver = false;
   clearRematch();
   el.gameOverModal.classList.add("hidden");
   el.leaveConfirmModal.classList.add("hidden");
-  closeAllInConfirmation();
+  if (el.allinModal) el.allinModal.classList.add("hidden");
   showScreen("game");
   if (state.gameMode === GAME_MODE.OVERDRIVE) triggerProtocolBurst();
 });
