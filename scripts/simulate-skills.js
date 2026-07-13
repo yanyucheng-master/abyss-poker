@@ -7,7 +7,7 @@ const { generateOverdriveDeal } = require("../game/overdriveGenerator");
 const { validateLoadout, pickDefaultBotLoadout } = require("../game/skills/skillState");
 const { listSkillDefinitions } = require("../game/skills/definitions");
 const { SKILL_CONFIG } = require("../game/skillConfig");
-const { pickBestFive } = require("../game/handEvaluator");
+const { pickBestFive, compareEvaluatedHands } = require("../game/handEvaluator");
 const { RoomManager } = require("../game/roomManager");
 const { GameEngine } = require("../game/gameEngine");
 const { GAME_MODE } = require("../game/gameModes");
@@ -61,6 +61,7 @@ function runModeSimulation(mode, games) {
     counters: 0,
     cardEdits: 0,
     duplicateCardIncidents: 0,
+    cardConservationIncidents: 0,
     energyOverflow: 0,
     energyNegative: 0,
     nullifyEvaluations: 0,
@@ -194,6 +195,7 @@ function runModeSimulation(mode, games) {
 
     const cards = uniqueCardCount(room);
     if (cards.unique !== cards.total) stats.duplicateCardIncidents += 1;
+    if (cards.total !== 52) stats.cardConservationIncidents += 1;
 
     for (const p of room.players) {
       const e = p.skillRuntime?.abyssEnergy;
@@ -210,9 +212,10 @@ function runModeSimulation(mode, games) {
         excludedCodes: engine.getExcludedCodes(room),
       });
       if (ha && hb) {
-        if (ha.category === hb.category && JSON.stringify(ha.rankVector) === JSON.stringify(hb.rankVector)) {
+        const comparison = compareEvaluatedHands(ha, hb);
+        if (comparison === 0) {
           stats.winners.tie += 1;
-        } else if (ha.category > hb.category || (ha.category === hb.category && ha.rankVector.join() > hb.rankVector.join())) {
+        } else if (comparison > 0) {
           stats.winners.A += 1;
         } else stats.winners.B += 1;
       }
@@ -279,6 +282,12 @@ function main() {
     report.overdriveDeckIntegritySample.ok &&
     report.standardAbyss.duplicateCardIncidents === 0 &&
     report.overdriveAbyss.duplicateCardIncidents === 0 &&
+    report.standardAbyss.cardConservationIncidents === 0 &&
+    report.overdriveAbyss.cardConservationIncidents === 0 &&
+    report.standardAbyss.skillFails === 0 &&
+    report.overdriveAbyss.skillFails === 0 &&
+    report.standardAbyss.handsStarted === games &&
+    report.overdriveAbyss.handsStarted === games &&
     report.standardAbyss.energyOverflow === 0 &&
     report.overdriveAbyss.energyOverflow === 0 &&
     report.standardAbyss.energyNegative === 0 &&

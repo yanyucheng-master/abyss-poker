@@ -17,6 +17,7 @@
     />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./salon.css" />
+    <link rel="stylesheet" href="./table-v2.css" />
   </head>
   <body class="salon-ui">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -59,7 +60,7 @@
       aria-label="打开界面设置"
       aria-haspopup="dialog"
     >
-      <span aria-hidden="true">设置</span>
+      <span aria-hidden="true">⚙</span>
     </button>
 
     <div id="settings-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -406,7 +407,9 @@
 
       <section id="screen-game" class="screen game-screen" aria-labelledby="table-title">
         <header class="game-topbar">
-          <button type="button" id="btn-back-game" class="button button-ghost back-button">离开</button>
+          <button type="button" id="btn-back-game" class="button button-ghost back-button">
+            <span class="game-exit-icon" aria-hidden="true">←</span><span class="game-exit-label">离开</span>
+          </button>
           <div class="table-identity">
             <p id="table-title" class="sr-only">深渊牌桌</p>
             <div class="table-identity-row">
@@ -527,11 +530,13 @@
         <section class="action-dock" aria-label="玩家操作">
           <div id="skill-hud" class="skill-hud hidden">
             <div class="skill-energy-row">
+              <span class="skill-hud-label">深渊战术</span>
               <span>能量 <strong id="self-energy">0</strong>/10</span>
               <span>对手 <strong id="opponent-energy">0</strong></span>
-              <span id="skill-silence-flag" class="hidden">静默</span>
+              <span id="skill-silence-flag" class="hidden">静默区</span>
             </div>
             <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
+            <div id="opponent-skill-bar" class="opponent-skill-bar" aria-label="对手技能"></div>
             <div id="skill-log" class="skill-log sr-only" aria-live="polite"></div>
           </div>
           <div class="turn-status">

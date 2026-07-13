@@ -11,7 +11,10 @@
     "test": "jest --runInBand --coverage",
     "test:watch": "jest --watch",
     "simulate:overdrive": "node scripts/simulate-overdrive.js 1000",
-    "simulate:skills": "node scripts/simulate-skills.js 1000"
+    "simulate:skills": "node scripts/simulate-skills.js 1000",
+    "verify:ui": "node scripts/verify-mobile-onescreen.js && node scripts/verify-ui-onescreen.mjs",
+    "capture:ui": "node scripts/capture-ui-review.mjs",
+    "verify:online": "node scripts/verify-online-sync.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -19,6 +22,7 @@
   },
   "devDependencies": {
     "jest": "^30.1.3",
+    "playwright": "^1.61.1",
     "socket.io-client": "^4.8.1"
   }
 }

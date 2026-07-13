@@ -81,12 +81,12 @@ class GameEngine {
     room.actionDeadline = null;
   }
 
-  scheduleActionTimeout(room, playerIndex, turn) {
+  scheduleActionTimeout(room, playerIndex, turn, timeoutMs = ACTION_TIMEOUT_MS) {
     this.clearActionTimer(room);
     const player = room.players[playerIndex];
     if (!player) return;
 
-    room.actionDeadline = Date.now() + ACTION_TIMEOUT_MS;
+    room.actionDeadline = Date.now() + timeoutMs;
     if (player.isBot) return;
     const handNo = room.handNo;
     const playerId = player.playerId;
@@ -102,8 +102,33 @@ class GameEngine {
         action: timeoutAction,
       });
       this.handlePlayerAction(room, playerIndex, timeoutAction, undefined, { system: true });
-    }, ACTION_TIMEOUT_MS);
+    }, timeoutMs);
     if (typeof room.actionTimer.unref === "function") room.actionTimer.unref();
+  }
+
+  pauseActionTimerForSkill(room) {
+    if (!room.actionDeadline || room.skillPausedAction) return;
+    room.skillPausedAction = {
+      handNo: room.handNo,
+      phase: room.phase,
+      playerId: room.players[room.currentPlayerIndex]?.playerId || null,
+      remainingMs: Math.max(1000, room.actionDeadline - Date.now()),
+    };
+    this.clearActionTimer(room);
+    this.broadcastRoomState(room);
+  }
+
+  resumeActionTimerAfterSkill(room) {
+    const paused = room.skillPausedAction;
+    room.skillPausedAction = null;
+    if (!paused || isPokerLockedBySkills(room)) return;
+    const current = room.players[room.currentPlayerIndex];
+    if (
+      room.handNo !== paused.handNo ||
+      room.phase !== paused.phase ||
+      current?.playerId !== paused.playerId
+    ) return;
+    this.emitTurn(room, { timeoutMs: paused.remainingMs });
   }
 
   createHandCommitment(room) {
@@ -487,7 +512,7 @@ class GameEngine {
   continuePreDeal(room) {
     const state = room.skillState;
     if (!state?.preDealWindow) return;
-    if (state.skillChoice) return;
+    if (state.pendingSkill || state.reactionWindow || state.skillChoice) return;
     if (state.preDealTimer) {
       clearTimeout(state.preDealTimer);
       state.preDealTimer = null;
@@ -510,6 +535,7 @@ class GameEngine {
 
     if (isSkillEnabled(room.skillMode)) {
       this.skillEngine.broadcastSkillState(room);
+      this.skillEngine.restorePrivateState(room, player);
     }
 
     if (!["waiting", "drafting", "game_over"].includes(room.phase)) {
@@ -646,12 +672,12 @@ class GameEngine {
     this.emitTurn(room);
   }
 
-  emitTurn(room) {
+  emitTurn(room, { timeoutMs = ACTION_TIMEOUT_MS } = {}) {
     if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
     const current = room.players[room.currentPlayerIndex];
     if (current?.status === "disconnected" && !current.isAllIn) {
       const pausedTurn = { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
-      this.scheduleActionTimeout(room, room.currentPlayerIndex, pausedTurn);
+      this.scheduleActionTimeout(room, room.currentPlayerIndex, pausedTurn, timeoutMs);
       this.emitToRoom(room, "player_turn", {
         playerId: current.playerId,
         validActions: [],
@@ -670,7 +696,7 @@ class GameEngine {
     }
     const turnPlayer = room.players[room.currentPlayerIndex];
     const turn = getValidActions(room, room.currentPlayerIndex);
-    this.scheduleActionTimeout(room, room.currentPlayerIndex, turn);
+    this.scheduleActionTimeout(room, room.currentPlayerIndex, turn, timeoutMs);
     this.emitToRoom(room, "player_turn", {
       playerId: turnPlayer.playerId,
       validActions: turn.validActions,
@@ -800,7 +826,8 @@ class GameEngine {
     room.lastRaiseSize = room.bigBlind;
 
     if (nextPhase === "flop") {
-      room.deck.pop();
+      const burned = room.deck.pop();
+      if (room.skillState && burned) room.skillState.burnedCards.push(burned);
       room.communityCards.push(room.deck.pop(), room.deck.pop(), room.deck.pop());
     } else if (nextPhase === "turn" || nextPhase === "river") {
       const card = this.skillEngine.applyForkDuringDeal(room);
@@ -1044,7 +1071,7 @@ class GameEngine {
     if (["waiting", "drafting", "showdown", "end", "game_over", "before_turn", "before_river"].includes(room.phase)) {
       return { ok: false, error: "当前阶段不可行动" };
     }
-    if (!options.system && isPokerLockedBySkills(room)) {
+    if (isPokerLockedBySkills(room)) {
       return { ok: false, error: "技能结算中，暂时无法行动" };
     }
     if (room.currentPlayerIndex !== playerIndex) return { ok: false, error: "未轮到你行动" };

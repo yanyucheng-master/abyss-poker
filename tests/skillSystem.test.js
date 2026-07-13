@@ -1,7 +1,12 @@
 const { createAppServer } = require("../server/server");
 const { SKILL_MODE } = require("../game/skillModes");
 const { GAME_MODE } = require("../game/gameModes");
-const { validateLoadout, setPlayerLoadout, beginHandSkills } = require("../game/skills/skillEngine");
+const {
+  validateLoadout,
+  setPlayerLoadout,
+  beginHandSkills,
+  getPublicRoomSkillSnapshot,
+} = require("../game/skills/skillEngine");
 const { SkillEngine } = require("../game/skills/skillEngine");
 const { pickBestFive } = require("../game/handEvaluator");
 const { createDeck } = require("../utils/deck");
@@ -165,6 +170,16 @@ describe("skill energy and room flow", () => {
       requestId: "r3",
     });
     expect(allInBlocked.ok).toBe(false);
+
+    a.isAllIn = false;
+    b.isAllIn = true;
+    a.skillRuntime.activeSkillsUsedThisPhase = 0;
+    const opponentAllInBlocked = engine.handleSkillUse(room, a, {
+      skillId: "ECHO_SCAN",
+      requestId: "r4",
+    });
+    expect(opponentAllInBlocked).toMatchObject({ ok: false });
+    expect(opponentAllInBlocked.error).toMatch(/All In/);
   });
 
   test("neural interrupt cancels a pending skill and refunds half energy", () => {
@@ -197,15 +212,23 @@ describe("skill energy and room flow", () => {
     const use = engine.handleSkillUse(room, a, { skillId: "ECHO_SCAN", requestId: "scan-1" });
     expect(use.ok).toBe(true);
     expect(room.skillState.reactionWindow).toBeTruthy();
+    expect(room.actionDeadline).toBeNull();
+    const reactionSnapshot = getPublicRoomSkillSnapshot(room).reactionWindow;
+    expect(reactionSnapshot).toMatchObject({
+      requestId: "scan-1",
+      skillId: "ECHO_SCAN",
+      responderId: b.playerId,
+    });
 
     const counter = engine.handleSkillCounter(room, b, {
       requestId: "scan-1",
       skillId: "NEURAL_INTERRUPT",
     });
     expect(counter.ok).toBe(true);
-    // paid 2, refund floor(2*0.5)=1, ember recycle +1 bonus
-    expect(a.skillRuntime.abyssEnergy).toBeGreaterThanOrEqual(before - 2 + 1);
+    // Refunds and passives may never erase the mandatory one-energy loss.
+    expect(a.skillRuntime.abyssEnergy).toBeLessThanOrEqual(before - 1);
     expect(room.skillState.pendingSkill).toBeNull();
+    expect(room.actionDeadline).not.toBeNull();
     jest.useRealTimers();
   });
 
@@ -290,5 +313,39 @@ describe("skill energy and room flow", () => {
     expect(room.skillState.removedCards.some((c) => c.code === oldCode)).toBe(true);
     const codes = [...a.cards, ...b.cards, ...room.communityCards, ...room.deck].map((c) => c.code);
     expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  test("quantum choice rejects fractional indexes without corrupting hole cards", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const a = roomManager.joinRoom({
+      roomId: room.roomId,
+      playerName: "A",
+      playerId: "PA",
+      socketId: "s1",
+    }).player;
+    roomManager.joinRoom({
+      roomId: room.roomId,
+      playerName: "B",
+      playerId: "PB",
+      socketId: "s2",
+    });
+    const options = createDeck().slice(0, 3);
+    a.cards = options.slice(0, 2);
+    room.skillState.skillChoice = {
+      type: "QUANTUM_SELECT",
+      skillId: "QUANTUM_HOLE_CARDS",
+      playerId: a.playerId,
+      requestId: "quantum-invalid-index",
+      options,
+      expiresAt: Date.now() + 1000,
+    };
+
+    const result = engine.handleSkillChoice(room, a, { keepIndexes: [0, 1.5] });
+    expect(result.ok).toBe(true);
+    expect(a.cards).toEqual(options.slice(0, 2));
+    expect(a.cards.every(Boolean)).toBe(true);
   });
 });

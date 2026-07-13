@@ -234,6 +234,7 @@ const el = {
   opponentEnergy: byId("opponent-energy"),
   skillSilenceFlag: byId("skill-silence-flag"),
   skillBar: byId("skill-bar"),
+  opponentSkillBar: byId("opponent-skill-bar"),
   skillLog: byId("skill-log"),
   skillReactionModal: byId("skill-reaction-modal"),
   skillReactionText: byId("skill-reaction-text"),
@@ -408,6 +409,8 @@ function showScreen(name) {
   });
   const target = el[name];
   if (target) target.classList.add("active");
+  document.body.dataset.screen = name;
+  if (name === "game") el.toastRegion.textContent = "";
 }
 
 function modeInfo(mode) {
@@ -2064,6 +2067,38 @@ function renderSkillDraft() {
   });
 }
 
+function effectiveSkillCost(def, skills) {
+  const base = Number(def?.energyCost || 0);
+  return skills?.overloadActive && def?.id !== "OVERLOAD_CORE" ? Math.max(1, base - 3) : base;
+}
+
+function skillAvailability(def, skills, me) {
+  const tags = new Set(def?.tags || []);
+  if (tags.has("PASSIVE")) return { ready: false, kind: "passive", reason: "自动触发", cost: 0 };
+  if (tags.has("REACTION")) return { ready: false, kind: "reaction", reason: "仅在反制窗口触发", cost: Number(def?.energyCost || 0) };
+
+  const cost = effectiveSkillCost(def, skills);
+  const handUsed = Number(skills?.skillUsesThisHand?.[def.id] || 0);
+  const gameUsed = Number(skills?.skillUsesThisGame?.[def.id] || 0);
+  const cardEdit = tags.has("HOLE_EDIT") || tags.has("DECK_EDIT") || tags.has("BOARD_EDIT");
+  let reason = "可发动";
+  if (state.skillState?.pendingSkill || state.skillState?.reactionWindow || state.skillState?.skillChoice) reason = "技能结算中";
+  else if (state.players.some((player) => player.isAllIn)) reason = "All In 后锁定";
+  else if (!me || me.status === "folded" || me.status === "out") reason = "当前已退出本手";
+  else if (skills?.nextHandSkillLocked) reason = "过载代价锁定";
+  else if (state.skillState?.silenceActive) reason = "静默区生效中";
+  else if (Array.isArray(def.allowedPhases) && def.allowedPhases.length && !def.allowedPhases.includes(state.phase)) reason = "当前阶段不可用";
+  else if (def.requiresActionTurn && state.currentTurnPlayerId !== state.playerId) reason = "等待你的行动回合";
+  else if (def.requiresBeforeFirstAction && skills?.firstStreetActionTaken) reason = "需在首次下注前使用";
+  else if (def.maxUsesPerHand != null && handUsed >= def.maxUsesPerHand) reason = "本手次数已用完";
+  else if (def.maxUsesPerGame != null && gameUsed >= def.maxUsesPerGame) reason = "本场次数已用完";
+  else if (Number(skills?.activeSkillsUsedThisPhase || 0) >= 1) reason = "本阶段已发动技能";
+  else if (Number(skills?.activeSkillsUsedThisHand || 0) >= 2) reason = "本手主动次数已满";
+  else if (cardEdit && state.players.some((player) => player.skills?.successfulCardEditThisHand)) reason = "本手改牌次数已用完";
+  else if (Number(skills?.abyssEnergy || 0) < cost) reason = "能量不足";
+  return { ready: reason === "可发动", kind: "active", reason, cost };
+}
+
 function renderSkillHud() {
   if (!el.skillHud) return;
   const enabled = state.skillMode === "abyss";
@@ -2077,39 +2112,105 @@ function renderSkillHud() {
   el.skillSilenceFlag.classList.toggle("hidden", !state.skillState?.silenceActive);
   el.skillBar.textContent = "";
   (selfSkills.equippedSkillIds || []).forEach((skillId) => {
-    const def = state.skillCatalog.find((s) => s.id === skillId) || { id: skillId, name: skillId, energyCost: "?" };
+    const def = state.skillCatalog.find((skill) => skill.id === skillId) || {
+      id: skillId,
+      name: skillId,
+      energyCost: 0,
+      tags: [],
+    };
+    const availability = skillAvailability(def, selfSkills, me);
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "skill-use-btn";
-    btn.title = def.description || skillId;
+    btn.className = "skill-use-btn is-" + availability.kind;
+    btn.classList.toggle("is-ready", availability.ready);
+    btn.disabled = !availability.ready;
+    btn.dataset.reason = availability.reason;
+    btn.title = (def.description || skillId) + "\n状态：" + availability.reason;
+    btn.setAttribute("aria-label", def.name + "，" + availability.reason);
     btn.innerHTML =
       "<span class=\"skill-use-name\">" +
       def.name +
       "</span><span class=\"skill-use-cost\">" +
-      def.energyCost +
+      (availability.kind === "passive" ? "被动" : availability.kind === "reaction" ? "反制" : availability.cost) +
       "</span>";
     btn.addEventListener("click", () => useSkill(skillId, def));
     el.skillBar.appendChild(btn);
   });
+
+  if (el.opponentSkillBar) {
+    const opponentNames = (opponent?.skills?.equippedSkillIds || []).map((skillId) =>
+      state.skillCatalog.find((skill) => skill.id === skillId)?.name || skillId
+    );
+    el.opponentSkillBar.textContent = opponentNames.length ? "对手构筑 · " + opponentNames.join(" / ") : "";
+    el.opponentSkillBar.title = el.opponentSkillBar.textContent;
+  }
 }
 
-function useSkill(skillId, def) {
-  const target = {};
-  if (skillId === "MEMORY_REWRITE") {
-    const idx = window.prompt("选择要替换的底牌索引（0 或 1）", "0");
-    if (idx !== "0" && idx !== "1") return showToast("请选择 0 或 1", "error");
-    target.cardIndex = Number(idx);
-  }
-  if (skillId === "NULLIFICATION_PROTOCOL") {
-    const code = window.prompt("输入要零化的公共牌代码（如 ST）", state.communityCards[0]?.code || "");
-    if (!code) return;
-    target.cardCode = code.trim().toUpperCase();
-  }
+function emitSkillUse(skillId, target = {}) {
   socket.emit("skill:use", {
     skillId,
     target,
     requestId: "req_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
   });
+}
+
+function cardChoiceLabel(card) {
+  if (!card) return "未知牌";
+  return (card.rank === "T" ? "10" : card.rank) + suitText(card.suit);
+}
+
+function openSkillTargetPicker({ skillId, title, text, cards, targetKey, valueForCard }) {
+  if (!cards.length) {
+    showToast("当前没有可选择的牌", "error");
+    return;
+  }
+  state.pendingChoice = { type: "SKILL_TARGET", skillId, payload: { target: {} } };
+  el.skillChoiceTitle.textContent = title;
+  el.skillChoiceText.textContent = text;
+  el.skillChoiceBody.textContent = "";
+  el.btnSkillChoiceConfirm.disabled = true;
+  cards.forEach((card, index) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "skill-choice-card target-card-choice";
+    btn.textContent = cardChoiceLabel(card);
+    btn.addEventListener("click", () => {
+      [...el.skillChoiceBody.children].forEach((node) => node.classList.remove("selected"));
+      btn.classList.add("selected");
+      state.pendingChoice.payload.target[targetKey] = valueForCard(card, index);
+      el.btnSkillChoiceConfirm.disabled = false;
+    });
+    el.skillChoiceBody.appendChild(btn);
+  });
+  el.skillChoiceModal.classList.remove("hidden");
+  el.skillChoiceBody.querySelector("button")?.focus();
+}
+
+function useSkill(skillId) {
+  if (skillId === "MEMORY_REWRITE") {
+    return openSkillTargetPicker({
+      skillId,
+      title: "记忆重构",
+      text: "选择要移出本手的一张底牌",
+      cards: state.myCards,
+      targetKey: "cardIndex",
+      valueForCard: (_card, index) => index,
+    });
+  }
+  if (skillId === "NULLIFICATION_PROTOCOL") {
+    const available = state.communityCards.filter(
+      (card) => !state.nullifiedCommunityCardIds.includes(card.code)
+    );
+    return openSkillTargetPicker({
+      skillId,
+      title: "零化协议",
+      text: "选择一张不再参与牌型计算的公共牌",
+      cards: available,
+      targetKey: "cardCode",
+      valueForCard: (card) => card.code,
+    });
+  }
+  emitSkillUse(skillId);
 }
 
 el.skillModeInputs?.forEach((input) =>
@@ -2132,14 +2233,44 @@ el.btnSkillCounterSkip?.addEventListener("click", () => {
 });
 el.btnSkillChoiceConfirm?.addEventListener("click", () => {
   if (!state.pendingChoice) return;
+  if (state.pendingChoice.type === "SKILL_TARGET") {
+    emitSkillUse(state.pendingChoice.skillId, state.pendingChoice.payload.target);
+    el.skillChoiceModal.classList.add("hidden");
+    el.btnSkillChoiceConfirm.disabled = false;
+    state.pendingChoice = null;
+    return;
+  }
   const payload = { ...state.pendingChoice.payload };
   socket.emit("skill:choice", payload);
   el.skillChoiceModal.classList.add("hidden");
+  el.btnSkillChoiceConfirm.disabled = false;
   state.pendingChoice = null;
 });
 el.btnSkillPrivateClose?.addEventListener("click", () => {
   el.skillPrivateModal.classList.add("hidden");
 });
+
+function openReactionWindow(payload) {
+  if (!payload || payload.responderId !== state.playerId || Number(payload.expiresAt || 0) <= Date.now()) return;
+  state.pendingReaction = payload;
+  const def = state.skillCatalog.find((skill) => skill.id === payload.skillId);
+  el.skillReactionText.textContent = "对手发动了「" + (def?.name || payload.skillId) + "」，是否使用神经阻断？";
+  el.skillReactionModal.classList.remove("hidden");
+  el.btnSkillCounter.focus();
+  const ends = payload.expiresAt || Date.now() + 2000;
+  const tick = () => {
+    const left = Math.max(0, (ends - Date.now()) / 1000);
+    el.skillReactionTimer.textContent = left.toFixed(1);
+    if (left <= 0) {
+      el.skillReactionModal.classList.add("hidden");
+      state.pendingReaction = null;
+      return;
+    }
+    state.reactionTimerRaf = requestAnimationFrame(tick);
+  };
+  cancelAnimationFrame(state.reactionTimerRaf);
+  tick();
+}
 
 socket.on("skill:state", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
@@ -2153,13 +2284,25 @@ socket.on("skill:state", (payload) => {
       if (player) player.skills = summary;
     });
   }
+  const recentLog = payload.room?.recentLog || [];
+  if (el.skillLog) {
+    el.skillLog.textContent = "";
+    recentLog.slice().reverse().forEach((entry) => {
+      const line = document.createElement("div");
+      line.textContent = entry.publicSummary || entry.skillId;
+      el.skillLog.appendChild(line);
+    });
+  }
+  if (payload.room?.reactionWindow) openReactionWindow(payload.room.reactionWindow);
   renderSkillDraft();
   renderState();
 });
 
 socket.on("skill:loadout:confirmed", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
-  showToast((payload.playerId === state.playerId ? "你" : "对手") + " 已确认技能构筑", "success");
+  if (!el.game.classList.contains("active")) {
+    showToast((payload.playerId === state.playerId ? "你" : "对手") + " 已确认技能构筑", "success");
+  }
   renderSkillDraft();
 });
 
@@ -2168,22 +2311,7 @@ socket.on("skill:pending", (payload) => {
 });
 
 socket.on("skill:reaction-window", (payload) => {
-  state.pendingReaction = payload;
-  if (payload.responderId !== state.playerId) return;
-  el.skillReactionText.textContent = "对手发动了 " + payload.skillId + "，是否使用神经阻断？";
-  el.skillReactionModal.classList.remove("hidden");
-  const ends = payload.expiresAt || Date.now() + 2000;
-  const tick = () => {
-    const left = Math.max(0, (ends - Date.now()) / 1000);
-    el.skillReactionTimer.textContent = left.toFixed(1);
-    if (left <= 0) {
-      el.skillReactionModal.classList.add("hidden");
-      return;
-    }
-    state.reactionTimerRaf = requestAnimationFrame(tick);
-  };
-  cancelAnimationFrame(state.reactionTimerRaf);
-  tick();
+  openReactionWindow(payload);
 });
 
 socket.on("skill:reaction-expired", () => {
@@ -2220,24 +2348,34 @@ socket.on("skill:private-result", (payload) => {
   } else if (payload.choiceType === "QUANTUM_SELECT") {
     state.pendingChoice = { type: "QUANTUM_SELECT", payload: { keepIndexes: [0, 1] } };
     el.skillChoiceTitle.textContent = "量子底牌";
-    el.skillChoiceText.textContent = "选择保留的两张牌（默认保留原底牌）";
+    el.skillChoiceText.textContent = "从三张牌中恰好选择两张作为底牌";
     el.skillChoiceBody.textContent = "";
+    el.btnSkillChoiceConfirm.disabled = false;
     (payload.options || []).forEach((card, index) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "skill-choice-card";
-      btn.textContent = (card.rank === "T" ? "10" : card.rank) + suitText(card.suit) + " [" + index + "]";
+      btn.textContent = cardChoiceLabel(card);
       btn.dataset.index = String(index);
+      btn.classList.toggle("selected", index < 2);
       btn.addEventListener("click", () => {
+        const wasSelected = btn.classList.contains("selected");
+        const current = el.skillChoiceBody.querySelectorAll(".selected").length;
+        if (!wasSelected && current >= 2) {
+          showToast("量子底牌只能保留两张", "info");
+          return;
+        }
         btn.classList.toggle("selected");
         const selected = [...el.skillChoiceBody.querySelectorAll(".selected")].map((n) =>
           Number(n.dataset.index)
         );
-        state.pendingChoice.payload.keepIndexes = selected.slice(0, 2);
+        state.pendingChoice.payload.keepIndexes = selected;
+        el.btnSkillChoiceConfirm.disabled = selected.length !== 2;
       });
       el.skillChoiceBody.appendChild(btn);
     });
     el.skillChoiceModal.classList.remove("hidden");
+    el.skillChoiceBody.querySelector("button")?.focus();
   } else if (payload.choiceType === "FORK_DECISION") {
     state.pendingChoice = { type: "FORK_DECISION", payload: { decision: "keep" } };
     el.skillChoiceTitle.textContent = "分岔观测";
@@ -2246,11 +2384,13 @@ socket.on("skill:private-result", (payload) => {
       (payload.upcoming?.rank === "T" ? "10" : payload.upcoming?.rank) +
       suitText(payload.upcoming?.suit);
     el.skillChoiceBody.textContent = "";
+    el.btnSkillChoiceConfirm.disabled = false;
     ["keep", "burn"].forEach((decision) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "skill-choice-card";
       btn.textContent = decision === "keep" ? "保留" : "烧掉并改发下一张";
+      btn.classList.toggle("selected", decision === "keep");
       btn.addEventListener("click", () => {
         state.pendingChoice.payload.decision = decision;
         [...el.skillChoiceBody.children].forEach((n) => n.classList.remove("selected"));
@@ -2259,6 +2399,7 @@ socket.on("skill:private-result", (payload) => {
       el.skillChoiceBody.appendChild(btn);
     });
     el.skillChoiceModal.classList.remove("hidden");
+    el.skillChoiceBody.querySelector("button")?.focus();
   } else if (payload.cards) {
     state.myCards = payload.cards;
     renderState();
