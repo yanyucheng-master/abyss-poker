@@ -23,7 +23,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
   await page.click("#btn-open-skill-lab");
   await page.waitForSelector("#skill-lab-catalog .skill-card");
   await page.click("#btn-clear-loadout");
-  const cards = page.locator("#skill-lab-catalog .skill-card");
+  const cards = page.locator("#skill-lab-catalog .skill-card-select");
   const n = await cards.count();
   for (let i = 0; i < Math.min(n, 6); i++) {
     if (!(await page.locator("#btn-save-loadout").isDisabled())) break;
@@ -64,7 +64,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
   const before = await page.evaluate(() => ({
     phase: document.getElementById("phase-text")?.textContent,
     energy: document.getElementById("self-energy")?.textContent,
-    skills: [...document.querySelectorAll("#skill-bar .skill-use-btn, #skill-bar button")].map((b) => ({
+    skills: [...document.querySelectorAll("#skill-bar .skill-use-btn")].map((b) => ({
       text: b.textContent.trim(),
       disabled: b.disabled,
     })),
@@ -79,7 +79,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 
   // Try using first enabled skill
   const usedSkill = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll("#skill-bar .skill-use-btn, #skill-bar button")].find((b) => !b.disabled);
+    const btn = [...document.querySelectorAll("#skill-bar .skill-use-btn")].find((b) => !b.disabled);
     if (!btn) return null;
     btn.click();
     return btn.textContent.trim();

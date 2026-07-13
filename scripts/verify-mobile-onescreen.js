@@ -156,7 +156,7 @@ async function skillSoloPass(page, vpName) {
   await page.waitForSelector("#skill-lab-catalog .skill-card");
 
   await page.click("#btn-clear-loadout");
-  const cards = page.locator("#skill-lab-catalog .skill-card");
+  const cards = page.locator("#skill-lab-catalog .skill-card-select");
   const n = await cards.count();
   for (let i = 0; i < Math.min(n, 6); i++) {
     if (!(await page.locator("#btn-save-loadout").isDisabled())) break;

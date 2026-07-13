@@ -398,6 +398,7 @@ p {
   inset: 0;
   border-radius: inherit;
   opacity: 0;
+  pointer-events: none;
   background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.16), transparent);
   transform: translateX(-75%);
   transition: opacity 150ms ease, transform 320ms ease;
@@ -3272,9 +3273,35 @@ body.overdrive .overdrive-stage {
   overflow: hidden;
   pointer-events: none;
   background:
-    radial-gradient(circle, rgba(255, 57, 181, 0.25), transparent 36%),
-    rgba(21, 0, 25, 0.22);
-  animation: allin-flash calc(650ms * var(--motion-factor)) ease-out both;
+    radial-gradient(circle at 50% 50%, rgba(255, 232, 245, 0.28), transparent 10%),
+    radial-gradient(circle, rgba(255, 36, 139, 0.34), transparent 44%),
+    linear-gradient(120deg, rgba(10, 0, 18, 0.9), rgba(63, 0, 48, 0.7), rgba(3, 8, 21, 0.92));
+  isolation: isolate;
+  animation: allin-flash calc(2400ms * var(--motion-factor)) cubic-bezier(0.17, 0.75, 0.24, 1) both;
+}
+
+.allin-vignette {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.86), transparent 25% 75%, rgba(0, 0, 0, 0.86)),
+    linear-gradient(rgba(0, 0, 0, 0.76), transparent 32% 68%, rgba(0, 0, 0, 0.82));
+  animation: allin-vignette calc(2400ms * var(--motion-factor)) ease both;
+}
+
+.allin-speedlines {
+  position: absolute;
+  inset: -35%;
+  opacity: 0;
+  background: repeating-conic-gradient(
+    from 0deg,
+    transparent 0 4deg,
+    rgba(255, 104, 195, 0.2) 4.3deg 4.8deg,
+    transparent 5deg 11deg
+  );
+  mask-image: radial-gradient(circle, transparent 0 14%, #000 34%, transparent 72%);
+  animation: allin-lines calc(2100ms * var(--motion-factor)) cubic-bezier(0.12, 0.72, 0.2, 1) both;
 }
 
 .allin-surge {
@@ -3287,7 +3314,47 @@ body.overdrive .overdrive-stage {
     0 0 0 12px rgba(150, 102, 255, 0.08),
     0 0 80px rgba(255, 66, 208, 0.4),
     inset 0 0 80px rgba(255, 66, 208, 0.22);
-  animation: allin-surge calc(700ms * var(--motion-factor)) ease-out both;
+  animation: allin-surge calc(2100ms * var(--motion-factor)) cubic-bezier(0.08, 0.78, 0.12, 1) both;
+}
+
+.allin-surge.surge-inner {
+  width: min(54vw, 580px);
+  border-color: rgba(255, 235, 249, 0.82);
+  box-shadow:
+    0 0 0 5px rgba(255, 255, 255, 0.06),
+    0 0 54px rgba(255, 66, 165, 0.62),
+    inset 0 0 60px rgba(111, 85, 255, 0.32);
+  animation-delay: calc(90ms * var(--motion-factor));
+}
+
+.allin-lockup {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: clamp(8px, 1.4vh, 15px);
+  width: min(1000px, calc(100vw - 28px));
+  padding: clamp(26px, 6vh, 64px) 14px;
+  border-block: 1px solid rgba(255, 148, 215, 0.42);
+  background: linear-gradient(90deg, transparent, rgba(18, 0, 28, 0.76) 18% 82%, transparent);
+  animation: allin-lockup calc(2400ms * var(--motion-factor)) cubic-bezier(0.16, 0.82, 0.24, 1) both;
+}
+
+.allin-kicker,
+.allin-subtitle {
+  color: rgba(255, 225, 244, 0.92);
+  font-family: var(--font-mono);
+  font-size: clamp(0.62rem, 1.6vw, 0.88rem);
+  font-weight: 800;
+  letter-spacing: clamp(0.12em, 0.7vw, 0.36em);
+  text-align: center;
+}
+
+.allin-subtitle {
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: clamp(0.82rem, 2.1vw, 1.08rem);
+  letter-spacing: 0.16em;
 }
 
 .allin-text {
@@ -3303,10 +3370,23 @@ body.overdrive .overdrive-stage {
     0 0 30px var(--magenta),
     0 0 80px rgba(150, 102, 255, 0.7);
   transform: skewX(-8deg);
+  animation: allin-type calc(2400ms * var(--motion-factor)) cubic-bezier(0.16, 0.82, 0.24, 1) both;
+}
+
+.allin-scanline {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  width: 20vw;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+  filter: blur(8px);
+  transform: skewX(-18deg);
+  animation: allin-scan calc(1700ms * var(--motion-factor)) 180ms ease-in-out both;
 }
 
 body.shake .app-shell {
-  animation: screen-shake 480ms linear;
+  animation: screen-shake 900ms linear;
 }
 
 .river-overload,
@@ -3571,6 +3651,8 @@ body.reduce-motion .perspective-grid,
 body.reduce-motion .data-stream,
 body.reduce-motion .scanlines,
 body.reduce-motion .allin-surge,
+body.reduce-motion .allin-speedlines,
+body.reduce-motion .allin-scanline,
 body.reduce-motion .settle-scan,
 body.reduce-motion .hero-orbit {
   display: none !important;
@@ -4459,6 +4541,8 @@ body.low-performance .hand-settle-modal {
   .scanlines,
   .hero-orbit,
   .allin-surge,
+  .allin-speedlines,
+  .allin-scanline,
   .settle-scan,
   .board-grid-overlay {
     display: none !important;
@@ -4603,15 +4687,48 @@ body.low-performance .hand-settle-modal {
 }
 
 @keyframes allin-flash {
-  0% { opacity: 0; }
-  22% { opacity: 1; }
-  100% { opacity: 0; }
+  0% { opacity: 0; filter: brightness(2.2); }
+  7% { opacity: 1; filter: brightness(1.45); }
+  18%, 72% { opacity: 1; filter: brightness(1); }
+  100% { opacity: 0; filter: brightness(0.8); }
 }
 
 @keyframes allin-surge {
-  from { opacity: 0; transform: scale(0.18) rotate(-28deg); }
-  55% { opacity: 1; }
-  to { opacity: 0; transform: scale(1.22) rotate(12deg); }
+  0% { opacity: 0; transform: scale(0.1) rotate(-36deg); }
+  13% { opacity: 1; }
+  52% { opacity: 0.78; transform: scale(0.82) rotate(4deg); }
+  100% { opacity: 0; transform: scale(1.52) rotate(26deg); }
+}
+
+@keyframes allin-vignette {
+  0%, 100% { opacity: 0; }
+  10%, 80% { opacity: 1; }
+}
+
+@keyframes allin-lines {
+  0% { opacity: 0; transform: scale(0.2) rotate(-12deg); }
+  14% { opacity: 0.88; }
+  100% { opacity: 0; transform: scale(1.15) rotate(9deg); }
+}
+
+@keyframes allin-lockup {
+  0% { opacity: 0; transform: scaleX(0.24) scaleY(1.18); }
+  9% { opacity: 1; transform: scaleX(1.04) scaleY(0.96); }
+  16%, 76% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+
+@keyframes allin-type {
+  0% { opacity: 0; transform: translateX(-9vw) skewX(-16deg) scale(1.4); }
+  10% { opacity: 1; transform: translateX(1vw) skewX(-8deg) scale(0.96); }
+  16%, 78% { opacity: 1; transform: translateX(0) skewX(-8deg) scale(1); }
+  100% { opacity: 0; transform: translateX(6vw) skewX(-8deg) scale(1.08); }
+}
+
+@keyframes allin-scan {
+  from { left: -30vw; opacity: 0; }
+  18%, 74% { opacity: 1; }
+  to { left: 115vw; opacity: 0; }
 }
 
 @keyframes screen-shake {

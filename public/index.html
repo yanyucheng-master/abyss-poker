@@ -36,8 +36,16 @@
     <div id="chip-fx-layer" class="chip-fx-layer" aria-hidden="true"></div>
 
     <div id="flash-allin" class="flash-overlay hidden" aria-hidden="true">
-      <div class="allin-surge"></div>
-      <div class="allin-text">ALL IN</div>
+      <div class="allin-vignette"></div>
+      <div class="allin-speedlines"></div>
+      <div class="allin-surge surge-outer"></div>
+      <div class="allin-surge surge-inner"></div>
+      <div class="allin-lockup">
+        <span class="allin-kicker">NO LIMIT // TOTAL COMMITMENT</span>
+        <div class="allin-text">ALL IN</div>
+        <span id="allin-subtitle" class="allin-subtitle">筹码已全部推入底池</span>
+      </div>
+      <div class="allin-scanline"></div>
     </div>
 
     <div id="river-overload" class="river-overload hidden" aria-hidden="true">
@@ -427,8 +435,8 @@
               <span>跟注</span>
               <strong id="current-bet">0</strong>
             </span>
-            <span class="table-stat inline-stat fairness-stat" title="牌堆承诺摘要">
-              <span>承诺</span>
+            <span class="table-stat inline-stat fairness-stat" title="牌堆校验摘要">
+              <span>牌堆</span>
               <strong id="commitment-short">待定</strong>
             </span>
             <span id="game-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
@@ -558,12 +566,21 @@
 
           <div class="raise-console collapsed">
             <div class="raise-heading">
-              <div class="raise-amount-meta"><span>加注至</span><strong id="raise-value">0</strong></div>
+              <button
+                id="btn-raise-options"
+                class="raise-amount-meta"
+                type="button"
+                aria-controls="raise-panel"
+                aria-expanded="false"
+                title="调整加注额度"
+              >
+                <span>加注至</span><strong id="raise-value">0</strong><i aria-hidden="true">⌃</i>
+              </button>
               <button data-action="raise" id="btn-raise" class="action-button raise" type="button">
                 <span id="raise-label">加注</span><small>RAISE</small>
               </button>
             </div>
-            <div class="raise-panel">
+            <div id="raise-panel" class="raise-panel">
               <label class="sr-only" for="raise-input">加注到</label>
               <input id="raise-input" type="range" min="0" max="0" step="1" value="0" />
               <div class="raise-range-labels"><span id="raise-min-label">最小 —</span><span id="raise-max-label">最大 —</span></div>
@@ -578,6 +595,24 @@
         </section>
       </section>
     </main>
+
+    <div id="skill-preview-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-preview-title">
+      <section class="modal-panel skill-preview-panel glass-panel" tabindex="-1">
+        <header class="modal-header skill-preview-header">
+          <div>
+            <p class="eyebrow">ABYSS TACTICAL ARCHIVE</p>
+            <h2 id="skill-preview-title">技能档案</h2>
+          </div>
+          <button id="btn-close-skill-preview" class="icon-button" type="button" aria-label="关闭技能详情">×</button>
+        </header>
+        <div id="skill-preview-meta" class="skill-preview-meta" aria-label="技能属性"></div>
+        <p id="skill-preview-description" class="skill-preview-description"></p>
+        <dl id="skill-preview-rules" class="skill-preview-rules"></dl>
+        <div class="modal-actions">
+          <button id="btn-skill-preview-done" class="button button-primary" type="button">返回构筑</button>
+        </div>
+      </section>
+    </div>
 
     <div id="skill-reaction-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-reaction-title">
       <section class="modal-panel confirm-panel glass-panel" tabindex="-1">

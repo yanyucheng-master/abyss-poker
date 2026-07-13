@@ -13,6 +13,7 @@
     "simulate:overdrive": "node scripts/simulate-overdrive.js 1000",
     "simulate:skills": "node scripts/simulate-skills.js 1000",
     "verify:ui": "node scripts/verify-mobile-onescreen.js && node scripts/verify-ui-onescreen.mjs",
+    "verify:interactions": "node scripts/verify-ui-interactions.mjs",
     "capture:ui": "node scripts/capture-ui-review.mjs",
     "verify:online": "node scripts/verify-online-sync.js"
   },

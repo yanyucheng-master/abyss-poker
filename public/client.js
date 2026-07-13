@@ -104,6 +104,15 @@ const state = {
   activeCommitment: null,
   fairnessStatus: "pending",
   settings: loadSettings(),
+  uiPending: {
+    room: false,
+    action: false,
+    skill: false,
+    loadout: false,
+    counter: false,
+    choice: false,
+    password: false,
+  },
 };
 
 function byId(id) {
@@ -120,6 +129,7 @@ const el = {
   toastRegion: byId("toast-region"),
   chipFx: byId("chip-fx-layer"),
   flash: byId("flash-allin"),
+  allinSubtitle: byId("allin-subtitle"),
   riverOverload: byId("river-overload"),
   protocolBurst: byId("protocol-burst"),
   resultBanner: byId("result-banner"),
@@ -249,6 +259,13 @@ const el = {
   skillPrivateModal: byId("skill-private-modal"),
   skillPrivateText: byId("skill-private-text"),
   btnSkillPrivateClose: byId("btn-skill-private-close"),
+  skillPreviewModal: byId("skill-preview-modal"),
+  skillPreviewTitle: byId("skill-preview-title"),
+  skillPreviewMeta: byId("skill-preview-meta"),
+  skillPreviewDescription: byId("skill-preview-description"),
+  skillPreviewRules: byId("skill-preview-rules"),
+  btnCloseSkillPreview: byId("btn-close-skill-preview"),
+  btnSkillPreviewDone: byId("btn-skill-preview-done"),
   selfCards: byId("self-cards"),
   selfArea: byId("self-area"),
   btnToggleCards: byId("btn-toggle-cards"),
@@ -271,6 +288,7 @@ const el = {
   raiseMaxLabel: byId("raise-max-label"),
   raiseConsole: document.querySelector("#screen-game .raise-console"),
   btnRaise: byId("btn-raise"),
+  btnRaiseOptions: byId("btn-raise-options"),
   actionButtons: document.querySelectorAll(".action-button[data-action]"),
   raisePresets: document.querySelectorAll("[data-raise-preset]"),
   modeInputs: document.querySelectorAll('input[name="game-mode"]'),
@@ -304,6 +322,54 @@ let audioContext = null;
 let ambientOscillator = null;
 let ambientGain = null;
 let connectionBannerTimer = 0;
+let allInEffectTimer = 0;
+let skillPreviewReturnFocus = null;
+const uiPendingTimers = new Map();
+
+function refreshPendingUi(key) {
+  if (key === "room") {
+    el.protocolButtons?.forEach((button) => {
+      button.disabled = state.uiPending.room;
+      button.setAttribute("aria-busy", state.uiPending.room ? "true" : "false");
+    });
+    if (el.btnJoin) el.btnJoin.disabled = state.uiPending.room;
+    if (el.btnJoinPasswordConfirm) el.btnJoinPasswordConfirm.disabled = state.uiPending.room;
+  }
+  if (key === "password" && el.btnSetRoomPassword) {
+    el.btnSetRoomPassword.disabled = state.uiPending.password;
+  }
+  if (key === "action") renderActions();
+  if (key === "skill") renderSkillHud();
+  if (key === "loadout") renderSkillDraft();
+  if (key === "counter" && el.btnSkillCounter) el.btnSkillCounter.disabled = state.uiPending.counter;
+  if (key === "choice" && el.btnSkillChoiceConfirm) el.btnSkillChoiceConfirm.disabled = state.uiPending.choice;
+}
+
+function beginUiRequest(key, timeoutMs = 4000) {
+  if (state.uiPending[key]) return false;
+  state.uiPending[key] = true;
+  const oldTimer = uiPendingTimers.get(key);
+  if (oldTimer) clearTimeout(oldTimer);
+  uiPendingTimers.set(
+    key,
+    setTimeout(() => endUiRequest(key), timeoutMs)
+  );
+  refreshPendingUi(key);
+  return true;
+}
+
+function endUiRequest(key) {
+  const timer = uiPendingTimers.get(key);
+  if (timer) clearTimeout(timer);
+  uiPendingTimers.delete(key);
+  if (!state.uiPending[key]) return;
+  state.uiPending[key] = false;
+  refreshPendingUi(key);
+}
+
+function endAllUiRequests() {
+  Object.keys(state.uiPending).forEach((key) => endUiRequest(key));
+}
 
 function ensureAudioContext() {
   if (!window.AudioContext && !window.webkitAudioContext) return null;
@@ -330,7 +396,7 @@ function playTone(kind) {
     chips: [760, 0.045],
     upgrade: [940, 0.12],
     fold: [220, 0.1],
-    allin: [120, 0.22],
+    allin: [92, 0.72],
     river: [820, 0.14],
     win: [880, 0.2],
     lose: [180, 0.2],
@@ -343,6 +409,9 @@ function playTone(kind) {
   const now = context.currentTime;
   oscillator.type = kind === "allin" ? "sawtooth" : "sine";
   oscillator.frequency.setValueAtTime(preset[0], now);
+  if (kind === "allin") {
+    oscillator.frequency.exponentialRampToValueAtTime(48, now + preset[1]);
+  }
   gain.gain.setValueAtTime(0.0001, now);
   gain.gain.exponentialRampToValueAtTime(Math.max(0.002, Number(state.settings.sfx) / 2500), now + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + preset[1]);
@@ -605,7 +674,11 @@ function setRaiseExpanded(expanded) {
   if (!el.raiseConsole) return;
   el.raiseConsole.classList.toggle("collapsed", !expanded);
   el.raiseConsole.classList.toggle("expanded", expanded);
-  if (el.raiseLabel) el.raiseLabel.textContent = expanded ? "确认加注" : "加注";
+  if (el.raiseLabel) el.raiseLabel.textContent = "加注";
+  if (el.btnRaiseOptions) {
+    el.btnRaiseOptions.setAttribute("aria-expanded", expanded ? "true" : "false");
+    el.btnRaiseOptions.title = expanded ? "收起加注额度" : "调整加注额度";
+  }
 }
 
 function renderActions() {
@@ -614,7 +687,8 @@ function renderActions() {
     state.currentTurnPlayerId === state.playerId &&
     ACTIVE_PHASES.has(state.phase) &&
     !state.handSettling &&
-    !state.gameOver;
+    !state.gameOver &&
+    !state.uiPending.action;
   const toCall = Number.isFinite(state.toCall)
     ? state.toCall
     : Math.max(0, Number(state.currentBet || 0) - Number(me?.streetBet || 0));
@@ -649,6 +723,7 @@ function renderActions() {
     Number(state.maxBet) > 0 &&
     Number(state.maxBet) >= Number(state.minRaise);
   if (el.btnRaise) el.btnRaise.disabled = !canRaise;
+  if (el.btnRaiseOptions) el.btnRaiseOptions.disabled = !canRaise;
   el.raiseInput.disabled = !canRaise;
   if (canRaise) {
     el.raiseInput.min = String(state.minRaise);
@@ -895,14 +970,24 @@ function pulseBoard(className, duration) {
   setTimeout(() => el.board.classList.remove(className), duration || 700);
 }
 
-function playAllInEffect() {
+function playAllInEffect(actorId) {
+  if (allInEffectTimer) clearTimeout(allInEffectTimer);
+  el.flash.classList.add("hidden");
+  document.body.classList.remove("shake");
+  void el.flash.offsetWidth;
+  if (el.allinSubtitle) {
+    el.allinSubtitle.textContent =
+      actorId === state.playerId ? "你已押上全部筹码" : "对手孤注一掷";
+  }
   el.flash.classList.remove("hidden");
+  void document.body.offsetWidth;
   document.body.classList.add("shake");
-  pulseBoard("allin-overload", 900);
-  setTimeout(() => {
+  pulseBoard("allin-overload", 2300);
+  allInEffectTimer = setTimeout(() => {
     el.flash.classList.add("hidden");
     document.body.classList.remove("shake");
-  }, 650);
+    allInEffectTimer = 0;
+  }, 2400);
   playTone("allin");
 }
 
@@ -994,6 +1079,7 @@ function prepareManualRoomRequest() {
 
 function completeReturnToLobby() {
   state.deliberateLeave = true;
+  endAllUiRequests();
   if (state.gameOver && state.rematchDeadlineAt) {
     socket.emit("rematch_response", { accepted: false });
   }
@@ -1329,6 +1415,135 @@ async function ensureSkillCatalog() {
   return state.skillCatalog;
 }
 
+const SKILL_TAG_LABELS = Object.freeze({
+  ACTIVE: "主动",
+  PASSIVE: "被动",
+  REACTION: "反制",
+  RESOURCE: "资源系",
+  INFO: "情报",
+  DEFENSE: "防御",
+  CONTROL: "控制",
+  HOLE_EDIT: "底牌编辑",
+  DECK_EDIT: "牌堆编辑",
+  BOARD_EDIT: "公共牌编辑",
+  ONCE_PER_HAND: "每手限次",
+  ONCE_PER_GAME: "每局限次",
+});
+
+const SKILL_PHASE_LABELS = Object.freeze({
+  pre_flop: "翻牌前",
+  flop: "翻牌",
+  turn: "转牌",
+  river: "河牌",
+  before_turn: "转牌发出前",
+  before_river: "河牌发出前",
+});
+
+function skillTypeLabel(skill) {
+  const tags = new Set(skill?.tags || []);
+  if (tags.has("PASSIVE")) return "被动技能";
+  if (tags.has("REACTION")) return "反制技能";
+  return "主动技能";
+}
+
+function closeSkillPreview() {
+  if (!el.skillPreviewModal || el.skillPreviewModal.classList.contains("hidden")) return;
+  el.skillPreviewModal.classList.add("hidden");
+  const target = skillPreviewReturnFocus;
+  skillPreviewReturnFocus = null;
+  if (target?.isConnected) target.focus();
+}
+
+function showSkillPreview(skill, trigger) {
+  if (!skill || !el.skillPreviewModal) return;
+  skillPreviewReturnFocus = trigger || document.activeElement;
+  el.skillPreviewTitle.textContent = skill.name || skill.id || "技能档案";
+  el.skillPreviewDescription.textContent = skill.description || "暂无技能说明。";
+  el.skillPreviewMeta.textContent = "";
+
+  const meta = [skillTypeLabel(skill), "负载 " + Number(skill.load || 0)];
+  if (!(skill.tags || []).includes("PASSIVE")) meta.push("能量 " + Number(skill.energyCost || 0));
+  (skill.tags || []).forEach((tag) => {
+    const label = SKILL_TAG_LABELS[tag];
+    if (label && !meta.includes(label) && !["主动", "被动", "反制"].includes(label)) meta.push(label);
+  });
+  meta.forEach((label) => {
+    const chip = document.createElement("span");
+    chip.textContent = label;
+    el.skillPreviewMeta.appendChild(chip);
+  });
+
+  const phases = (skill.allowedPhases || []).map((phase) => SKILL_PHASE_LABELS[phase] || phase);
+  const limits = [];
+  if (skill.maxUsesPerHand != null) limits.push("每手最多 " + skill.maxUsesPerHand + " 次");
+  if (skill.maxUsesPerGame != null) limits.push("每局最多 " + skill.maxUsesPerGame + " 次");
+  const conditions = [];
+  if (skill.requiresActionTurn) conditions.push("仅在你的行动回合");
+  if (skill.requiresBeforeFirstAction) conditions.push("须在本阶段首次下注行动前");
+
+  const rows = [
+    ["发动时机", phases.length ? phases.join(" / ") : skillTypeLabel(skill) === "被动技能" ? "满足条件时自动触发" : "专属窗口"],
+    ["使用限制", limits.length ? limits.join("；") : "遵循每阶段与每手全局上限"],
+    ["前置条件", conditions.length ? conditions.join("；") : "无额外行动条件"],
+    ["反制属性", skill.canBeCountered ? "可被神经阻断反制" : "不可被常规反制"],
+  ];
+  el.skillPreviewRules.textContent = "";
+  rows.forEach(([term, value]) => {
+    const dt = document.createElement("dt");
+    const dd = document.createElement("dd");
+    dt.textContent = term;
+    dd.textContent = value;
+    el.skillPreviewRules.append(dt, dd);
+  });
+
+  el.skillPreviewModal.classList.remove("hidden");
+  el.btnCloseSkillPreview?.focus();
+}
+
+function createSkillZoomButton(skill) {
+  const zoom = document.createElement("button");
+  zoom.type = "button";
+  zoom.className = "skill-zoom-button";
+  zoom.title = "放大查看「" + skill.name + "」";
+  zoom.setAttribute("aria-label", "放大查看技能：" + skill.name);
+  zoom.innerHTML =
+    '<svg class="skill-zoom-glyph" aria-hidden="true" viewBox="0 0 24 24" focusable="false">' +
+    '<circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path></svg>';
+  zoom.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showSkillPreview(skill, zoom);
+  });
+  return zoom;
+}
+
+function createSkillCatalogCard(skill, { selected = false, disabled = false, onSelect } = {}) {
+  const card = document.createElement("article");
+  card.className = "skill-card load-" + skill.load;
+  card.dataset.skillId = skill.id;
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", skill.name + "技能卡");
+  card.classList.toggle("selected", selected);
+
+  const select = document.createElement("button");
+  select.type = "button";
+  select.className = "skill-card-select";
+  select.disabled = disabled;
+  select.setAttribute("aria-pressed", selected ? "true" : "false");
+  select.setAttribute("aria-label", (selected ? "卸下" : "装备") + "技能：" + skill.name);
+  const name = document.createElement("strong");
+  const cost = document.createElement("small");
+  const description = document.createElement("span");
+  name.textContent = skill.name;
+  cost.textContent = "负载 " + skill.load + " · 能量 " + skill.energyCost;
+  description.textContent = skill.description;
+  select.append(name, cost, description);
+  if (typeof onSelect === "function") select.addEventListener("click", onSelect);
+
+  card.append(select, createSkillZoomButton(skill));
+  return card;
+}
+
 function renderSkillLab() {
   if (!el.skillLabCatalog) return;
   const validation = validateLoadoutIds(state.selectedLoadout);
@@ -1345,21 +1560,9 @@ function renderSkillLab() {
   if (el.btnSaveLoadout) el.btnSaveLoadout.disabled = !validation.ok;
   el.skillLabCatalog.textContent = "";
   state.skillCatalog.forEach((skill) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "skill-card load-" + skill.load;
-    if (state.selectedLoadout.includes(skill.id)) card.classList.add("selected");
-    card.innerHTML =
-      "<strong>" +
-      skill.name +
-      "</strong><small>负载 " +
-      skill.load +
-      " · 能量 " +
-      skill.energyCost +
-      "</small><span>" +
-      skill.description +
-      "</span>";
-    card.addEventListener("click", () => {
+    const card = createSkillCatalogCard(skill, {
+      selected: state.selectedLoadout.includes(skill.id),
+      onSelect: () => {
       const idx = state.selectedLoadout.indexOf(skill.id);
       if (idx >= 0) state.selectedLoadout.splice(idx, 1);
       else if (state.selectedLoadout.length >= (state.skillConfig.maxEquipped || 4)) {
@@ -1372,6 +1575,7 @@ function renderSkillLab() {
         state.selectedLoadout.push(skill.id);
       }
       renderSkillLab();
+      },
     });
     el.skillLabCatalog.appendChild(card);
   });
@@ -1393,14 +1597,19 @@ function saveLoadoutFromLab() {
 function requireLoadoutForSkillMode(skillMode, pendingAction) {
   if (skillMode !== "abyss") return true;
   if (isLoadoutConfigured()) return true;
+  if (!beginUiRequest("room", 5000)) return false;
+  state.pendingRoomAction = pendingAction;
   showToast("请先完成技能自定义配置", "error");
-  ensureSkillCatalog().then(() => openSkillLab(pendingAction));
+  ensureSkillCatalog()
+    .then(() => openSkillLab(state.pendingRoomAction || pendingAction))
+    .finally(() => endUiRequest("room"));
   return false;
 }
 
 function startRoomAction(type, gameMode, skillMode) {
   setProtocol(gameMode, skillMode);
   if (!requireLoadoutForSkillMode(skillMode, { type, gameMode, skillMode })) return;
+  if (!beginUiRequest("room", 7000)) return;
 
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
@@ -1444,6 +1653,7 @@ function confirmJoinWithPassword() {
   const password = (el.modalJoinPassword?.value || "").trim();
   if (!roomId) return showToast("请输入房间号", "error");
   if (!password) return showToast("请输入房间密码", "error");
+  if (!beginUiRequest("room", 7000)) return;
   el.joinPasswordModal?.classList.add("hidden");
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
@@ -1460,6 +1670,7 @@ function maybeAutoSubmitLoadout() {
   const me = getMe();
   if (me?.skills?.loadoutConfirmed) return;
   if (state.autoLoadoutSubmitted) return;
+  if (!beginUiRequest("loadout", 5000)) return;
   state.selectedLoadout = [...state.savedLoadout];
   state.autoLoadoutSubmitted = true;
   socket.emit("skill:loadout:set", { skillIds: state.savedLoadout });
@@ -1488,6 +1699,7 @@ el.protocolButtons?.forEach((button) => {
 el.btnJoin.addEventListener("click", () => {
   const roomId = (el.inputRoom.value || "").trim().toUpperCase();
   if (!roomId) return showToast("请输入房间号", "error");
+  if (!beginUiRequest("room", 7000)) return;
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
   state.pendingJoinRoomId = roomId;
@@ -1506,13 +1718,20 @@ el.modalJoinPassword?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") confirmJoinWithPassword();
 });
 el.btnSetRoomPassword?.addEventListener("click", () => {
+  if (!beginUiRequest("password", 4000)) return;
   socket.emit("room:set_password", {
     password: (el.inputWaitPassword?.value || "").trim() || "",
   });
 });
 el.btnOpenSkillLab?.addEventListener("click", async () => {
-  await ensureSkillCatalog();
-  openSkillLab(null);
+  if (el.btnOpenSkillLab.disabled) return;
+  el.btnOpenSkillLab.disabled = true;
+  try {
+    await ensureSkillCatalog();
+    openSkillLab(null);
+  } finally {
+    el.btnOpenSkillLab.disabled = false;
+  }
 });
 el.btnBackSkillLab?.addEventListener("click", () => {
   state.pendingRoomAction = null;
@@ -1524,12 +1743,15 @@ el.btnClearLoadout?.addEventListener("click", () => {
   renderSkillLab();
 });
 el.btnCopyRoom.addEventListener("click", async () => {
-  if (!state.roomId) return;
+  if (!state.roomId || el.btnCopyRoom.disabled) return;
+  el.btnCopyRoom.disabled = true;
   try {
     await navigator.clipboard.writeText(state.roomId);
     showToast("房间号已复制", "success");
   } catch (_error) {
     showToast("复制失败，请手动记录 " + state.roomId, "error");
+  } finally {
+    el.btnCopyRoom.disabled = false;
   }
 });
 el.btnBackWait.addEventListener("click", returnToLobby);
@@ -1540,21 +1762,17 @@ el.actionButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.dataset.action;
     if (!action || button.disabled) return;
-    ensureAudioContext();
-    if (action === "raise") {
-      const expanded = el.raiseConsole?.classList.contains("expanded");
-      if (!expanded) {
-        setRaiseExpanded(true);
-        return;
-      }
-      setRaiseExpanded(false);
-    } else {
-      setRaiseExpanded(false);
-    }
     const payload = { action };
     if (action === "raise") payload.amount = Number(el.raiseInput.value);
+    if (!beginUiRequest("action", 3000)) return;
+    ensureAudioContext();
+    setRaiseExpanded(false);
     socket.emit("player_action", payload);
   });
+});
+el.btnRaiseOptions?.addEventListener("click", () => {
+  if (el.btnRaiseOptions.disabled) return;
+  setRaiseExpanded(!el.raiseConsole?.classList.contains("expanded"));
 });
 el.raiseInput.addEventListener("input", () => setRaiseValue(el.raiseInput.value));
 el.raisePresets.forEach((button) => {
@@ -1597,6 +1815,11 @@ el.btnSettings.addEventListener("click", () => {
   el.btnCloseSettings.focus();
 });
 el.btnCloseSettings.addEventListener("click", () => el.settingsModal.classList.add("hidden"));
+el.btnCloseSkillPreview?.addEventListener("click", closeSkillPreview);
+el.btnSkillPreviewDone?.addEventListener("click", closeSkillPreview);
+el.skillPreviewModal?.addEventListener("click", (event) => {
+  if (event.target === el.skillPreviewModal) closeSkillPreview();
+});
 el.settingAnimation.addEventListener("change", () => {
   state.settings.animation = el.settingAnimation.value;
   saveSettings();
@@ -1630,6 +1853,8 @@ el.settingLowPerformance.addEventListener("change", () => {
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   const wasLeaveOpen = !el.leaveConfirmModal.classList.contains("hidden");
+  closeSkillPreview();
+  setRaiseExpanded(false);
   el.settingsModal.classList.add("hidden");
   el.leaveConfirmModal.classList.add("hidden");
   el.joinPasswordModal?.classList.add("hidden");
@@ -1652,6 +1877,7 @@ socket.on("connect", () => {
   }
 });
 socket.on("disconnect", () => {
+  endAllUiRequests();
   setConnectionUI(false, "网络连接已中断，正在尝试恢复牌局…");
   playTone("disconnect");
   state.players = state.players.map((player) =>
@@ -1712,6 +1938,7 @@ function resolveLobbyScreenAfterJoin() {
 socket.on("room_joined", (payload) => {
   // create/join clears roomId with deliberateLeave; must allow this event through
   if (shouldIgnoreSyncEvent(payload, { allowPendingJoin: true })) return;
+  endUiRequest("room");
   const enteringFromLobby = state.atLobby || !state.roomId || state.roomId !== payload.roomId;
   state.atLobby = false;
   state.reconnecting = false;
@@ -1842,6 +2069,7 @@ socket.on("community_cards", (payload) => {
 });
 socket.on("player_turn", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  endUiRequest("action");
   state.currentTurnPlayerId = payload.playerId;
   state.validActions = payload.playerId === state.playerId ? payload.validActions || [] : [];
   state.minRaise = Number(payload.minRaise || 0);
@@ -1853,6 +2081,7 @@ socket.on("player_turn", (payload) => {
 });
 socket.on("action_made", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  endUiRequest("action");
   state.currentTurnPlayerId = null;
   state.validActions = [];
   state.actionDeadline = null;
@@ -1864,7 +2093,7 @@ socket.on("action_made", (payload) => {
     flyChip(payload.playerId);
     playTone("chips");
   }
-  if (payload.action === "allin") playAllInEffect();
+  if (payload.action === "allin") playAllInEffect(payload.playerId);
   else playTone(payload.action);
   renderState();
 });
@@ -1931,6 +2160,7 @@ socket.on("player_left", (payload) => {
   showToast("玩家 " + payload.playerId + " 已离开", "info");
 });
 socket.on("room_closed", (payload) => {
+  endAllUiRequests();
   resetLocalRoom();
   clearRoomSession();
   state.atLobby = true;
@@ -1947,6 +2177,7 @@ socket.on("left_room", (payload) => {
   }
 });
 socket.on("join_error", (payload) => {
+  endUiRequest("room");
   const wasReconnect = state.reconnecting;
   state.reconnecting = false;
   const needsPassword =
@@ -1970,11 +2201,16 @@ socket.on("join_error", (payload) => {
 });
 socket.on("room:password_updated", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  endUiRequest("password");
   state.hasPassword = Boolean(payload?.hasPassword);
   if (el.waitPasswordStatus) el.waitPasswordStatus.textContent = state.hasPassword ? "已设置" : "未设置";
   showToast(state.hasPassword ? "房间密码已设置" : "已清除房间密码", "success");
 });
-socket.on("action_error", (payload) => showToast(payload.message || "操作失败", "error"));
+socket.on("action_error", (payload) => {
+  endUiRequest("action");
+  endUiRequest("password");
+  showToast(payload.message || "操作失败", "error");
+});
 
 if (state.myName) el.inputName.value = state.myName;
 if (state.roomId) el.inputRoom.value = state.roomId;
@@ -2031,27 +2267,16 @@ function renderSkillDraft() {
     : "选择 2–4 个技能，总负载不超过 8。";
   el.btnConfirmLoadout.disabled =
     confirmed ||
+    state.uiPending.loadout ||
     state.selectedLoadout.length < 2 ||
     state.selectedLoadout.length > 4 ||
     load > 8;
   el.skillCatalog.textContent = "";
   state.skillCatalog.forEach((skill) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "skill-card load-" + skill.load;
-    if (state.selectedLoadout.includes(skill.id)) card.classList.add("selected");
-    card.disabled = confirmed;
-    card.innerHTML =
-      "<strong>" +
-      skill.name +
-      "</strong><small>负载 " +
-      skill.load +
-      " · 能量 " +
-      skill.energyCost +
-      "</small><span>" +
-      skill.description +
-      "</span>";
-    card.addEventListener("click", () => {
+    const card = createSkillCatalogCard(skill, {
+      selected: state.selectedLoadout.includes(skill.id),
+      disabled: confirmed || state.uiPending.loadout,
+      onSelect: () => {
       if (confirmed) return;
       const idx = state.selectedLoadout.indexOf(skill.id);
       if (idx >= 0) state.selectedLoadout.splice(idx, 1);
@@ -2062,6 +2287,7 @@ function renderSkillDraft() {
         return;
       }
       renderSkillDraft();
+      },
     });
     el.skillCatalog.appendChild(card);
   });
@@ -2082,7 +2308,8 @@ function skillAvailability(def, skills, me) {
   const gameUsed = Number(skills?.skillUsesThisGame?.[def.id] || 0);
   const cardEdit = tags.has("HOLE_EDIT") || tags.has("DECK_EDIT") || tags.has("BOARD_EDIT");
   let reason = "可发动";
-  if (state.skillState?.pendingSkill || state.skillState?.reactionWindow || state.skillState?.skillChoice) reason = "技能结算中";
+  if (state.uiPending.skill) reason = "请求处理中";
+  else if (state.skillState?.pendingSkill || state.skillState?.reactionWindow || state.skillState?.skillChoice) reason = "技能结算中";
   else if (state.players.some((player) => player.isAllIn)) reason = "All In 后锁定";
   else if (!me || me.status === "folded" || me.status === "out") reason = "当前已退出本手";
   else if (skills?.nextHandSkillLocked) reason = "过载代价锁定";
@@ -2111,7 +2338,9 @@ function renderSkillHud() {
   el.opponentEnergy.textContent = String(opponent?.skills?.abyssEnergy ?? 0);
   el.skillSilenceFlag.classList.toggle("hidden", !state.skillState?.silenceActive);
   el.skillBar.textContent = "";
-  (selfSkills.equippedSkillIds || []).forEach((skillId) => {
+  const equippedSkillIds = selfSkills.equippedSkillIds || [];
+  el.skillBar.dataset.count = String(equippedSkillIds.length);
+  equippedSkillIds.forEach((skillId) => {
     const def = state.skillCatalog.find((skill) => skill.id === skillId) || {
       id: skillId,
       name: skillId,
@@ -2119,6 +2348,8 @@ function renderSkillHud() {
       tags: [],
     };
     const availability = skillAvailability(def, selfSkills, me);
+    const slot = document.createElement("div");
+    slot.className = "skill-slot is-" + availability.kind;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "skill-use-btn is-" + availability.kind;
@@ -2134,7 +2365,8 @@ function renderSkillHud() {
       (availability.kind === "passive" ? "被动" : availability.kind === "reaction" ? "反制" : availability.cost) +
       "</span>";
     btn.addEventListener("click", () => useSkill(skillId, def));
-    el.skillBar.appendChild(btn);
+    slot.append(btn, createSkillZoomButton(def));
+    el.skillBar.appendChild(slot);
   });
 
   if (el.opponentSkillBar) {
@@ -2147,11 +2379,13 @@ function renderSkillHud() {
 }
 
 function emitSkillUse(skillId, target = {}) {
+  if (!beginUiRequest("skill", 5000)) return false;
   socket.emit("skill:use", {
     skillId,
     target,
     requestId: "req_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
   });
+  return true;
 }
 
 function cardChoiceLabel(card) {
@@ -2217,10 +2451,12 @@ el.skillModeInputs?.forEach((input) =>
   input.addEventListener("change", () => setSkillMode(input.value))
 );
 el.btnConfirmLoadout?.addEventListener("click", () => {
+  if (!beginUiRequest("loadout", 5000)) return;
   socket.emit("skill:loadout:set", { skillIds: state.selectedLoadout });
 });
 el.btnSkillCounter?.addEventListener("click", () => {
   if (!state.pendingReaction) return;
+  if (!beginUiRequest("counter", 4000)) return;
   socket.emit("skill:counter", {
     requestId: state.pendingReaction.requestId,
     skillId: "NEURAL_INTERRUPT",
@@ -2234,12 +2470,13 @@ el.btnSkillCounterSkip?.addEventListener("click", () => {
 el.btnSkillChoiceConfirm?.addEventListener("click", () => {
   if (!state.pendingChoice) return;
   if (state.pendingChoice.type === "SKILL_TARGET") {
-    emitSkillUse(state.pendingChoice.skillId, state.pendingChoice.payload.target);
+    if (!emitSkillUse(state.pendingChoice.skillId, state.pendingChoice.payload.target)) return;
     el.skillChoiceModal.classList.add("hidden");
     el.btnSkillChoiceConfirm.disabled = false;
     state.pendingChoice = null;
     return;
   }
+  if (!beginUiRequest("choice", 5000)) return;
   const payload = { ...state.pendingChoice.payload };
   socket.emit("skill:choice", payload);
   el.skillChoiceModal.classList.add("hidden");
@@ -2274,6 +2511,7 @@ function openReactionWindow(payload) {
 
 socket.on("skill:state", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  endUiRequest("skill");
   state.skillMode = payload.skillMode || state.skillMode;
   state.skillState = payload.room || state.skillState;
   state.skillSelf = payload.self || state.skillSelf;
@@ -2300,6 +2538,7 @@ socket.on("skill:state", (payload) => {
 
 socket.on("skill:loadout:confirmed", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  endUiRequest("loadout");
   if (!el.game.classList.contains("active")) {
     showToast((payload.playerId === state.playerId ? "你" : "对手") + " 已确认技能构筑", "success");
   }
@@ -2311,15 +2550,20 @@ socket.on("skill:pending", (payload) => {
 });
 
 socket.on("skill:reaction-window", (payload) => {
+  endUiRequest("skill");
   openReactionWindow(payload);
 });
 
 socket.on("skill:reaction-expired", () => {
+  endUiRequest("counter");
   el.skillReactionModal.classList.add("hidden");
   state.pendingReaction = null;
 });
 
 socket.on("skill:resolved", (payload) => {
+  endUiRequest("skill");
+  endUiRequest("counter");
+  endUiRequest("choice");
   if (payload.publicSummary) {
     logAction(payload.publicSummary);
     if (el.skillLog) {
@@ -2335,10 +2579,16 @@ socket.on("skill:resolved", (payload) => {
 });
 
 socket.on("skill:failed", (payload) => {
+  endUiRequest("skill");
+  endUiRequest("counter");
+  endUiRequest("choice");
+  endUiRequest("loadout");
   showToast(payload.message || "技能失败", "error");
 });
 
 socket.on("skill:private-result", (payload) => {
+  endUiRequest("skill");
+  endUiRequest("choice");
   if (payload.scan) {
     el.skillPrivateText.textContent = payload.scan.text || JSON.stringify(payload.scan);
     el.skillPrivateModal.classList.remove("hidden");
@@ -2407,6 +2657,7 @@ socket.on("skill:private-result", (payload) => {
 });
 
 socket.on("skill:choice-window", (payload) => {
+  endUiRequest("skill");
   if (payload.playerId !== state.playerId) {
     showToast("对手正在进行技能选择…", "info");
   }
