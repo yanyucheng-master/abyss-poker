@@ -977,7 +977,7 @@ function playAllInEffect(actorId) {
   void el.flash.offsetWidth;
   if (el.allinSubtitle) {
     el.allinSubtitle.textContent =
-      actorId === state.playerId ? "你已押上全部筹码" : "对手孤注一掷";
+      actorId === state.playerId ? "YOU ARE ALL IN" : "OPPONENT IS ALL IN";
   }
   el.flash.classList.remove("hidden");
   void document.body.offsetWidth;
