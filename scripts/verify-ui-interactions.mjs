@@ -207,11 +207,11 @@ async function main() {
   report.allin.functionAvailable = effectFunction;
   if (effectFunction) {
     await page.evaluate(() => window.playAllInEffect("ui-audit-opponent"));
-    await page.waitForTimeout(1050);
-    report.allin.visibleAfter1050ms = await visible(page, "#flash-allin:not(.hidden)");
+    await page.waitForTimeout(3000);
+    report.allin.visibleAfter3000ms = await visible(page, "#flash-allin:not(.hidden)");
     report.allin.subtitle = await page.locator("#allin-subtitle").innerText();
-    await page.waitForTimeout(1550);
-    report.allin.hiddenAfter2600ms = !(await visible(page, "#flash-allin:not(.hidden)"));
+    await page.waitForTimeout(1500);
+    report.allin.hiddenAfter4500ms = !(await visible(page, "#flash-allin:not(.hidden)"));
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -272,7 +272,12 @@ async function main() {
   if (report.game.raiseOptions.available && (!report.game.raiseOptions.opened || !report.game.raiseOptions.closed)) {
     failures.push("raise options button failed");
   }
-  if (!report.allin.functionAvailable || !report.allin.visibleAfter1050ms || !report.allin.hiddenAfter2600ms) {
+  if (
+    !report.allin.functionAvailable ||
+    !report.allin.visibleAfter3000ms ||
+    !report.allin.hiddenAfter4500ms ||
+    report.allin.subtitle !== "OPPONENT IS ALL IN"
+  ) {
     failures.push("ALL IN duration failed");
   }
   if (

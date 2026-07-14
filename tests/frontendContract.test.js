@@ -67,6 +67,29 @@ describe("frontend DOM contract", () => {
     expect(decorativeRule).toContain("pointer-events: none");
   });
 
+  test("已发出的公共牌不会继承空牌位样式", () => {
+    const renderCardRow = client.match(
+      /function renderCardRow\(container, cards, options\) \{[\s\S]+?\n\}/
+    )?.[0];
+    expect(renderCardRow).toBeTruthy();
+    expect(renderCardRow).toContain("slot: false");
+    expect(renderCardRow).toContain("slot: Boolean(settings.slot)");
+  });
+
+  test("ALL IN 逻辑计时与视觉时长保持一致", () => {
+    expect(client).toContain("const ALL_IN_EFFECT_MS = 4200");
+    expect(style).toContain("--allin-duration: 4200ms");
+  });
+
+  test("手机端 ALL IN 触觉反馈具备兼容降级", () => {
+    expect(client).toContain("const ALL_IN_VIBRATION_PATTERN");
+    expect(client).toContain("function playAllInHaptics()");
+    expect(client).toContain('typeof navigator.vibrate !== "function"');
+    expect(client).toContain("state.settings.reduceMotion");
+    expect(client).toContain("navigator.vibrate(ALL_IN_VIBRATION_PATTERN)");
+    expect(client).toMatch(/playAllInHaptics\(\);\s+playTone\("allin"\)/);
+  });
+
   test("入口资源与模式选择控件存在", () => {
     expect(html).toContain('<script src="./client.js"></script>');
     expect(html).toContain('name="game-mode" value="standard"');

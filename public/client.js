@@ -7,6 +7,9 @@ const GAME_MODE = Object.freeze({
 const ACTIVE_PHASES = new Set(["pre_flop", "flop", "turn", "river"]);
 const HAND_SETTLE_MS = 5000;
 const REMATCH_TIMEOUT_MS = 10000;
+const ALL_IN_EFFECT_MS = 4200;
+const ALL_IN_BOARD_PULSE_MS = 3900;
+const ALL_IN_VIBRATION_PATTERN = Object.freeze([80, 45, 130, 55, 220]);
 const STORAGE = Object.freeze({
   playerId: "abyss_player_id",
   reconnectToken: "abyss_reconnect_token",
@@ -325,6 +328,7 @@ let connectionBannerTimer = 0;
 let allInEffectTimer = 0;
 let skillPreviewReturnFocus = null;
 const uiPendingTimers = new Map();
+const boardPulseTimers = new Map();
 
 function refreshPendingUi(key) {
   if (key === "room") {
@@ -568,6 +572,10 @@ function renderCardRow(container, cards, options) {
     container.appendChild(
       createCard(card, {
         ...settings,
+        // `slot` describes how the missing positions are padded. A real card
+        // must never inherit it, otherwise dealt community cards render as
+        // empty diamond placeholders all the way through the river.
+        slot: false,
         nullified: (settings.nullifiedCodes || []).includes(card?.code),
       })
     )
@@ -964,10 +972,38 @@ function awardPot(winnerId) {
 }
 
 function pulseBoard(className, duration) {
+  const previousTimer = boardPulseTimers.get(className);
+  if (previousTimer) clearTimeout(previousTimer);
   el.board.classList.remove(className);
   void el.board.offsetWidth;
   el.board.classList.add(className);
-  setTimeout(() => el.board.classList.remove(className), duration || 700);
+  const timer = setTimeout(() => {
+    el.board.classList.remove(className);
+    boardPulseTimers.delete(className);
+  }, duration || 700);
+  boardPulseTimers.set(className, timer);
+}
+
+function playAllInHaptics() {
+  const canQueryViewport = typeof window.matchMedia === "function";
+  const isTouchDevice =
+    Number(navigator.maxTouchPoints || 0) > 0 ||
+    (canQueryViewport &&
+      (window.matchMedia("(pointer: coarse)").matches ||
+        window.matchMedia("(max-width: 640px)").matches));
+  if (
+    !isTouchDevice ||
+    state.settings.reduceMotion ||
+    document.visibilityState !== "visible" ||
+    typeof navigator.vibrate !== "function"
+  ) {
+    return;
+  }
+  try {
+    navigator.vibrate(ALL_IN_VIBRATION_PATTERN);
+  } catch (_error) {
+    // Unsupported or restricted vibration APIs should not interrupt the game.
+  }
 }
 
 function playAllInEffect(actorId) {
@@ -980,14 +1016,21 @@ function playAllInEffect(actorId) {
       actorId === state.playerId ? "YOU ARE ALL IN" : "OPPONENT IS ALL IN";
   }
   el.flash.classList.remove("hidden");
-  void document.body.offsetWidth;
-  document.body.classList.add("shake");
-  pulseBoard("allin-overload", 2300);
+  const allowShake =
+    !state.settings.reduceMotion &&
+    !state.settings.lowPerformance &&
+    window.matchMedia("(min-width: 641px)").matches;
+  if (allowShake) {
+    void document.body.offsetWidth;
+    document.body.classList.add("shake");
+  }
+  pulseBoard("allin-overload", ALL_IN_BOARD_PULSE_MS);
   allInEffectTimer = setTimeout(() => {
     el.flash.classList.add("hidden");
     document.body.classList.remove("shake");
     allInEffectTimer = 0;
-  }, 2400);
+  }, ALL_IN_EFFECT_MS);
+  playAllInHaptics();
   playTone("allin");
 }
 
@@ -2215,6 +2258,7 @@ socket.on("action_error", (payload) => {
 if (state.myName) el.inputName.value = state.myName;
 if (state.roomId) el.inputRoom.value = state.roomId;
 state.savedLoadout = loadSavedLoadout();
+state.selectedLoadout = [...state.savedLoadout];
 setMode(GAME_MODE.STANDARD);
 setSkillMode("off");
 applySettings();
@@ -2224,9 +2268,13 @@ ensureSkillCatalog().then(() => {
   const validation = validateLoadoutIds(state.savedLoadout);
   if (state.savedLoadout.length && !validation.ok) {
     state.savedLoadout = [];
+    state.selectedLoadout = [];
     localStorage.removeItem(STORAGE.skillLoadout);
+  } else {
+    state.selectedLoadout = [...state.savedLoadout];
   }
   updateSkillPrepUi();
+  renderSkillDraft();
 });
 if (hasPendingReconnect) showScreen("wait");
 renderState();
@@ -2260,8 +2308,13 @@ function renderSkillDraft() {
   if (!show) return;
   const me = getMe();
   const confirmed = Boolean(me?.skills?.loadoutConfirmed);
-  const load = loadoutLoad(state.selectedLoadout);
-  el.draftLoadMeter.textContent = load + " / 8 · " + state.selectedLoadout.length + " / 4";
+  const equippedIds = Array.isArray(me?.skills?.equippedSkillIds)
+    ? me.skills.equippedSkillIds
+    : [];
+  const draftIds = confirmed && equippedIds.length ? equippedIds : state.selectedLoadout;
+  const load = loadoutLoad(draftIds);
+  el.skillDraftPanel.classList.toggle("is-confirmed", confirmed);
+  el.draftLoadMeter.textContent = load + " / 8 · " + draftIds.length + " / 4";
   el.draftStatus.textContent = confirmed
     ? "构筑已确认，等待对手…"
     : "选择 2–4 个技能，总负载不超过 8。";
@@ -2271,10 +2324,14 @@ function renderSkillDraft() {
     state.selectedLoadout.length < 2 ||
     state.selectedLoadout.length > 4 ||
     load > 8;
+  el.btnConfirmLoadout.classList.toggle("hidden", confirmed);
   el.skillCatalog.textContent = "";
-  state.skillCatalog.forEach((skill) => {
+  const visibleSkills = confirmed
+    ? state.skillCatalog.filter((skill) => draftIds.includes(skill.id))
+    : state.skillCatalog;
+  visibleSkills.forEach((skill) => {
     const card = createSkillCatalogCard(skill, {
-      selected: state.selectedLoadout.includes(skill.id),
+      selected: draftIds.includes(skill.id),
       disabled: confirmed || state.uiPending.loadout,
       onSelect: () => {
       if (confirmed) return;

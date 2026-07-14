@@ -34,6 +34,7 @@
   --radius-sm: 9px;
   --ui-scale: 1;
   --motion-factor: 1;
+  --allin-duration: 4200ms;
   --blur: 18px;
   --safe-top: max(18px, env(safe-area-inset-top));
   --safe-right: max(18px, env(safe-area-inset-right));
@@ -3273,11 +3274,13 @@ body.overdrive .overdrive-stage {
   overflow: hidden;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 232, 245, 0.28), transparent 10%),
-    radial-gradient(circle, rgba(255, 36, 139, 0.34), transparent 44%),
-    linear-gradient(120deg, rgba(10, 0, 18, 0.9), rgba(63, 0, 48, 0.7), rgba(3, 8, 21, 0.92));
+    radial-gradient(circle at 50% 50%, rgba(255, 232, 245, 0.24), transparent 11%),
+    radial-gradient(circle, rgba(255, 36, 139, 0.3), transparent 46%),
+    linear-gradient(120deg, rgba(10, 0, 18, 0.94), rgba(63, 0, 48, 0.72), rgba(3, 8, 21, 0.95));
   isolation: isolate;
-  animation: allin-flash calc(2400ms * var(--motion-factor)) cubic-bezier(0.17, 0.75, 0.24, 1) both;
+  contain: strict;
+  will-change: opacity;
+  animation: allin-flash var(--allin-duration) cubic-bezier(0.17, 0.75, 0.24, 1) both;
 }
 
 .allin-vignette {
@@ -3287,7 +3290,8 @@ body.overdrive .overdrive-stage {
   background:
     linear-gradient(90deg, rgba(0, 0, 0, 0.86), transparent 25% 75%, rgba(0, 0, 0, 0.86)),
     linear-gradient(rgba(0, 0, 0, 0.76), transparent 32% 68%, rgba(0, 0, 0, 0.82));
-  animation: allin-vignette calc(2400ms * var(--motion-factor)) ease both;
+  will-change: opacity;
+  animation: allin-vignette var(--allin-duration) ease both;
 }
 
 .allin-speedlines {
@@ -3301,7 +3305,8 @@ body.overdrive .overdrive-stage {
     transparent 5deg 11deg
   );
   mask-image: radial-gradient(circle, transparent 0 14%, #000 34%, transparent 72%);
-  animation: allin-lines calc(2100ms * var(--motion-factor)) cubic-bezier(0.12, 0.72, 0.2, 1) both;
+  will-change: opacity, transform;
+  animation: allin-lines 3000ms cubic-bezier(0.12, 0.72, 0.2, 1) both;
 }
 
 .allin-surge {
@@ -3314,7 +3319,8 @@ body.overdrive .overdrive-stage {
     0 0 0 12px rgba(150, 102, 255, 0.08),
     0 0 80px rgba(255, 66, 208, 0.4),
     inset 0 0 80px rgba(255, 66, 208, 0.22);
-  animation: allin-surge calc(2100ms * var(--motion-factor)) cubic-bezier(0.08, 0.78, 0.12, 1) both;
+  will-change: opacity, transform;
+  animation: allin-surge 3300ms cubic-bezier(0.08, 0.78, 0.12, 1) both;
 }
 
 .allin-surge.surge-inner {
@@ -3324,7 +3330,7 @@ body.overdrive .overdrive-stage {
     0 0 0 5px rgba(255, 255, 255, 0.06),
     0 0 54px rgba(255, 66, 165, 0.62),
     inset 0 0 60px rgba(111, 85, 255, 0.32);
-  animation-delay: calc(90ms * var(--motion-factor));
+  animation-delay: 90ms;
 }
 
 .allin-lockup {
@@ -3337,7 +3343,8 @@ body.overdrive .overdrive-stage {
   padding: clamp(26px, 6vh, 64px) 14px;
   border-block: 1px solid rgba(255, 148, 215, 0.42);
   background: linear-gradient(90deg, transparent, rgba(18, 0, 28, 0.76) 18% 82%, transparent);
-  animation: allin-lockup calc(2400ms * var(--motion-factor)) cubic-bezier(0.16, 0.82, 0.24, 1) both;
+  will-change: opacity, transform;
+  animation: allin-lockup var(--allin-duration) cubic-bezier(0.16, 0.82, 0.24, 1) both;
 }
 
 .allin-kicker,
@@ -3370,7 +3377,8 @@ body.overdrive .overdrive-stage {
     0 0 30px var(--magenta),
     0 0 80px rgba(150, 102, 255, 0.7);
   transform: skewX(-8deg);
-  animation: allin-type calc(2400ms * var(--motion-factor)) cubic-bezier(0.16, 0.82, 0.24, 1) both;
+  will-change: opacity, transform;
+  animation: allin-type var(--allin-duration) cubic-bezier(0.16, 0.82, 0.24, 1) both;
 }
 
 .allin-scanline {
@@ -3380,9 +3388,10 @@ body.overdrive .overdrive-stage {
   bottom: 0;
   width: 20vw;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent);
-  filter: blur(8px);
-  transform: skewX(-18deg);
-  animation: allin-scan calc(1700ms * var(--motion-factor)) 180ms ease-in-out both;
+  filter: blur(6px);
+  transform: translate3d(0, 0, 0) skewX(-18deg);
+  will-change: opacity, transform;
+  animation: allin-scan 2600ms 220ms ease-in-out both;
 }
 
 body.shake .app-shell {
@@ -3658,6 +3667,14 @@ body.reduce-motion .hero-orbit {
   display: none !important;
 }
 
+body.reduce-motion .flash-overlay:not(.hidden),
+body.reduce-motion .flash-overlay:not(.hidden) .allin-vignette,
+body.reduce-motion .flash-overlay:not(.hidden) .allin-lockup,
+body.reduce-motion .flash-overlay:not(.hidden) .allin-text {
+  opacity: 1;
+  animation: none !important;
+}
+
 body.low-performance .glass-panel,
 body.low-performance .modal-panel,
 body.low-performance .action-dock,
@@ -3676,8 +3693,15 @@ body.low-performance .scanlines,
 body.low-performance .data-stream,
 body.low-performance .board-grid-overlay,
 body.low-performance .overdrive-stage,
-body.low-performance .settle-scan {
+body.low-performance .settle-scan,
+body.low-performance .allin-speedlines,
+body.low-performance .allin-scanline,
+body.low-performance .allin-surge.surge-inner {
   display: none;
+}
+
+body.low-performance .allin-surge {
+  box-shadow: 0 0 34px rgba(255, 66, 208, 0.26);
 }
 
 body.low-performance .poker-board,
@@ -4687,22 +4711,22 @@ body.low-performance .hand-settle-modal {
 }
 
 @keyframes allin-flash {
-  0% { opacity: 0; filter: brightness(2.2); }
-  7% { opacity: 1; filter: brightness(1.45); }
-  18%, 72% { opacity: 1; filter: brightness(1); }
-  100% { opacity: 0; filter: brightness(0.8); }
+  0% { opacity: 0; }
+  6% { opacity: 1; }
+  12%, 88% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes allin-surge {
   0% { opacity: 0; transform: scale(0.1) rotate(-36deg); }
-  13% { opacity: 1; }
-  52% { opacity: 0.78; transform: scale(0.82) rotate(4deg); }
+  11% { opacity: 1; }
+  48% { opacity: 0.78; transform: scale(0.82) rotate(4deg); }
   100% { opacity: 0; transform: scale(1.52) rotate(26deg); }
 }
 
 @keyframes allin-vignette {
   0%, 100% { opacity: 0; }
-  10%, 80% { opacity: 1; }
+  8%, 90% { opacity: 1; }
 }
 
 @keyframes allin-lines {
@@ -4713,22 +4737,22 @@ body.low-performance .hand-settle-modal {
 
 @keyframes allin-lockup {
   0% { opacity: 0; transform: scaleX(0.24) scaleY(1.18); }
-  9% { opacity: 1; transform: scaleX(1.04) scaleY(0.96); }
-  16%, 76% { opacity: 1; transform: scale(1); }
+  7% { opacity: 1; transform: scaleX(1.04) scaleY(0.96); }
+  13%, 88% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(1.05); }
 }
 
 @keyframes allin-type {
   0% { opacity: 0; transform: translateX(-9vw) skewX(-16deg) scale(1.4); }
-  10% { opacity: 1; transform: translateX(1vw) skewX(-8deg) scale(0.96); }
-  16%, 78% { opacity: 1; transform: translateX(0) skewX(-8deg) scale(1); }
+  8% { opacity: 1; transform: translateX(1vw) skewX(-8deg) scale(0.96); }
+  13%, 89% { opacity: 1; transform: translateX(0) skewX(-8deg) scale(1); }
   100% { opacity: 0; transform: translateX(6vw) skewX(-8deg) scale(1.08); }
 }
 
 @keyframes allin-scan {
-  from { left: -30vw; opacity: 0; }
+  from { opacity: 0; transform: translate3d(0, 0, 0) skewX(-18deg); }
   18%, 74% { opacity: 1; }
-  to { left: 115vw; opacity: 0; }
+  to { opacity: 0; transform: translate3d(145vw, 0, 0) skewX(-18deg); }
 }
 
 @keyframes screen-shake {
