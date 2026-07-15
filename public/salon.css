@@ -252,14 +252,15 @@
 .salon-ui .settings-trigger {
   top: calc(var(--safe-top) + 10px);
   right: calc(var(--safe-right) + 10px);
-  width: auto;
-  min-width: 52px;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--panel-strong);
-  color: var(--muted);
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212, 181, 106, 0.12), transparent 70%);
+  color: rgba(232, 224, 207, 0.78);
+  box-shadow: none;
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -267,7 +268,12 @@
 
 .salon-ui .settings-trigger:hover {
   color: var(--bone);
-  border-color: var(--line-strong);
+  background: radial-gradient(circle, rgba(212, 181, 106, 0.24), transparent 72%);
+}
+
+.salon-ui .settings-trigger:focus-visible {
+  outline: 2px solid rgba(212, 181, 106, 0.88);
+  outline-offset: 2px;
 }
 
 /* ══════════════════════════════════
@@ -728,6 +734,68 @@
 .salon-ui .skill-card:has(.skill-card-select:hover) {
   border-color: rgba(212, 181, 106, 0.48);
   background: rgba(212, 181, 106, 0.055);
+}
+
+.salon-ui #skill-lab-catalog .skill-card.selected,
+.salon-ui #skill-lab-catalog .skill-card.selected:has(.skill-card-select:hover),
+.salon-ui .skill-catalog .skill-card.selected,
+.salon-ui .skill-catalog .skill-card.selected:has(.skill-card-select:hover) {
+  border-color: rgba(248, 215, 126, 0.98);
+  background:
+    linear-gradient(135deg, rgba(212, 181, 106, 0.27), rgba(63, 154, 138, 0.13)),
+    rgba(18, 16, 11, 0.92);
+  box-shadow:
+    inset 4px 0 0 rgba(255, 220, 128, 0.98),
+    inset 0 0 0 1px rgba(255, 236, 176, 0.34),
+    0 0 0 2px rgba(212, 181, 106, 0.14),
+    0 0 22px rgba(212, 181, 106, 0.24);
+}
+
+.salon-ui #skill-lab-catalog .skill-card.selected strong,
+.salon-ui .skill-catalog .skill-card.selected strong {
+  color: #fff4c9;
+  text-shadow: 0 0 12px rgba(255, 220, 128, 0.32);
+}
+
+.salon-ui #skill-lab-catalog .skill-card.selected small,
+.salon-ui .skill-catalog .skill-card.selected small {
+  color: #f8d77e;
+}
+
+.salon-ui .skill-selection-mark {
+  position: absolute;
+  z-index: 3;
+  right: 8px;
+  bottom: 7px;
+  display: none !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #171207 !important;
+  background: linear-gradient(180deg, #ffe7a5, #d4b56a);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), 0 0 14px rgba(212, 181, 106, 0.25);
+  font-size: 0.64rem !important;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+.salon-ui .skill-card.selected .skill-selection-mark {
+  display: inline-flex !important;
+}
+
+.salon-ui .skill-card.selected .skill-zoom-button {
+  border-color: rgba(255, 222, 137, 0.82);
+  color: #ffe59c;
+  background: rgba(34, 27, 13, 0.92);
+}
+
+.salon-ui #screen-wait #skill-draft-panel.is-confirmed .skill-selection-mark {
+  display: none !important;
 }
 
 .salon-ui .skill-zoom-button {

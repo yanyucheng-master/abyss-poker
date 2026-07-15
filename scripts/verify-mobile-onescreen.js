@@ -3,6 +3,7 @@
  * Mobile one-screen verification + skill solo smoke.
  */
 const { chromium } = require("playwright");
+const { chromiumLaunchOptions } = require("./playwright-runtime");
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 const VIEWPORTS = [
@@ -244,7 +245,7 @@ async function runViewport(browser, vp) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(chromiumLaunchOptions({ headless: true }));
   const results = [];
   try {
     for (const vp of VIEWPORTS) results.push(await runViewport(browser, vp));

@@ -3,11 +3,12 @@
  * Skill solo battle smoke: configure loadout → start abyss solo → act / use skill.
  */
 const { chromium } = require("playwright");
+const { chromiumLaunchOptions } = require("./playwright-runtime");
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(chromiumLaunchOptions({ headless: true }));
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,

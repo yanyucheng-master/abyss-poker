@@ -1,5 +1,9 @@
 const { EventEmitter } = require("events");
-const { GameEngine } = require("../game/gameEngine");
+const {
+  GameEngine,
+  ALL_IN_EFFECT_MS,
+  getHandSettlementMs,
+} = require("../game/gameEngine");
 const { GAME_MODE } = require("../game/gameModes");
 const { verifyDeckCommitment } = require("../game/deckCommitment");
 const { getValidActions } = require("../game/pokerLogic");
@@ -228,7 +232,13 @@ describe("gameEngine", () => {
     const handResult = emitted.find(
       (entry) => entry.event === "hand_result" && entry.payload.reason === "fold"
     );
-    expect(handResult.payload.settleMs).toBe(10000);
+    expect(handResult.payload.settleMs).toBe(2000);
+
+    const settledHandNo = room.handNo;
+    jest.advanceTimersByTime(ALL_IN_EFFECT_MS + 1999);
+    expect(room.handNo).toBe(settledHandNo);
+    jest.advanceTimersByTime(1);
+    expect(room.handNo).toBe(settledHandNo + 1);
   });
 
   test("heads-up 翻牌后由非庄家先行动", () => {
@@ -347,7 +357,7 @@ describe("gameEngine", () => {
     expect(handResults).toHaveLength(2);
     handResults.forEach(({ payload }) => {
       expect(payload.reason).toBe("fold");
-      expect(payload.settleMs).toBe(5000);
+      expect(payload.settleMs).toBe(2000);
       expect(payload.players.map((p) => p.cards.length).sort()).toEqual([0, 2]);
     });
 
@@ -376,7 +386,7 @@ describe("gameEngine", () => {
     expect(room.phase).toBe("end");
     expect(room.players.reduce((sum, player) => sum + player.chips, 0)).toBe(2000);
     expect(emitted.some((entry) => entry.event === "player_turn")).toBe(false);
-    expect(emitted.find((entry) => entry.event === "hand_result")?.payload.settleMs).toBe(10000);
+    expect(emitted.find((entry) => entry.event === "hand_result")?.payload.settleMs).toBe(6000);
   });
 
   test.each([0, 1])("a 30-chip big blind still gives the small blind a 5-chip decision (dealer %i)", (dealerIndex) => {
@@ -464,6 +474,15 @@ describe("gameEngine", () => {
     engine.settleShowdown(room);
     const handResult = emitted.find((e) => e.event === "hand_result");
     expect(handResult.payload.settleMs).toBe(6000);
+  });
+
+  test.each([
+    [0, 2000],
+    [3, 4000],
+    [4, 4000],
+    [5, 6000],
+  ])("结算展示按 %i 张公共牌使用 %i 毫秒", (cardCount, expectedMs) => {
+    expect(getHandSettlementMs(cardCount)).toBe(expectedMs);
   });
 
   test("摊牌前会返还双人局未被对手覆盖的下注", () => {

@@ -1,7 +1,8 @@
 const { chromium } = require("playwright");
+const { chromiumLaunchOptions } = require("./playwright-runtime");
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(chromiumLaunchOptions({ headless: true }));
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto("http://127.0.0.1:3002", { waitUntil: "networkidle" });
   await page.evaluate(() => {

@@ -9,6 +9,7 @@
       content="深渊德州：双人实时联机德州扑克，可选高爆发牌与深渊技能。"
     />
     <title>深渊德州</title>
+    <link rel="icon" type="image/webp" href="./assets/abyss-poker-logo.webp" />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./salon.css" />
     <link rel="stylesheet" href="./table-v2.css" />
@@ -112,6 +113,15 @@
         </div>
 
         <p class="settings-note">设置只保存在当前设备，不参与牌局判定。</p>
+        <div id="settings-navigation" class="settings-navigation hidden">
+          <span>
+            <strong>牌局导航</strong>
+            <small>离开进行中的牌局前会再次确认</small>
+          </span>
+          <button id="btn-settings-lobby" class="button button-ghost" type="button">
+            返回大厅
+          </button>
+        </div>
       </section>
     </div>
 
@@ -167,7 +177,7 @@
             <h2 id="settle-verdict">结算中</h2>
           </div>
           <div id="settle-countdown" class="settle-countdown" aria-label="结算剩余时间">
-            <span id="settle-countdown-num">5</span>
+            <span id="settle-countdown-num">2</span>
           </div>
         </div>
         <p id="settle-detail" class="settle-detail"></p>

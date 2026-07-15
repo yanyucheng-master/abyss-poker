@@ -230,8 +230,12 @@ describe("socket integration", () => {
     await waitFor(c1, "action_made", (p) => p.action === "check");
 
     const turn4 = await nextTurn3;
+    const foldResult = waitFor(c1, "hand_result", (payload) => payload.reason === "fold");
     emitPlayerAction(sockets[turn4.playerId], turn4, "fold");
     await waitFor(c1, "action_made", (p) => p.action === "win_by_fold");
+    const settledFold = await foldResult;
+    expect(settledFold.settleMs).toBe(4000);
+    expect(settledFold.communityCards).toHaveLength(3);
 
   });
 
@@ -265,6 +269,7 @@ describe("socket integration", () => {
       reveal2,
     ]);
     expect(result.communityCards).toHaveLength(5);
+    expect(result.settleMs).toBe(6000);
     expect(result.players.every((player) => player.cards.length === 2)).toBe(true);
     expect(firstReveal).toEqual(secondReveal);
     expect(firstReveal.commitment).toBe(commitment1.commitment);

@@ -33,9 +33,9 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   min-width: 42px;
   min-height: 34px;
   padding: 6px 10px;
-  border-color: var(--table-line);
+  border: 0;
   color: var(--table-muted);
-  background: rgba(5, 8, 17, 0.9);
+  background: radial-gradient(circle, rgba(80, 225, 232, 0.11), transparent 72%);
   box-shadow: none;
 }
 
@@ -677,11 +677,11 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
 }
 
 .salon-ui #screen-game .poker-board.allin-overload {
-  animation: table-allin-charge 3900ms cubic-bezier(0.14, 0.78, 0.2, 1) both;
+  animation: table-allin-charge 2900ms cubic-bezier(0.14, 0.78, 0.2, 1) both;
 }
 
 .salon-ui #screen-game .poker-board.allin-overload .pot-core {
-  animation: table-allin-pot 3400ms cubic-bezier(0.16, 0.78, 0.2, 1) both;
+  animation: table-allin-pot 2400ms cubic-bezier(0.16, 0.78, 0.2, 1) both;
 }
 
 @keyframes table-allin-charge {

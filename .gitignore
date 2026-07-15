@@ -10,3 +10,8 @@ Thumbs.db
 render-upload/
 abyss-poker-render-upload.zip
 深渊德州_Render上传包.zip
+
+# Local source assets (do not publish)
+*.source.jpg
+public/assets/*.source.jpg
+

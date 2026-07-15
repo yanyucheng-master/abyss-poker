@@ -102,6 +102,7 @@ class RoomManager {
       deferredHandReveals: [],
       revealedHandHistory: [],
       hadAllInActionThisHand: false,
+      allInPresentationEndsAt: 0,
     };
     const fixedGameMode = normalizeGameMode(gameMode);
     const fixedSkillMode = normalizeSkillMode(skillMode);

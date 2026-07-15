@@ -13,6 +13,7 @@ describe("frontend DOM contract", () => {
   const html = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
   const client = fs.readFileSync(path.join(publicDir, "client.js"), "utf8");
   const style = fs.readFileSync(path.join(publicDir, "style.css"), "utf8");
+  const salon = fs.readFileSync(path.join(publicDir, "salon.css"), "utf8");
   const socketHandlers = fs.readFileSync(
     path.join(__dirname, "..", "socket", "socketHandlers.js"),
     "utf8"
@@ -59,6 +60,7 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('id="btn-raise-options"');
     expect(html).toContain('<span>牌堆</span>');
     expect(client).toContain('className = "skill-zoom-button"');
+    expect(client).toContain('className = "skill-selection-mark"');
     expect(client).toContain('className = "skill-slot is-"');
     expect(client).toContain('beginRealtimeRequest("action"');
     expect(client).toContain('beginRealtimeRequest("room"');
@@ -90,8 +92,8 @@ describe("frontend DOM contract", () => {
   });
 
   test("ALL IN 逻辑计时与视觉时长保持一致", () => {
-    expect(client).toContain("const ALL_IN_EFFECT_MS = 4200");
-    expect(style).toContain("--allin-duration: 4200ms");
+    expect(client).toContain("const ALL_IN_EFFECT_MS = 3200");
+    expect(style).toContain("--allin-duration: 3200ms");
   });
 
   test("手机端 ALL IN 触觉反馈具备兼容降级", () => {
@@ -106,6 +108,21 @@ describe("frontend DOM contract", () => {
   test("反制跳过会通知服务端并立即结算", () => {
     expect(client).toContain('socket.emit("skill:counter:skip"');
     expect(socketHandlers).toContain('socket.on("skill:counter:skip"');
+  });
+
+  test("设置面板提供安全返回大厅入口且设置触发器无边框", () => {
+    expect(html).toContain('id="btn-settings-lobby"');
+    expect(html).toContain('id="settings-navigation"');
+    expect(client).toContain("el.btnSettingsLobby?.addEventListener");
+    const triggerRule = salon.match(/\.salon-ui \.settings-trigger\s*\{[^}]+\}/s)?.[0];
+    expect(triggerRule).toBeTruthy();
+    expect(triggerRule).toContain("border: 0");
+  });
+
+  test("ALL IN 后仍完整展示按牌面分级的结算时长", () => {
+    expect(client).toContain("const HAND_SETTLE_MS = 2000");
+    expect(client).toContain("settleMs: totalSettleMs");
+    expect(client).not.toContain("totalSettleMs - remainingEffectMs");
   });
 
   test("入口资源与模式选择控件存在", () => {

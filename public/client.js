@@ -12,10 +12,10 @@ const MATCH_IN_PROGRESS_PHASES = new Set([
   "showdown",
   "end",
 ]);
-const HAND_SETTLE_MS = 5000;
+const HAND_SETTLE_MS = 2000;
 const REMATCH_TIMEOUT_MS = 10000;
-const ALL_IN_EFFECT_MS = 4200;
-const ALL_IN_BOARD_PULSE_MS = 3900;
+const ALL_IN_EFFECT_MS = 3200;
+const ALL_IN_BOARD_PULSE_MS = 2900;
 const ALL_IN_VIBRATION_PATTERN = Object.freeze([80, 45, 130, 55, 220]);
 const STORAGE = Object.freeze({
   playerId: "abyss_player_id",
@@ -217,6 +217,8 @@ const el = {
   btnSettings: byId("btn-settings"),
   settingsModal: byId("settings-modal"),
   btnCloseSettings: byId("btn-close-settings"),
+  settingsNavigation: byId("settings-navigation"),
+  btnSettingsLobby: byId("btn-settings-lobby"),
   settingAnimation: byId("setting-animation"),
   settingReduceMotion: byId("setting-reduce-motion"),
   settingSfx: byId("setting-sfx"),
@@ -1755,7 +1757,7 @@ function queueHandSettlement(payload) {
     delayedHandResultTimer = 0;
     startHandSettlement({
       ...payload,
-      settleMs: Math.max(1800, totalSettleMs - remainingEffectMs),
+      settleMs: totalSettleMs,
     });
   }, remainingEffectMs);
 }
@@ -1885,7 +1887,12 @@ function createSkillCatalogCard(skill, { selected = false, disabled = false, onS
   select.append(name, cost, description);
   if (typeof onSelect === "function") select.addEventListener("click", onSelect);
 
-  card.append(select, createSkillZoomButton(skill));
+  const selectedMark = document.createElement("span");
+  selectedMark.className = "skill-selection-mark";
+  selectedMark.setAttribute("aria-hidden", "true");
+  selectedMark.textContent = "✓ 已选择";
+
+  card.append(select, selectedMark, createSkillZoomButton(skill));
   return card;
 }
 
@@ -1896,11 +1903,20 @@ function renderSkillLab() {
     const def = state.skillCatalog.find((skill) => skill.id === id);
     return sum + (def?.load || 0);
   }, 0);
-  if (el.labLoadMeter) el.labLoadMeter.textContent = load + " / " + (state.skillConfig.maxLoad || 8);
+  const selectedNames = state.selectedLoadout
+    .map((id) => state.skillCatalog.find((skill) => skill.id === id)?.name)
+    .filter(Boolean);
+  if (el.labLoadMeter) {
+    el.labLoadMeter.textContent =
+      state.selectedLoadout.length + " 项 · " + load + " / " + (state.skillConfig.maxLoad || 8);
+  }
   if (el.skillLabStatus) {
+    const selectionSummary = selectedNames.length
+      ? "已选择：" + selectedNames.join("、")
+      : "尚未选择技能";
     el.skillLabStatus.textContent = validation.ok
-      ? "构筑有效，可保存后进入技能局。"
-      : validation.error || "选择 2–4 个技能，总负载不超过 8。";
+      ? selectionSummary + "。构筑有效，可保存。"
+      : selectionSummary + " · " + (validation.error || "选择 2–4 个技能，总负载不超过 8。");
   }
   if (el.btnSaveLoadout) el.btnSaveLoadout.disabled = !validation.ok;
   el.skillLabCatalog.textContent = "";
@@ -2189,12 +2205,17 @@ el.btnRematchNo.addEventListener("click", () => {
 });
 
 el.btnSettings.addEventListener("click", () => {
+  el.settingsNavigation?.classList.toggle("hidden", el.auth.classList.contains("active"));
   el.settingsModal.classList.remove("hidden");
   el.btnCloseSettings.focus();
 });
 el.btnCloseSettings.addEventListener("click", () => {
   el.settingsModal.classList.add("hidden");
   el.btnSettings.focus();
+});
+el.btnSettingsLobby?.addEventListener("click", () => {
+  el.settingsModal.classList.add("hidden");
+  returnToLobby();
 });
 el.btnCloseSkillPreview?.addEventListener("click", closeSkillPreview);
 el.btnSkillPreviewDone?.addEventListener("click", closeSkillPreview);

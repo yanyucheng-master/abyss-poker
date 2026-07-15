@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import playwrightRuntime from "./playwright-runtime.js";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 const LOADOUT = ["ABYSS_BREATH", "EMBER_RECYCLE", "ADVERSITY_CIRCUIT", "ECHO_SCAN"];
@@ -79,7 +80,7 @@ async function buttonHitAudit(page, scopeSelector) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(playwrightRuntime.chromiumLaunchOptions({ headless: true }));
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await context.newPage();
   const consoleErrors = [];
@@ -121,6 +122,7 @@ async function main() {
 
   await page.click("#btn-settings");
   report.lobby.settingsOpened = await visible(page, "#settings-modal:not(.hidden)");
+  report.lobby.settingsLobbyHidden = !(await visible(page, "#btn-settings-lobby"));
   await page.click("#btn-close-settings");
   report.lobby.settingsClosed = !(await visible(page, "#settings-modal:not(.hidden)"));
 
@@ -145,6 +147,26 @@ async function main() {
     await page.click(`#skill-lab-catalog .skill-card[data-skill-id="${skillId}"] .skill-card-select`);
   }
   report.lab.selected = await page.locator("#skill-lab-catalog .skill-card.selected").count();
+  report.lab.selectionVisibility = await page.evaluate(() => {
+    const selected = [...document.querySelectorAll("#skill-lab-catalog .skill-card.selected")];
+    const unselected = document.querySelector("#skill-lab-catalog .skill-card:not(.selected)");
+    const selectedStyles = selected.map((card) => getComputedStyle(card));
+    const unselectedStyle = unselected ? getComputedStyle(unselected) : null;
+    const markers = selected.map((card) => card.querySelector(".skill-selection-mark"));
+    return {
+      markerCount: markers.filter(Boolean).length,
+      markersVisible: markers.every(
+        (marker) => marker && getComputedStyle(marker).display !== "none" && marker.textContent.includes("已选择")
+      ),
+      borderDistinct: Boolean(
+        unselectedStyle && selectedStyles.every((style) => style.borderColor !== unselectedStyle.borderColor)
+      ),
+      backgroundDistinct: Boolean(
+        unselectedStyle && selectedStyles.every((style) => style.backgroundImage !== unselectedStyle.backgroundImage)
+      ),
+      glowVisible: selectedStyles.every((style) => style.boxShadow !== "none"),
+    };
+  });
   report.lab.saveEnabled = await page.locator("#btn-save-loadout").isEnabled();
   await page.click("#btn-save-loadout");
   await page.waitForSelector("#screen-auth.active");
@@ -161,6 +183,12 @@ async function main() {
   });
   await page.waitForSelector("#screen-game.active", { timeout: 20000 });
   await page.waitForTimeout(500);
+
+  await page.click("#btn-settings");
+  report.game.settingsLobbyVisible = await visible(page, "#btn-settings-lobby");
+  await page.click("#btn-settings-lobby");
+  report.game.settingsLobbyConfirmation = await visible(page, "#leave-confirm-modal:not(.hidden)");
+  if (report.game.settingsLobbyConfirmation) await page.click("#btn-leave-cancel");
 
   report.game.skillGeometry = await skillGeometry(page);
   report.game.zoomButtons = await page.locator("#skill-bar .skill-zoom-button").count();
@@ -209,11 +237,11 @@ async function main() {
   report.allin.functionAvailable = effectFunction;
   if (effectFunction) {
     await page.evaluate(() => window.playAllInEffect("ui-audit-opponent"));
-    await page.waitForTimeout(3000);
-    report.allin.visibleAfter3000ms = await visible(page, "#flash-allin:not(.hidden)");
+    await page.waitForTimeout(2200);
+    report.allin.visibleAfter2200ms = await visible(page, "#flash-allin:not(.hidden)");
     report.allin.subtitle = await page.locator("#allin-subtitle").innerText();
-    await page.waitForTimeout(1500);
-    report.allin.hiddenAfter4500ms = !(await visible(page, "#flash-allin:not(.hidden)"));
+    await page.waitForTimeout(1400);
+    report.allin.hiddenAfter3600ms = !(await visible(page, "#flash-allin:not(.hidden)"));
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -228,6 +256,29 @@ async function main() {
       boardDockOverlap: Boolean(board && dock && board.bottom > dock.top + 1),
     };
   });
+  await page.click("#btn-settings");
+  report.mobile.settings = await page.evaluate(() => {
+    const panel = document.querySelector("#settings-modal .settings-panel")?.getBoundingClientRect();
+    const lobbyButton = document.getElementById("btn-settings-lobby")?.getBoundingClientRect();
+    const triggerStyle = getComputedStyle(document.getElementById("btn-settings"));
+    return {
+      lobbyButtonVisible: Boolean(
+        lobbyButton &&
+        lobbyButton.width > 0 &&
+        lobbyButton.height >= 44 &&
+        lobbyButton.top >= 0 &&
+        lobbyButton.bottom <= innerHeight + 1
+      ),
+      panelInsideHorizontally: Boolean(panel && panel.left >= -1 && panel.right <= innerWidth + 1),
+      triggerBorderless: [
+        triggerStyle.borderTopWidth,
+        triggerStyle.borderRightWidth,
+        triggerStyle.borderBottomWidth,
+        triggerStyle.borderLeftWidth,
+      ].every((width) => width === "0px"),
+    };
+  });
+  await page.click("#btn-close-settings");
   report.mobile.hitAudit = await buttonHitAudit(page, "#screen-game");
 
   await page.setViewportSize({ width: 320, height: 568 });
@@ -287,7 +338,9 @@ async function main() {
   if (report.staticButtons.missingType || report.staticButtons.nested || report.staticButtons.unnamed) {
     failures.push("button DOM contract failed");
   }
-  if (!report.lobby.settingsOpened || !report.lobby.settingsClosed) failures.push("settings button routing failed");
+  if (!report.lobby.settingsOpened || !report.lobby.settingsClosed || !report.lobby.settingsLobbyHidden) {
+    failures.push("settings button routing failed");
+  }
   if (report.lobby.hitAudit.failures.length) failures.push("lobby button hit targets blocked");
   if (report.lab.cards < 12 || report.lab.zoomButtons !== report.lab.cards) failures.push("skill zoom buttons incomplete");
   if (!report.lab.previewOpened || !report.lab.previewClosed || !report.lab.zoomDidNotSelect) {
@@ -295,6 +348,15 @@ async function main() {
   }
   if (report.lab.hitAudit.failures.length) failures.push("skill lab button hit targets blocked");
   if (report.lab.selected !== 4 || !report.lab.saveEnabled) failures.push("four-skill loadout failed");
+  if (
+    report.lab.selectionVisibility.markerCount !== 4 ||
+    !report.lab.selectionVisibility.markersVisible ||
+    !report.lab.selectionVisibility.borderDistinct ||
+    !report.lab.selectionVisibility.backgroundDistinct ||
+    !report.lab.selectionVisibility.glowVisible
+  ) {
+    failures.push("skill selection highlight failed");
+  }
   if (!report.room.doubleClickGate.found || !report.room.doubleClickGate.disabledAfterFirst) {
     failures.push("room request double-click gate failed");
   }
@@ -303,6 +365,9 @@ async function main() {
   }
   if (report.game.zoomButtons !== 4 || report.game.deckLabel.trim() !== "牌堆" || !report.game.previewOpened) {
     failures.push("game HUD controls failed");
+  }
+  if (!report.game.settingsLobbyVisible || !report.game.settingsLobbyConfirmation) {
+    failures.push("settings return-to-lobby flow failed");
   }
   if (report.game.hitAudit.failures.length) failures.push("game button hit targets blocked");
   if (!report.game.actionGate.found || !report.game.actionGate.allDisabledAfterFirst) {
@@ -313,8 +378,8 @@ async function main() {
   }
   if (
     !report.allin.functionAvailable ||
-    !report.allin.visibleAfter3000ms ||
-    !report.allin.hiddenAfter4500ms ||
+    !report.allin.visibleAfter2200ms ||
+    !report.allin.hiddenAfter3600ms ||
     report.allin.subtitle !== "OPPONENT IS ALL IN"
   ) {
     failures.push("ALL IN duration failed");
@@ -330,6 +395,13 @@ async function main() {
     failures.push("mobile four-skill layout failed");
   }
   if (report.mobile.hitAudit.failures.length) failures.push("mobile button hit targets blocked");
+  if (
+    !report.mobile.settings.lobbyButtonVisible ||
+    !report.mobile.settings.panelInsideHorizontally ||
+    !report.mobile.settings.triggerBorderless
+  ) {
+    failures.push("mobile settings navigation layout failed");
+  }
   if (
     report.compact.skillGeometry.count !== 4 ||
     !report.compact.skillGeometry.allInside ||

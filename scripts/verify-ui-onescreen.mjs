@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import playwrightRuntime from "./playwright-runtime.js";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 
@@ -45,7 +46,7 @@ async function clickProtocol(page, gameMode, skillMode, action) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(playwrightRuntime.chromiumLaunchOptions({ headless: true }));
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const report = [];
 

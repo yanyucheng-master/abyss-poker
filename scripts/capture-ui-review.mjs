@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import playwrightRuntime from "./playwright-runtime.js";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 const OUTPUT = path.resolve(process.env.UI_REVIEW_DIR || "artifacts/ui-review");
@@ -53,6 +54,8 @@ async function captureDesktop(browser) {
   await page.waitForSelector("#screen-game.active", { timeout: 15000 });
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(OUTPUT, "desktop-game.png"), fullPage: true });
+  await page.click("#btn-settings");
+  await page.screenshot({ path: path.join(OUTPUT, "desktop-game-settings.png"), fullPage: true });
   await context.close();
 }
 
@@ -101,6 +104,8 @@ async function captureMobile(browser) {
   await page.waitForSelector("#screen-game.active", { timeout: 20000 });
   await page.waitForTimeout(1400);
   await page.screenshot({ path: path.join(OUTPUT, "mobile-game.png"), fullPage: true });
+  await page.click("#btn-settings");
+  await page.screenshot({ path: path.join(OUTPUT, "mobile-game-settings.png"), fullPage: true });
   await context.close();
 }
 
@@ -126,7 +131,7 @@ async function captureCompactGame(browser, width, height, filename) {
 }
 
 await fs.mkdir(OUTPUT, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch(playwrightRuntime.chromiumLaunchOptions({ headless: true }));
 try {
   await captureDesktop(browser);
   await captureMobile(browser);

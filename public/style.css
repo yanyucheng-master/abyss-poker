@@ -34,7 +34,7 @@
   --radius-sm: 9px;
   --ui-scale: 1;
   --motion-factor: 1;
-  --allin-duration: 4200ms;
+  --allin-duration: 3200ms;
   --blur: 18px;
   --safe-top: max(18px, env(safe-area-inset-top));
   --safe-right: max(18px, env(safe-area-inset-right));
@@ -813,6 +813,50 @@ input[role="switch"]:checked::after {
 .settings-note {
   margin: 18px 0 0;
   font-size: 0.82rem;
+}
+
+.settings-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(240, 122, 175, 0.08), rgba(65, 232, 255, 0.045));
+}
+
+.settings-navigation > span,
+.settings-navigation strong,
+.settings-navigation small {
+  display: block;
+}
+
+.settings-navigation small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.settings-navigation .button {
+  min-width: 132px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 420px) {
+  .settings-navigation {
+    gap: 8px;
+    padding: 11px 12px;
+  }
+
+  .settings-navigation small {
+    display: none;
+  }
+
+  .settings-navigation .button {
+    width: auto;
+    min-width: 112px;
+  }
 }
 
 .danger-panel {
@@ -3307,7 +3351,7 @@ body.overdrive .overdrive-stage {
   );
   mask-image: radial-gradient(circle, transparent 0 14%, #000 34%, transparent 72%);
   will-change: opacity, transform;
-  animation: allin-lines 3000ms cubic-bezier(0.12, 0.72, 0.2, 1) both;
+  animation: allin-lines 2000ms cubic-bezier(0.12, 0.72, 0.2, 1) both;
 }
 
 .allin-surge {
@@ -3321,7 +3365,7 @@ body.overdrive .overdrive-stage {
     0 0 80px rgba(255, 66, 208, 0.4),
     inset 0 0 80px rgba(255, 66, 208, 0.22);
   will-change: opacity, transform;
-  animation: allin-surge 3300ms cubic-bezier(0.08, 0.78, 0.12, 1) both;
+  animation: allin-surge 2300ms cubic-bezier(0.08, 0.78, 0.12, 1) both;
 }
 
 .allin-surge.surge-inner {
@@ -3392,7 +3436,7 @@ body.overdrive .overdrive-stage {
   filter: blur(6px);
   transform: translate3d(0, 0, 0) skewX(-18deg);
   will-change: opacity, transform;
-  animation: allin-scan 2600ms 220ms ease-in-out both;
+  animation: allin-scan 1600ms 220ms ease-in-out both;
 }
 
 body.shake .app-shell {
@@ -4473,13 +4517,31 @@ body.low-performance .hand-settle-modal {
     border-radius: 18px 18px 10px 10px;
   }
 
-  .setting-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
+  .settings-panel {
+    padding: 18px 14px;
   }
 
-  .setting-row.switch-row {
+  .settings-panel .settings-grid {
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .settings-panel .setting-row {
+    grid-template-columns: minmax(0, 1fr) minmax(110px, 160px);
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .settings-panel .setting-row.switch-row {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-panel .settings-note {
+    margin-top: 12px;
+  }
+
+  .settings-panel .settings-navigation {
+    margin-top: 10px;
   }
 
   .modal-actions {

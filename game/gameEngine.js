@@ -31,11 +31,19 @@ const {
   isStreetComplete,
 } = require("./pokerLogic");
 
-const HAND_SETTLE_MS = 5000;
+const HAND_SETTLE_MS = 2000;
+const PARTIAL_BOARD_SETTLE_MS = 4000;
 const FULL_BOARD_SETTLE_MS = 6000;
-const ALL_IN_SETTLE_MS = 10000;
+const ALL_IN_EFFECT_MS = 3200;
 const REMATCH_TIMEOUT_MS = 10000;
 const ACTION_TIMEOUT_MS = 30000;
+
+function getHandSettlementMs(communityCardCount) {
+  const count = Math.max(0, Number(communityCardCount) || 0);
+  if (count >= 5) return FULL_BOARD_SETTLE_MS;
+  if (count === 0) return HAND_SETTLE_MS;
+  return PARTIAL_BOARD_SETTLE_MS;
+}
 
 function withRoomId(roomId, payload) {
   if (payload == null) return { roomId };
@@ -351,16 +359,10 @@ class GameEngine {
 
   buildHandResultPayload(room, { reason, winner, tie, pot, playersDetail }) {
     const bust = room.players.some((p) => p.chips <= 0);
-    const isFullBoard = (room.communityCards || []).length >= 5;
-    const isAllInShowdown = reason === "showdown" && room.players.some((player) => player.isAllIn);
-    const hasAllInPresentation = isAllInShowdown || Boolean(room.hadAllInActionThisHand);
+    const communityCardCount = (room.communityCards || []).length;
     return {
       reason,
-      settleMs: hasAllInPresentation
-        ? ALL_IN_SETTLE_MS
-        : reason === "showdown" && isFullBoard
-          ? FULL_BOARD_SETTLE_MS
-          : HAND_SETTLE_MS,
+      settleMs: getHandSettlementMs(communityCardCount),
       pot,
       tie: Boolean(tie),
       winner: winner?.playerId || null,
@@ -369,6 +371,15 @@ class GameEngine {
       communityCards: [...(room.communityCards || [])],
       players: playersDetail,
     };
+  }
+
+  getHandFinalizeDelay(room, settleMs) {
+    const visibleSettleMs = Math.max(0, Number(settleMs) || HAND_SETTLE_MS);
+    const remainingAllInEffectMs = Math.max(
+      0,
+      Number(room.allInPresentationEndsAt || 0) - Date.now()
+    );
+    return visibleSettleMs + remainingAllInEffectMs;
   }
 
   normalizeHeadsUpShowdownPot(room) {
@@ -452,6 +463,7 @@ class GameEngine {
     room.deferredHandReveals = [];
     room.revealedHandHistory = [];
     room.hadAllInActionThisHand = false;
+    room.allInPresentationEndsAt = 0;
     room.privateOverdriveProfile = null;
     room.players.forEach((player) => {
       player.chips = 1000;
@@ -763,6 +775,7 @@ class GameEngine {
     room.lastHandResult = null;
     room.lastGameOverPayload = null;
     room.hadAllInActionThisHand = false;
+    room.allInPresentationEndsAt = 0;
     room.history.push({ type: "hand_start", handNo: room.handNo, at: Date.now() });
 
     room.players.forEach((p) => {
@@ -914,7 +927,7 @@ class GameEngine {
     room.lastHandResult = handResult;
     this.emitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
-    this.finalizeHand(room, handResult.settleMs);
+    this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
   }
 
   moveToNextStreet(room, { autoRunout = false } = {}) {
@@ -1101,7 +1114,7 @@ class GameEngine {
       this.emitHandResult(room, handResult, { revealAll: true });
       this.revealHandCommitment(room);
       room.phase = "end";
-      this.finalizeHand(room, handResult.settleMs);
+      this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
       return;
     }
 
@@ -1164,7 +1177,7 @@ class GameEngine {
     this.emitHandResult(room, handResult, { revealAll: true });
     this.revealHandCommitment(room);
     room.phase = "end";
-    this.finalizeHand(room, handResult.settleMs);
+    this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
   }
 
   finalizeHand(room, settleMs = HAND_SETTLE_MS) {
@@ -1395,8 +1408,10 @@ class GameEngine {
       return { ok: false, error: "未知操作" };
     }
 
+    const actionAt = Date.now();
     if (action === "allin" || appliedAction === "allin") {
       room.hadAllInActionThisHand = true;
+      room.allInPresentationEndsAt = actionAt + ALL_IN_EFFECT_MS;
     }
 
     this.clearActionTimer(room);
@@ -1406,9 +1421,9 @@ class GameEngine {
       declaredAction: action,
       amount: appliedAmount,
       playerId: player.playerId,
-      at: Date.now(),
+      at: actionAt,
     });
-    room.lastActionAt = Date.now();
+    room.lastActionAt = actionAt;
 
     this.logger.info("GAME", "玩家行动", {
       roomId: room.roomId,
@@ -1454,4 +1469,12 @@ class GameEngine {
   }
 }
 
-module.exports = { GameEngine, HAND_SETTLE_MS, ACTION_TIMEOUT_MS };
+module.exports = {
+  GameEngine,
+  HAND_SETTLE_MS,
+  PARTIAL_BOARD_SETTLE_MS,
+  FULL_BOARD_SETTLE_MS,
+  ALL_IN_EFFECT_MS,
+  ACTION_TIMEOUT_MS,
+  getHandSettlementMs,
+};
