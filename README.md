@@ -17,7 +17,11 @@ npm start
 
 ```bash
 npm test
+npm run verify:ui
+npm run verify:interactions
+npm run verify:online
 npm run simulate:overdrive
+npm run simulate:skills
 ```
 
 ## 游戏模式
@@ -95,7 +99,7 @@ score =
 SHA-256(handId + mode + skillMode + deck.map(card => card.code).join(",") + nonce)
 ```
 
-开局时只发送 `handId/mode/skillMode/commitment`。该手正式结束后才发送 `nonce` 和完整初始牌堆，客户端使用 Web Crypto 重新计算并显示验证结果。对局过程中不会公开 nonce、完整牌堆或未来公共牌。
+开局时只发送 `handId/mode/skillMode/commitment`。摊牌手会即时发送 `nonce` 和完整初始牌堆；弃牌手为避免泄露弃牌倾向，会延迟到整场结束后统一公开。客户端把本场承诺保存在会话存储中，使用 Web Crypto 逐手重算；任一手失败后异常状态不会被后续成功结果覆盖。技能局的公开构筑、能量结算和脱敏技能操作也随 reveal 提供审计。
 
 ## 服务端状态机
 
@@ -124,15 +128,16 @@ waiting
 - `create_room { password?, playerName, playerId?, reconnectToken?, gameMode, skillMode }`
 - `create_solo_room { playerName, playerId?, reconnectToken?, gameMode, skillMode }`
 - `join_room { roomId, password?, playerName, playerId?, reconnectToken? }`
-- `player_action { action, amount? }`
+- `player_action { action, amount?, handId, turnId }`
 - `skill:loadout:set { skillIds }`
-- `skill:use { skillId, target?, requestId }`
+- `skill:use { skillId, target?, requestId, handId, turnId, phase }`
 - `skill:counter { requestId, skillId }`
 - `skill:choice { ... }`
 - `rematch_response { accepted }`
 - `leave_room {}`
 
 `gameMode` 为 `standard` 或 `overdrive`；`skillMode` 为 `off` 或 `abyss`。房间创建后模式不可修改。
+下注操作必须回传当前 `handId + turnId`，行动窗口技能还必须回传牌局、阶段和回合上下文；服务端会拒绝网络重排、重复点击或旧页面产生的过期请求。
 
 ### 服务端到客户端
 
@@ -166,8 +171,8 @@ waiting
 
 公平验证：
 
-- `hand_commitment { handId, mode, commitment }`
-- `hand_reveal { handId, mode, nonce, deck, commitment, profile }`
+- `hand_commitment { handId, mode, skillMode, commitment }`
+- `hand_reveal { handId, mode, skillMode, nonce, deck, commitment, profile, equippedSkills?, skillActions? }`
 
 ## 公开房间状态
 
@@ -181,6 +186,7 @@ waiting
   dealer,
   currentPlayer,
   activePlayerId,
+  turnId,
   communityCards,
   players,
   actionDeadline,
@@ -206,7 +212,8 @@ waiting
 - 桌面端和窄屏均提供完整下注区。
 - Call 显示跟注额，Raise 显示最终下注额。
 - 提供最小、半池、满池、最大快捷值和加注滑杆。
-- All In 使用二次确认。
+- All In 单击即提交，双方客户端都会显示纯英文全屏演出；移动设备在系统允许时提供短促震动反馈，结算弹窗会等演出结束后再出现。
+- 手机端四技能采用 2×2 固定布局，公共牌、本人手牌和完整操作区在 320×568 起均不互相遮挡。
 - 设置支持动画强度、减少动态、音效音量、背景音乐音量、界面缩放和低性能模式。
 - 系统同时尊重 `prefers-reduced-motion`。
 

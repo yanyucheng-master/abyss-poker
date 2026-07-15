@@ -9,12 +9,6 @@
       content="深渊德州：双人实时联机德州扑克，可选高爆发牌与深渊技能。"
     />
     <title>深渊德州</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Orbitron:wght@600;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Sora:wght@500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./salon.css" />
     <link rel="stylesheet" href="./table-v2.css" />
@@ -206,7 +200,7 @@
             <div class="lobby-logo-wrap">
               <img
                 class="lobby-logo"
-                src="./assets/abyss-poker-logo.png"
+                src="./assets/abyss-poker-logo.webp"
                 alt="深渊德州 Abyss Poker"
                 width="220"
                 height="220"
@@ -245,7 +239,7 @@
           </div>
 
           <div class="protocol-grid" role="list">
-            <article class="protocol-card selected" data-game-mode="standard" data-skill-mode="off" role="listitem">
+            <article class="protocol-card selected" data-game-mode="standard" data-skill-mode="off" role="listitem" tabindex="0" aria-current="true">
               <input type="radio" name="protocol" value="standard-off" checked tabindex="-1" />
               <strong>标准局 <small>无技能</small></strong>
               <span class="protocol-desc">完整随机牌堆</span>
@@ -255,7 +249,7 @@
               </div>
             </article>
 
-            <article class="protocol-card overdrive" data-game-mode="overdrive" data-skill-mode="off" role="listitem">
+            <article class="protocol-card overdrive" data-game-mode="overdrive" data-skill-mode="off" role="listitem" tabindex="-1">
               <input type="radio" name="protocol" value="overdrive-off" tabindex="-1" />
               <strong>高爆局 <small>无技能</small></strong>
               <span class="protocol-desc">高潜力起手与河牌</span>
@@ -265,7 +259,7 @@
               </div>
             </article>
 
-            <article class="protocol-card abyss" data-game-mode="standard" data-skill-mode="abyss" role="listitem">
+            <article class="protocol-card abyss" data-game-mode="standard" data-skill-mode="abyss" role="listitem" tabindex="-1">
               <input type="radio" name="protocol" value="standard-abyss" tabindex="-1" />
               <strong>标准局 <small>深渊技能</small></strong>
               <span class="protocol-desc">需先完成技能构筑</span>
@@ -275,7 +269,7 @@
               </div>
             </article>
 
-            <article class="protocol-card overdrive abyss" data-game-mode="overdrive" data-skill-mode="abyss" role="listitem">
+            <article class="protocol-card overdrive abyss" data-game-mode="overdrive" data-skill-mode="abyss" role="listitem" tabindex="-1">
               <input type="radio" name="protocol" value="overdrive-abyss" tabindex="-1" />
               <strong>高爆局 <small>深渊技能</small></strong>
               <span class="protocol-desc">高爆 + 技能同开</span>
@@ -287,10 +281,10 @@
           </div>
 
           <div class="sr-only" aria-hidden="true">
-            <input type="radio" name="game-mode" value="standard" checked />
-            <input type="radio" name="game-mode" value="overdrive" />
-            <input type="radio" name="skill-mode" value="off" checked />
-            <input type="radio" name="skill-mode" value="abyss" />
+            <input type="radio" name="game-mode" value="standard" checked tabindex="-1" />
+            <input type="radio" name="game-mode" value="overdrive" tabindex="-1" />
+            <input type="radio" name="skill-mode" value="off" checked tabindex="-1" />
+            <input type="radio" name="skill-mode" value="abyss" tabindex="-1" />
           </div>
         </section>
 
@@ -302,7 +296,7 @@
             <label for="input-name">昵称</label>
             <input id="input-name" type="text" maxlength="16" autocomplete="nickname" placeholder="你的昵称" />
             <label for="input-room">房间号</label>
-            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="六位房间号" />
+            <input id="input-room" class="room-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" enterkeyhint="go" placeholder="六位房间号" />
             <button id="btn-join" class="button button-primary" type="button">
               <span>加入</span>
             </button>
@@ -356,7 +350,7 @@
 
             <section id="wait-password-panel" class="wait-password-inline">
               <div class="wait-password-row">
-                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" placeholder="可选密码" />
+                <input id="input-wait-password" type="password" maxlength="16" autocomplete="new-password" enterkeyhint="done" placeholder="可选密码" />
                 <button id="btn-set-room-password" class="button button-secondary" type="button">设密码</button>
                 <span id="wait-password-status" class="wait-password-chip">未设置</span>
               </div>

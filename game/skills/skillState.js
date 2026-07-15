@@ -22,6 +22,7 @@ function createEmptySkillRuntime() {
     breathEligible: false,
     firstStreetActionTaken: false,
     emberRecycleUsedThisHand: false,
+    privateResults: [],
   };
 }
 
@@ -64,6 +65,7 @@ function resetPlayerSkillsForHand(player) {
   runtime.breathEligible = false;
   runtime.firstStreetActionTaken = false;
   runtime.emberRecycleUsedThisHand = false;
+  runtime.privateResults = [];
   runtime.statusEffects = (runtime.statusEffects || []).filter(
     (effect) => effect.persistAcrossHands
   );
@@ -93,7 +95,13 @@ function resetRoomSkillsForHand(room) {
 function clearSkillTimers(room) {
   const state = room.skillState;
   if (!state) return;
-  for (const key of ["reactionTimer", "choiceTimer", "preDealTimer"]) {
+  for (const key of [
+    "reactionTimer",
+    "choiceTimer",
+    "botChoiceTimer",
+    "preDealTimer",
+    "preDealBotTimer",
+  ]) {
     if (state[key]) {
       clearTimeout(state[key]);
       state[key] = null;
@@ -201,6 +209,9 @@ function getPublicSkillSummary(player) {
     activeSkillsUsedThisHand: runtime.activeSkillsUsedThisHand || 0,
     successfulCardEditThisHand: Boolean(runtime.successfulCardEditThisHand),
     firstStreetActionTaken: Boolean(runtime.firstStreetActionTaken),
+    statusEffects: (runtime.statusEffects || [])
+      .filter((effect) => effect.type === "CLOAK")
+      .map((effect) => ({ type: effect.type, phase: effect.phase })),
   };
 }
 

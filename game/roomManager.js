@@ -5,7 +5,7 @@ const {
   getPublicSkillSummary,
   initPlayerForSkillMode,
 } = require("./skills/skillEngine");
-const { createRoomSkillState } = require("./skills/skillState");
+const { createRoomSkillState, clearSkillTimers } = require("./skills/skillState");
 
 const RECONNECT_TTL_MS = 5 * 60 * 1000;
 
@@ -37,6 +37,7 @@ function makePlayer({ playerId, name, socketId, reconnectToken }) {
     isAllIn: false,
     disconnectedAt: null,
     disconnectTimer: null,
+    statusBeforeDisconnect: null,
     isBot: false,
     isReady: true,
     skills: [],
@@ -89,6 +90,8 @@ class RoomManager {
       pot: 0,
       currentBet: 0,
       lastRaiseSize: 50,
+      turnSeq: 0,
+      turnId: null,
       smallBlind: 25,
       bigBlind: 50,
       handNo: 0,
@@ -96,6 +99,9 @@ class RoomManager {
       lastActionAt: Date.now(),
       rematch: null,
       skillState: null,
+      deferredHandReveals: [],
+      revealedHandHistory: [],
+      hadAllInActionThisHand: false,
     };
     const fixedGameMode = normalizeGameMode(gameMode);
     const fixedSkillMode = normalizeSkillMode(skillMode);
@@ -122,7 +128,7 @@ class RoomManager {
 
   setRoomPassword(room, player, password) {
     if (!room || !player) return { ok: false, error: "房间不存在" };
-    if (!["waiting", "drafting"].includes(room.phase)) {
+    if (room.handNo > 0 || !["waiting", "drafting"].includes(room.phase)) {
       return { ok: false, error: "对局开始后不能修改密码" };
     }
     const host = room.players[0];
@@ -157,10 +163,15 @@ class RoomManager {
       return { ok: false, error: "房间密码错误" };
     }
 
-    if (room.phase === "waiting") {
-      room.players = room.players.filter(
-        (p) => p.isBot || p.socketId || (playerId && p.playerId === playerId)
-      );
+    if (["waiting", "drafting"].includes(room.phase) && room.handNo === 0) {
+      const retainedPlayers = [];
+      room.players.forEach((candidate) => {
+        const shouldRetain =
+          candidate.isBot || candidate.socketId || (playerId && candidate.playerId === playerId);
+        if (shouldRetain) retainedPlayers.push(candidate);
+        else this.clearPlayerDisconnectTimer(candidate);
+      });
+      room.players = retainedPlayers;
       this.updateOwner(room);
     }
 
@@ -171,13 +182,21 @@ class RoomManager {
       }
       reconnectPlayer.socketId = socketId;
       reconnectPlayer.roomId = room.roomId;
-      reconnectPlayer.status = reconnectPlayer.chips > 0 ? "active" : "out";
+      const previousStatus = reconnectPlayer.statusBeforeDisconnect;
+      const terminalStatus = ["folded", "out"].includes(reconnectPlayer.status)
+        ? reconnectPlayer.status
+        : ["folded", "out"].includes(previousStatus)
+          ? previousStatus
+          : null;
+      if (terminalStatus) {
+        reconnectPlayer.status = terminalStatus;
+      } else {
+        reconnectPlayer.status = reconnectPlayer.isAllIn || reconnectPlayer.chips > 0 ? "active" : "out";
+      }
+      reconnectPlayer.statusBeforeDisconnect = null;
       reconnectPlayer.isReady = true;
       reconnectPlayer.disconnectedAt = null;
-      if (reconnectPlayer.disconnectTimer) {
-        clearTimeout(reconnectPlayer.disconnectTimer);
-        reconnectPlayer.disconnectTimer = null;
-      }
+      this.clearPlayerDisconnectTimer(reconnectPlayer);
       this.logger.info("ROOM", "玩家重连", { roomId: room.roomId, playerId });
       this.eventBus.emit("player:reconnected", { roomId: room.roomId, playerId });
       return { ok: true, room, player: reconnectPlayer, reconnected: true };
@@ -227,20 +246,27 @@ class RoomManager {
     if (!found) return null;
     const { room, playerIndex } = found;
     const player = room.players[playerIndex];
+    if (player.status !== "disconnected") player.statusBeforeDisconnect = player.status;
     player.socketId = null;
     player.disconnectedAt = Date.now();
-    // All-in players have 0 chips but are still in the hand — keep them in pot contention.
-    player.status = player.isAllIn || player.chips > 0 ? "disconnected" : "out";
+    // Folded/out seats must not be resurrected by a later reconnect.
+    if (!["folded", "out"].includes(player.status)) player.status = "disconnected";
     player.isReady = false;
     this.logger.warn("ROOM", "玩家断线", { roomId: room.roomId, playerId: player.playerId });
     this.eventBus.emit("player:disconnected", { roomId: room.roomId, playerId: player.playerId });
 
-    if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
-    player.disconnectTimer = setTimeout(() => {
+    this.clearPlayerDisconnectTimer(player);
+    const timer = setTimeout(() => {
+      if (player.disconnectTimer !== timer) return;
       if (player.socketId) return;
-      onTimeoutLose?.(room, player);
+      if (this.getRoom(room.roomId) !== room || !room.players.includes(player)) {
+        player.disconnectTimer = null;
+        return;
+      }
       player.disconnectTimer = null;
+      onTimeoutLose?.(room, player);
     }, this.reconnectTtlMs);
+    player.disconnectTimer = timer;
     if (typeof player.disconnectTimer.unref === "function") {
       player.disconnectTimer.unref();
     }
@@ -250,6 +276,12 @@ class RoomManager {
 
   getPublicPlayers(room) {
     return room.players.map(toPublicPlayer);
+  }
+
+  clearPlayerDisconnectTimer(player) {
+    if (!player?.disconnectTimer) return;
+    clearTimeout(player.disconnectTimer);
+    player.disconnectTimer = null;
   }
 
   updateOwner(room, excludedPlayerId = null) {
@@ -274,25 +306,21 @@ class RoomManager {
       clearTimeout(room.rematch.timer);
       room.rematch.timer = null;
     }
-    for (const timerKey of ["actionTimer", "nextHandTimer"]) {
+    for (const timerKey of ["actionTimer", "botActionTimer", "nextHandTimer"]) {
       if (room[timerKey]) {
         clearTimeout(room[timerKey]);
         room[timerKey] = null;
       }
     }
     if (room.skillState) {
-      for (const timerKey of ["reactionTimer", "choiceTimer", "preDealTimer"]) {
-        if (room.skillState[timerKey]) {
-          clearTimeout(room.skillState[timerKey]);
-          room.skillState[timerKey] = null;
-        }
-      }
+      clearSkillTimers(room);
+      room.skillState.pendingSkill = null;
+      room.skillState.reactionWindow = null;
+      room.skillState.skillChoice = null;
+      room.skillState.preDealWindow = null;
     }
     room.players.forEach((player) => {
-      if (player.disconnectTimer) {
-        clearTimeout(player.disconnectTimer);
-        player.disconnectTimer = null;
-      }
+      this.clearPlayerDisconnectTimer(player);
     });
     this.rooms.delete(room.roomId);
     this.logger.info("ROOM", "房间关闭", { roomId: room.roomId });
@@ -307,13 +335,21 @@ class RoomManager {
     const { room, playerIndex } = found;
     const player = room.players[playerIndex];
 
-    if (player.disconnectTimer) {
-      clearTimeout(player.disconnectTimer);
-      player.disconnectTimer = null;
-    }
+    this.clearPlayerDisconnectTimer(player);
 
-    const activePhases = new Set(["pre_flop", "flop", "turn", "river", "showdown"]);
-    if (activePhases.has(room.phase) && player.chips > 0 && !player.isBot) {
+    const activePhases = new Set([
+      "pre_flop",
+      "flop",
+      "turn",
+      "river",
+      "before_turn",
+      "before_river",
+      "showdown",
+      "end",
+    ]);
+    const matchInProgress = activePhases.has(room.phase) || (room.phase === "waiting" && room.handNo > 0);
+    if (matchInProgress && !player.isBot) {
+      player.statusBeforeDisconnect = player.status;
       player.socketId = null;
       player.isReady = false;
       onForfeit?.(room, player);

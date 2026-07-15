@@ -145,10 +145,13 @@ async function main() {
     })),
   });
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(BASE + "/?mobile=1", { waitUntil: "networkidle" });
-  await page.waitForTimeout(400);
-  report.push({ step: "mobile-lobby", mobileLobby: await fit(page) });
+  const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const mobilePage = await mobileContext.newPage();
+  await mobilePage.goto(BASE + "/?mobile=1", { waitUntil: "networkidle" });
+  await mobilePage.waitForSelector("#screen-auth.active", { timeout: 5000 });
+  await mobilePage.waitForTimeout(400);
+  report.push({ step: "mobile-lobby", mobileLobby: await fit(mobilePage) });
+  await mobileContext.close();
 
   await browser.close();
 
@@ -172,6 +175,7 @@ async function main() {
   if (setPwd && setPwd.pwdUpdated !== "已设置") failures.push("password set failed");
   if (!game.active || game.hudHidden || game.skills.length < 2) failures.push("abyss solo skills missing");
   if (gameFit?.needsScroll || gameFit?.dockVisible === false) failures.push("game screen overflow");
+  if (mobileLobby?.active !== "screen-auth") failures.push("mobile lobby assertion ran on the wrong screen");
   if (mobileLobby?.needsScroll) failures.push("mobile lobby scrolls");
 
   console.log(JSON.stringify({ ok: failures.length === 0, failures, report }, null, 2));

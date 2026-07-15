@@ -92,7 +92,8 @@
 
 - `create_room { password? }`
 - `join_room { roomId, password?, playerName, playerId?, reconnectToken? }`
-- `player_action { action, amount? }`
+- `player_action { action, amount?, handId, turnId }`（服务端拒绝过期手牌或回合令牌）
+- `skill:use { skillId, target?, requestId, handId, turnId, phase }`（行动窗口技能校验完整上下文）
 
 ### 服务端 -> 客户端
 
@@ -102,7 +103,7 @@
 - `game_started { dealer, opponentName }`
 - `your_cards { cards }`
 - `community_cards { cards, phase }`
-- `player_turn { playerId, validActions, minRaise, maxBet, toCall }`
+- `player_turn { playerId, handId, turnId, validActions, minRaise, maxBet, toCall }`
 - `action_made { playerId, action, amount, pot, playerChips }`
 - `showdown { players, winner, tie, pot }`
 - `game_over { winner, reason }`
@@ -155,7 +156,7 @@
 ### 新事件
 
 - `hand_commitment`：开局只发送 SHA-256 承诺。
-- `hand_reveal`：该手结束后发送 nonce、完整初始牌堆和终局剧情标签。
+- `hand_reveal`：摊牌手即时发送；弃牌手延迟到整场结束后发送 nonce、完整初始牌堆、公开构筑与脱敏技能审计。客户端逐手验证且失败状态不可被覆盖。
 - `hand_hint`：仅向本人发送基于当前已发牌计算的牌型提示。
 
 ### 规则修正

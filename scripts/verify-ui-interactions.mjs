@@ -96,6 +96,8 @@ async function main() {
     game: {},
     mobile: {},
     compact: {},
+    landscape: {},
+    smallLandscape: {},
     allin: {},
   };
 
@@ -242,6 +244,43 @@ async function main() {
   });
   report.compact.hitAudit = await buttonHitAudit(page, "#screen-game");
 
+  const landscapeLayout = () => page.evaluate(() => {
+    const dock = document.querySelector(".action-dock")?.getBoundingClientRect();
+    const board = document.getElementById("board")?.getBoundingClientRect();
+    const self = document.getElementById("self-area")?.getBoundingClientRect();
+    const community = [...document.querySelectorAll("#community-cards .card")].map((card) =>
+      card.getBoundingClientRect()
+    );
+    return {
+      scrolls:
+        document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 ||
+        document.documentElement.scrollHeight > document.documentElement.clientHeight + 1,
+      dockInside: Boolean(
+        dock && dock.left >= -1 && dock.right <= innerWidth + 1 && dock.bottom <= innerHeight + 1
+      ),
+      selfInsideBoard: Boolean(
+        board && self && self.top >= board.top - 1 && self.bottom <= board.bottom + 1
+      ),
+      communityInsideBoard: Boolean(
+        board && community.length === 5 && community.every(
+          (card) => card.top >= board.top - 1 && card.bottom <= board.bottom + 1
+        )
+      ),
+    };
+  });
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(200);
+  report.landscape.skillGeometry = await skillGeometry(page);
+  report.landscape.layout = await landscapeLayout();
+  report.landscape.hitAudit = await buttonHitAudit(page, "#screen-game");
+
+  await page.setViewportSize({ width: 667, height: 375 });
+  await page.waitForTimeout(200);
+  report.smallLandscape.skillGeometry = await skillGeometry(page);
+  report.smallLandscape.layout = await landscapeLayout();
+  report.smallLandscape.hitAudit = await buttonHitAudit(page, "#screen-game");
+
   await browser.close();
 
   const failures = [];
@@ -302,6 +341,24 @@ async function main() {
     failures.push("compact four-skill layout failed");
   }
   if (report.compact.hitAudit.failures.length) failures.push("compact button hit targets blocked");
+  for (const [name, label] of [
+    ["landscape", "landscape"],
+    ["smallLandscape", "small landscape"],
+  ]) {
+    const current = report[name];
+    if (
+      current.skillGeometry.count !== 4 ||
+      !current.skillGeometry.allInside ||
+      current.skillGeometry.overflows ||
+      current.layout.scrolls ||
+      !current.layout.dockInside ||
+      !current.layout.selfInsideBoard ||
+      !current.layout.communityInsideBoard
+    ) {
+      failures.push(`${label} table layout failed`);
+    }
+    if (current.hitAudit.failures.length) failures.push(`${label} button hit targets blocked`);
+  }
   if (consoleErrors.length) failures.push("browser console errors");
 
   console.log(JSON.stringify({ ok: failures.length === 0, failures, consoleErrors, report }, null, 2));

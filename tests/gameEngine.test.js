@@ -209,6 +209,28 @@ describe("gameEngine", () => {
     expect(c.ok).toBe(true);
   });
 
+  test("declared all-in keeps its presentation when effective stacks normalize it to a raise", () => {
+    const { engine, emitted } = createHarness({ deckFactory: () => createDeck() });
+    const room = makeRoom();
+    room.players[0].chips = 1900;
+    room.players[1].chips = 100;
+    engine.startHand(room);
+
+    expect(engine.handlePlayerAction(room, 0, "allin").ok).toBe(true);
+    const actionMade = emitted.find(
+      (entry) => entry.event === "action_made" && entry.payload.playerId === "P1"
+    );
+    expect(actionMade.payload).toEqual(
+      expect.objectContaining({ action: "raise", declaredAction: "allin" })
+    );
+
+    expect(engine.handlePlayerAction(room, 1, "fold").ok).toBe(true);
+    const handResult = emitted.find(
+      (entry) => entry.event === "hand_result" && entry.payload.reason === "fold"
+    );
+    expect(handResult.payload.settleMs).toBe(10000);
+  });
+
   test("heads-up 翻牌后由非庄家先行动", () => {
     const { engine } = createHarness();
     const room = makeRoom();
@@ -218,6 +240,42 @@ describe("gameEngine", () => {
     expect(engine.handlePlayerAction(room, room.currentPlayerIndex, "check").ok).toBe(true);
     expect(room.phase).toBe("flop");
     expect(room.currentPlayerIndex).toBe(dealer === 0 ? 1 : 0);
+  });
+
+  test("a duplicated action token cannot act again across a street boundary", () => {
+    const { engine } = createHarness();
+    const room = makeRoom();
+    engine.startHand(room);
+    const dealer = room.dealerIndex;
+    const firstToken = room.turnId;
+    expect(
+      engine.handlePlayerAction(room, dealer, "call", undefined, {
+        enforceTurnToken: true,
+        handId: room.handId,
+        turnId: firstToken,
+      }).ok
+    ).toBe(true);
+
+    const bigBlind = room.currentPlayerIndex;
+    const checkToken = room.turnId;
+    expect(
+      engine.handlePlayerAction(room, bigBlind, "check", undefined, {
+        enforceTurnToken: true,
+        handId: room.handId,
+        turnId: checkToken,
+      }).ok
+    ).toBe(true);
+    expect(room.phase).toBe("flop");
+    expect(room.currentPlayerIndex).toBe(bigBlind);
+
+    const duplicate = engine.handlePlayerAction(room, bigBlind, "check", undefined, {
+      enforceTurnToken: true,
+      handId: room.handId,
+      turnId: checkToken,
+    });
+    expect(duplicate.ok).toBe(false);
+    expect(room.phase).toBe("flop");
+    expect(room.currentPlayerIndex).toBe(bigBlind);
   });
 
   test("跨街有效下注上限使用 streetBet 单位", () => {
@@ -293,9 +351,49 @@ describe("gameEngine", () => {
       expect(payload.players.map((p) => p.cards.length).sort()).toEqual([0, 2]);
     });
 
+    expect(emitted.some((e) => e.event === "hand_reveal")).toBe(false);
+    expect(room.deferredHandReveals).toHaveLength(1);
+    engine.flushDeferredHandReveals(room);
     const reveal = emitted.find((e) => e.event === "hand_reveal")?.payload;
     expect(reveal.deck).toHaveLength(52);
     expect(verifyDeckCommitment(reveal)).toBe(true);
+
+    emitted.length = 0;
+    room.phase = "game_over";
+    engine.restorePlayerState(room, room.players[0]);
+    expect(emitted.filter((entry) => entry.event === "hand_reveal")).toHaveLength(1);
+  });
+
+  test("short blind all-in returns unmatched chips and runs out without a bogus turn", () => {
+    const { engine, emitted } = createHarness({ deckFactory: () => createDeck() });
+    const room = makeRoom();
+    room.players[0].chips = 1990;
+    room.players[1].chips = 10;
+
+    engine.startHand(room);
+
+    expect(room.communityCards).toHaveLength(5);
+    expect(room.phase).toBe("end");
+    expect(room.players.reduce((sum, player) => sum + player.chips, 0)).toBe(2000);
+    expect(emitted.some((entry) => entry.event === "player_turn")).toBe(false);
+    expect(emitted.find((entry) => entry.event === "hand_result")?.payload.settleMs).toBe(10000);
+  });
+
+  test.each([0, 1])("a 30-chip big blind still gives the small blind a 5-chip decision (dealer %i)", (dealerIndex) => {
+    const { engine, emitted } = createHarness({ deckFactory: () => createDeck() });
+    const room = makeRoom();
+    room.dealerIndex = dealerIndex;
+    const bbIndex = dealerIndex === 0 ? 1 : 0;
+    room.players[bbIndex].chips = 30;
+    room.players[dealerIndex].chips = 1970;
+
+    engine.startHand(room);
+
+    expect(room.phase).toBe("pre_flop");
+    expect(room.communityCards).toHaveLength(0);
+    expect(room.currentPlayerIndex).toBe(dealerIndex);
+    expect(getValidActions(room, dealerIndex).toCall).toBe(5);
+    expect(emitted.some((entry) => entry.event === "player_turn")).toBe(true);
   });
 
   test("allin 后可以推进到摊牌", () => {
@@ -307,9 +405,40 @@ describe("gameEngine", () => {
     const second = room.currentPlayerIndex;
     engine.handlePlayerAction(room, second, "call");
     expect(["showdown", "end", "waiting", "game_over"]).toContain(room.phase);
+    expect(room.revealedHandHistory).toHaveLength(1);
   });
 
-  test("平局时奇数筹码给房主", () => {
+  test("an unevaluable showdown resolves as a void tie instead of stalling", () => {
+    const { engine, emitted } = createHarness();
+    const room = makeRoom();
+    room.phase = "river";
+    room.pot = 101;
+    room.players[0].totalBet = 50;
+    room.players[1].totalBet = 50;
+    room.players[0].cards = ["HA", "DA"].map(card);
+    room.players[1].cards = ["CA", "SA"].map(card);
+    room.communityCards = [];
+
+    engine.settleShowdown(room);
+
+    expect(room.phase).toBe("end");
+    expect(room.pot).toBe(0);
+    expect(room.players[0].chips + room.players[1].chips).toBe(2101);
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: "showdown",
+          payload: expect.objectContaining({ tie: true, void: true }),
+        }),
+        expect.objectContaining({
+          event: "hand_result",
+          payload: expect.objectContaining({ reason: "showdown", tie: true }),
+        }),
+      ])
+    );
+  });
+
+  test("平局时奇数筹码给大盲位而非房主", () => {
     const { engine } = createHarness();
     const room = makeRoom();
     room.phase = "river";
@@ -317,11 +446,11 @@ describe("gameEngine", () => {
     room.communityCards = ["S2", "D7", "C9", "HJ", "SQ"].map(card);
     room.players[0].cards = ["HA", "DA"].map(card);
     room.players[1].cards = ["CA", "SA"].map(card);
-    const beforeOwner = room.players[0].chips;
     engine.settleShowdown(room);
     expect(room.pot).toBe(0);
     expect(room.players[0].chips + room.players[1].chips).toBe(2000 + 101);
-    expect(room.players[0].chips).toBeGreaterThan(beforeOwner + 50);
+    expect(room.players[0].chips).toBe(1050);
+    expect(room.players[1].chips).toBe(1051);
   });
 
   test("公共牌全部翻开时牌型展示延长到 6 秒", () => {
@@ -368,6 +497,32 @@ describe("gameEngine", () => {
     expect(over).toBeTruthy();
     expect(over.payload.reason).toBe("disconnect_timeout_forfeit");
     expect(over.payload.rematch.timeoutMs).toBe(10000);
+  });
+
+  test("settlement forfeit cancels the next-hand timer and cannot reopen the match", () => {
+    const { engine, emitted, trackRoom } = createHarness();
+    const room = trackRoom(makeRoom());
+    room.handNo = 2;
+    room.phase = "end";
+    room.nextHandTimer = setTimeout(() => {
+      room.phase = "waiting";
+    }, 100);
+
+    const result = engine.resolveDisconnectTimeout(room, room.players[0]);
+    expect(result.ok).toBe(true);
+    jest.advanceTimersByTime(500);
+    expect(room.phase).toBe("game_over");
+    expect(emitted.filter((entry) => entry.event === "game_over")).toHaveLength(1);
+  });
+
+  test("stale disconnect callback cannot mutate a replaced seat", () => {
+    const { engine, emitted, trackRoom } = createHarness();
+    const room = trackRoom(makeRoom());
+    const stale = room.players[0];
+    room.players = [room.players[1]];
+
+    expect(engine.resolveDisconnectTimeout(room, stale).ok).toBe(false);
+    expect(emitted.some((entry) => entry.event === "game_over")).toBe(false);
   });
 
   test("玩家破产会触发 game_over", () => {
@@ -512,6 +667,29 @@ describe("gameEngine", () => {
     });
     jest.advanceTimersByTime(900);
     expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  test("cancelling a turn also cancels its pending bot action", () => {
+    const { engine } = createHarness();
+    const room = makeRoom();
+    room.phase = "pre_flop";
+    room.currentPlayerIndex = 0;
+    room.players[0].isBot = true;
+    room.handId = "hand-bot";
+    room.turnId = "hand-bot:1";
+    const spy = jest.spyOn(engine, "handlePlayerAction").mockImplementation(() => ({ ok: true }));
+
+    engine.scheduleBotAction(room, 0, {
+      toCall: 0,
+      validActions: ["check", "fold"],
+      minRaise: 0,
+      maxBet: 0,
+    });
+    engine.clearActionTimer(room);
+    jest.advanceTimersByTime(900);
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(room.botActionTimer).toBeNull();
     spy.mockRestore();
   });
 });

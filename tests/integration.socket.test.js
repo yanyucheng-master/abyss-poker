@@ -77,6 +77,15 @@ async function setupRoom(baseUrl, { gameMode = GAME_MODE.STANDARD } = {}) {
   };
 }
 
+function emitPlayerAction(socket, turn, action, amount) {
+  socket.emit("player_action", {
+    action,
+    ...(amount == null ? {} : { amount }),
+    handId: turn.handId,
+    turnId: turn.turnId,
+  });
+}
+
 describe("socket integration", () => {
   let httpServer;
   let baseUrl;
@@ -200,14 +209,14 @@ describe("socket integration", () => {
     const sockets = { [j1.playerId]: c1, [j2.playerId]: c2 };
 
     const nextTurn1 = waitFor(c1, "player_turn", (p) => p.playerId !== turn.playerId);
-    sockets[turn.playerId].emit("player_action", { action: "raise", amount: turn.minRaise });
+    emitPlayerAction(sockets[turn.playerId], turn, "raise", turn.minRaise);
     await waitFor(c1, "action_made", (p) => p.action === "raise");
 
     const turn2 = await nextTurn1;
     const nextTurn2 = waitFor(c1, "player_turn");
     const flopCards = waitFor(c1, "community_cards", (payload) => payload.phase === "flop");
     const flopState = waitFor(c1, "room_state", (payload) => payload.phase === "flop");
-    sockets[turn2.playerId].emit("player_action", { action: "call" });
+    emitPlayerAction(sockets[turn2.playerId], turn2, "call");
     await waitFor(c1, "action_made", (p) => p.action === "call");
 
     const [flopCardsPayload, flopStatePayload] = await Promise.all([flopCards, flopState]);
@@ -217,11 +226,11 @@ describe("socket integration", () => {
 
     const turn3 = await nextTurn2;
     const nextTurn3 = waitFor(c1, "player_turn");
-    sockets[turn3.playerId].emit("player_action", { action: "check" });
+    emitPlayerAction(sockets[turn3.playerId], turn3, "check");
     await waitFor(c1, "action_made", (p) => p.action === "check");
 
     const turn4 = await nextTurn3;
-    sockets[turn4.playerId].emit("player_action", { action: "fold" });
+    emitPlayerAction(sockets[turn4.playerId], turn4, "fold");
     await waitFor(c1, "action_made", (p) => p.action === "win_by_fold");
 
   });
@@ -242,13 +251,13 @@ describe("socket integration", () => {
     expect(commitment1.mode).toBe(GAME_MODE.OVERDRIVE);
 
     const nextTurn = waitFor(c1, "player_turn", (payload) => payload.playerId !== turn.playerId);
-    sockets[turn.playerId].emit("player_action", { action: "allin" });
+    emitPlayerAction(sockets[turn.playerId], turn, "allin");
     const callerTurn = await nextTurn;
 
     const handResult = waitFor(c1, "hand_result", (payload) => payload.reason === "showdown");
     const reveal1 = waitFor(c1, "hand_reveal");
     const reveal2 = waitFor(c2, "hand_reveal");
-    sockets[callerTurn.playerId].emit("player_action", { action: "call" });
+    emitPlayerAction(sockets[callerTurn.playerId], callerTurn, "call");
 
     const [result, firstReveal, secondReveal] = await Promise.all([
       handResult,
@@ -260,6 +269,101 @@ describe("socket integration", () => {
     expect(firstReveal).toEqual(secondReveal);
     expect(firstReveal.commitment).toBe(commitment1.commitment);
     expect(verifyDeckCommitment(firstReveal)).toBe(true);
+  });
+
+  test("反制跳过事件会通过 Socket 立即结算待定技能", async () => {
+    const c1 = new Client(baseUrl, { transports: ["websocket"] });
+    const c2 = new Client(baseUrl, { transports: ["websocket"] });
+    clients.push(c1, c2);
+    await Promise.all([waitFor(c1, "connect"), waitFor(c2, "connect")]);
+
+    const created = waitFor(c1, "room_created");
+    const hostJoined = waitFor(c1, "room_joined");
+    c1.emit("create_room", {
+      playerName: "A",
+      playerId: "PSKILLA",
+      skillMode: "abyss",
+    });
+    const [{ roomId }] = await Promise.all([created, hostJoined]);
+
+    const guestJoined = waitFor(c2, "room_joined");
+    c2.emit("join_room", {
+      roomId,
+      playerName: "B",
+      playerId: "PSKILLB",
+    });
+    await guestJoined;
+
+    const hostCards = waitFor(c1, "your_cards");
+    const guestCards = waitFor(c2, "your_cards");
+    const firstTurnPromise = waitFor(c1, "player_turn");
+    const sharedLoadout = ["ECHO_SCAN", "NEURAL_INTERRUPT"];
+    c1.emit("skill:loadout:set", { skillIds: sharedLoadout });
+    c2.emit("skill:loadout:set", { skillIds: sharedLoadout });
+    await Promise.all([hostCards, guestCards]);
+    const firstTurn = await firstTurnPromise;
+
+    const sockets = { PSKILLA: c1, PSKILLB: c2 };
+    const secondTurnPromise = waitFor(
+      c1,
+      "player_turn",
+      (payload) => payload.handId === firstTurn.handId && payload.turnId !== firstTurn.turnId
+    );
+    emitPlayerAction(
+      sockets[firstTurn.playerId],
+      firstTurn,
+      firstTurn.validActions.includes("call") ? "call" : "check"
+    );
+    const secondTurn = await secondTurnPromise;
+
+    const flopCards = waitFor(c1, "community_cards", (payload) => payload.phase === "flop");
+    const flopTurnPromise = waitFor(
+      c1,
+      "player_turn",
+      (payload) => payload.handId === firstTurn.handId && payload.turnId !== secondTurn.turnId
+    );
+    emitPlayerAction(
+      sockets[secondTurn.playerId],
+      secondTurn,
+      secondTurn.validActions.includes("check") ? "check" : "call"
+    );
+    await flopCards;
+    const flopTurn = await flopTurnPromise;
+
+    const caster = sockets[flopTurn.playerId];
+    const responderId = flopTurn.playerId === "PSKILLA" ? "PSKILLB" : "PSKILLA";
+    const responder = sockets[responderId];
+    const requestId = "integration-counter-skip";
+    const reaction = waitFor(
+      responder,
+      "skill:reaction-window",
+      (payload) => payload.requestId === requestId
+    );
+    const resolved = waitFor(
+      caster,
+      "skill:resolved",
+      (payload) => payload.requestId === requestId
+    );
+    caster.emit("skill:use", {
+      requestId,
+      skillId: "ECHO_SCAN",
+      target: {},
+      handId: flopTurn.handId,
+      turnId: flopTurn.turnId,
+      phase: "flop",
+    });
+    await reaction;
+
+    const skippedAt = Date.now();
+    responder.emit("skill:counter:skip", { requestId });
+    await expect(resolved).resolves.toEqual(
+      expect.objectContaining({
+        requestId,
+        skillId: "ECHO_SCAN",
+        status: "SUCCESS",
+      })
+    );
+    expect(Date.now() - skippedAt).toBeLessThan(1000);
   });
 
   test("断线后可凭 token 重连且不会重开牌局，超时终局可完整恢复", async () => {
@@ -340,7 +444,7 @@ describe("socket integration", () => {
       const sockets = { [j1.playerId]: c1, [j2.playerId]: c2 };
       const action = turn.validActions.includes("call") ? "call" : "check";
       const made = waitFor(c1, "action_made", (payload) => payload.playerId === turn.playerId);
-      sockets[turn.playerId].emit("player_action", { action });
+      emitPlayerAction(sockets[turn.playerId], turn, action);
       await expect(made).resolves.toEqual(expect.objectContaining({ action }));
     }
   );
@@ -363,7 +467,7 @@ describe("socket integration", () => {
     const nextTurn = await turn;
     const action = nextTurn.validActions.includes("call") ? "call" : "check";
     const made = waitFor(c1, "action_made", (payload) => payload.playerId === "PA");
-    c1.emit("player_action", { action });
+    emitPlayerAction(c1, nextTurn, action);
     await expect(made).resolves.toEqual(expect.objectContaining({ action }));
   });
 

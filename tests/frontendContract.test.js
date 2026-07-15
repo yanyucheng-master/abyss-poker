@@ -13,6 +13,10 @@ describe("frontend DOM contract", () => {
   const html = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
   const client = fs.readFileSync(path.join(publicDir, "client.js"), "utf8");
   const style = fs.readFileSync(path.join(publicDir, "style.css"), "utf8");
+  const socketHandlers = fs.readFileSync(
+    path.join(__dirname, "..", "socket", "socketHandlers.js"),
+    "utf8"
+  );
 
   test("HTML id 唯一", () => {
     const ids = collectMatches(html, /\bid=["']([^"']+)["']/g);
@@ -56,9 +60,18 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('<span>牌堆</span>');
     expect(client).toContain('className = "skill-zoom-button"');
     expect(client).toContain('className = "skill-slot is-"');
-    expect(client).toContain('beginUiRequest("action"');
-    expect(client).toContain('beginUiRequest("room"');
-    expect(client).toContain('beginUiRequest("skill"');
+    expect(client).toContain('beginRealtimeRequest("action"');
+    expect(client).toContain('beginRealtimeRequest("room"');
+    expect(client).toContain('beginRealtimeRequest("skill"');
+    expect(client).toContain("socket.connected &&");
+  });
+
+  test("storage failures and modal focus are handled defensively", () => {
+    expect(client).toContain("function safeStorageGet");
+    expect(client).toContain("function safeStorageSet");
+    expect(client).not.toMatch(/\b(?:localStorage|sessionStorage)\.(?:getItem|setItem|removeItem)/);
+    expect(client).toContain("mainContent.inert = hasModal");
+    expect(client).toContain('event.key !== "Tab"');
   });
 
   test("按钮装饰层不拦截邻近按钮点击", () => {
@@ -88,6 +101,11 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("state.settings.reduceMotion");
     expect(client).toContain("navigator.vibrate(ALL_IN_VIBRATION_PATTERN)");
     expect(client).toMatch(/playAllInHaptics\(\);\s+playTone\("allin"\)/);
+  });
+
+  test("反制跳过会通知服务端并立即结算", () => {
+    expect(client).toContain('socket.emit("skill:counter:skip"');
+    expect(socketHandlers).toContain('socket.on("skill:counter:skip"');
   });
 
   test("入口资源与模式选择控件存在", () => {

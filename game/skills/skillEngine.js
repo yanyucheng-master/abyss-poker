@@ -44,6 +44,16 @@ function appendSkillLog(room, entry) {
   ensureRoomSkillState(room).skillActionLog.push({ at: Date.now(), ...entry });
 }
 
+function buildPublicSkillTarget(skillId, target = {}) {
+  if (skillId === "MEMORY_REWRITE" && Number.isInteger(Number(target.cardIndex))) {
+    return { cardIndex: Number(target.cardIndex) };
+  }
+  if (skillId === "NULLIFICATION_PROTOCOL" && typeof target.cardCode === "string") {
+    return { cardCode: target.cardCode };
+  }
+  return null;
+}
+
 function rememberProcessedRequest(state, playerId, requestId) {
   const key = `${playerId}:${requestId}`;
   if (state.processedRequestIds.has(key)) return false;
@@ -122,6 +132,7 @@ function applyAdversityAtHandStart(room, player) {
           skillId: "ADVERSITY_CIRCUIT",
           casterId: player.playerId,
           status: "PASSIVE",
+          energyGained: gained,
           publicSummary: "逆境回路触发：获得 1 点深渊能量",
         });
       }
@@ -180,6 +191,7 @@ function endHandSkills(room, { reason, winner, tie } = {}) {
           skillId: "ABYSS_BREATH",
           casterId: player.playerId,
           status: "PASSIVE",
+          energyGained: gained,
           publicSummary: "深呼吸触发：获得 1 点深渊能量",
         });
       }
@@ -187,7 +199,7 @@ function endHandSkills(room, { reason, winner, tie } = {}) {
     }
     if (reason === "showdown" && !tie && winner && player.playerId !== winner.playerId) {
       if (!player.skillRuntime.foldedThisHand) {
-        gainEnergy(player, SKILL_CONFIG.SHOWDOWN_LOSER_BONUS, { bonus: true });
+        gainEnergy(player, SKILL_CONFIG.SHOWDOWN_LOSER_BONUS, { bonus: false });
       }
     }
   }
@@ -351,11 +363,28 @@ class SkillEngine {
     return { ok: true, skill, cost };
   }
 
-  requestUse(room, player, { skillId, target = {}, requestId }) {
+  requestUse(
+    room,
+    player,
+    { skillId, target = {}, requestId, handId, turnId, phase },
+    { enforceContext = false } = {}
+  ) {
     const reqId = String(requestId || crypto.randomUUID());
     const state = ensureRoomSkillState(room);
     if (state.processedRequestIds.has(`${player.playerId}:${reqId}`)) {
       return { ok: true, duplicate: true, requestId: reqId };
+    }
+
+    const requestedSkill = getSkillDefinition(skillId);
+    if (
+      enforceContext &&
+      (
+        handId !== room.handId ||
+        phase !== room.phase ||
+        (requestedSkill?.requiresActionTurn && turnId !== room.turnId)
+      )
+    ) {
+      return { ok: false, error: "技能窗口已过期，请等待状态同步" };
     }
 
     const checked = this.validateUse(room, player, skillId, target);
@@ -368,7 +397,6 @@ class SkillEngine {
     player.skillRuntime.activeSkillsUsedThisPhase += 1;
     player.skillRuntime.activeSkillsUsedThisHand += 1;
     player.skillRuntime.hasUsedActiveThisHand = true;
-    player.skillRuntime.breathEligible = false;
 
     const pending = {
       requestId: reqId,
@@ -461,6 +489,27 @@ class SkillEngine {
     this.resolvePending(room, { countered: false });
   }
 
+  declineCounter(room, player, { requestId } = {}) {
+    if (!isSkillEnabled(room.skillMode)) return { ok: false, error: "当前房间未启用技能" };
+    const state = ensureRoomSkillState(room);
+    const window = state.reactionWindow;
+    if (!window || window.status !== "WAITING") {
+      return { ok: false, error: "当前没有反制窗口" };
+    }
+    if (window.requestId !== requestId) return { ok: false, error: "反制目标不匹配" };
+    if (window.responderId !== player.playerId) {
+      return { ok: false, error: "你不能跳过此反制窗口" };
+    }
+    window.status = "DECLINED";
+    if (state.reactionTimer) {
+      clearTimeout(state.reactionTimer);
+      state.reactionTimer = null;
+    }
+    this.emit(room, "skill:reaction-expired", { requestId, reason: "declined" });
+    this.resolvePending(room, { countered: false });
+    return { ok: true };
+  }
+
   requestCounter(room, player, { requestId, skillId }) {
     if (!isSkillEnabled(room.skillMode)) return { ok: false, error: "当前房间未启用技能" };
     const state = ensureRoomSkillState(room);
@@ -519,20 +568,24 @@ class SkillEngine {
             skillId: "EMBER_RECYCLE",
             casterId: caster.playerId,
             status: "PASSIVE",
+            energyGained: recycled,
             publicSummary: "余烬回收触发：额外返还 1 点深渊能量",
           });
         }
       }
       const logEntry = {
         at: Date.now(),
+        requestId: pending.requestId,
         skillId: skill.id,
         casterId: caster.playerId,
         status: "COUNTERED",
         publicSummary: `${skill.name} 被神经阻断取消`,
         counterPlayerId: counterPlayer?.playerId || null,
         energyPaid: pending.energyPaid,
+        counterEnergyPaid: getSkillDefinition("NEURAL_INTERRUPT")?.energyCost || 0,
         energyRefunded: refund,
         energyRecycled: recycled,
+        target: buildPublicSkillTarget(skill.id, pending.target),
       };
       state.skillActionLog.push(logEntry);
       this.emit(room, "skill:resolved", {
@@ -557,10 +610,14 @@ class SkillEngine {
     const result = this.executeEffect(room, caster, skill, pending.target, pending);
     const logEntry = {
       at: Date.now(),
+      requestId: pending.requestId,
       skillId: skill.id,
       casterId: caster.playerId,
       status: result.ok ? "SUCCESS" : "FAILED",
       publicSummary: result.publicSummary || `${skill.name} 已结算`,
+      energyPaid: pending.energyPaid,
+      target: buildPublicSkillTarget(skill.id, pending.target),
+      publicData: result.publicData || null,
       private: result.privatePayload || null,
     };
     state.skillActionLog.push(logEntry);
@@ -573,11 +630,17 @@ class SkillEngine {
       publicData: result.publicData || null,
     });
     if (result.privatePayload) {
-      this.emitPlayer(caster, "skill:private-result", {
+      const privateResult = {
         requestId: pending.requestId,
         skillId: skill.id,
         ...result.privatePayload,
-      });
+      };
+      caster.skillRuntime.privateResults = (caster.skillRuntime.privateResults || []).filter(
+        (entry) => entry.requestId !== pending.requestId
+      );
+      caster.skillRuntime.privateResults.push(privateResult);
+      caster.skillRuntime.privateResults = caster.skillRuntime.privateResults.slice(-6);
+      this.emitPlayer(caster, "skill:private-result", privateResult);
     }
     state.pendingSkill = null;
     this.broadcastSkillState(room);
@@ -692,14 +755,28 @@ class SkillEngine {
       expiresAt,
     });
     state.choiceTimer = setTimeout(() => {
-      this.resolveSkillChoice(room, caster, { timeout: true });
+      this.resolveSkillChoice(room, caster, {
+        timeout: true,
+        requestId: pending.requestId,
+        skillId: "QUANTUM_HOLE_CARDS",
+        choiceType: "QUANTUM_SELECT",
+      });
     }, SKILL_CONFIG.SKILL_CHOICE_TIMEOUT_MS);
     if (typeof state.choiceTimer.unref === "function") state.choiceTimer.unref();
 
     if (caster.isBot) {
-      setTimeout(() => {
-        this.resolveSkillChoice(room, caster, { keepIndexes: [0, 1] });
+      const botTimer = setTimeout(() => {
+        if (state.botChoiceTimer !== botTimer) return;
+        state.botChoiceTimer = null;
+        this.resolveSkillChoice(room, caster, {
+          requestId: pending.requestId,
+          skillId: "QUANTUM_HOLE_CARDS",
+          choiceType: "QUANTUM_SELECT",
+          keepIndexes: [0, 1],
+        });
       }, 400);
+      state.botChoiceTimer = botTimer;
+      if (typeof botTimer.unref === "function") botTimer.unref();
     }
     return {
       ok: true,
@@ -736,14 +813,29 @@ class SkillEngine {
       expiresAt,
     });
     state.choiceTimer = setTimeout(() => {
-      this.resolveSkillChoice(room, caster, { timeout: true, decision: "keep" });
+      this.resolveSkillChoice(room, caster, {
+        timeout: true,
+        requestId: pending.requestId,
+        skillId: "FORK_OBSERVATION",
+        choiceType: "FORK_DECISION",
+        decision: "keep",
+      });
     }, SKILL_CONFIG.SKILL_CHOICE_TIMEOUT_MS);
     if (typeof state.choiceTimer.unref === "function") state.choiceTimer.unref();
 
     if (caster.isBot) {
-      setTimeout(() => {
-        this.resolveSkillChoice(room, caster, { decision: "keep" });
+      const botTimer = setTimeout(() => {
+        if (state.botChoiceTimer !== botTimer) return;
+        state.botChoiceTimer = null;
+        this.resolveSkillChoice(room, caster, {
+          requestId: pending.requestId,
+          skillId: "FORK_OBSERVATION",
+          choiceType: "FORK_DECISION",
+          decision: "keep",
+        });
       }, 400);
+      state.botChoiceTimer = botTimer;
+      if (typeof botTimer.unref === "function") botTimer.unref();
     }
     return {
       ok: true,
@@ -770,9 +862,20 @@ class SkillEngine {
     if (!choice || choice.playerId !== player.playerId) {
       return { ok: false, error: "当前没有待处理的技能选择" };
     }
+    if (
+      payload.requestId !== choice.requestId ||
+      payload.skillId !== choice.skillId ||
+      payload.choiceType !== choice.type
+    ) {
+      return { ok: false, error: "技能选择凭证已过期，请等待状态同步" };
+    }
     if (state.choiceTimer) {
       clearTimeout(state.choiceTimer);
       state.choiceTimer = null;
+    }
+    if (state.botChoiceTimer) {
+      clearTimeout(state.botChoiceTimer);
+      state.botChoiceTimer = null;
     }
 
     if (choice.type === "QUANTUM_SELECT") {
@@ -797,6 +900,8 @@ class SkillEngine {
         skillId: "QUANTUM_HOLE_CARDS",
         casterId: player.playerId,
         status: "CHOICE_RESOLVED",
+        choiceType: choice.type,
+        choice: { keepIndexes: [...keepIndexes], timeout: Boolean(payload.timeout) },
         publicSummary,
       });
       this.emitPlayer(player, "your_cards", { cards: player.cards });
@@ -829,6 +934,8 @@ class SkillEngine {
         skillId: "FORK_OBSERVATION",
         casterId: player.playerId,
         status: "CHOICE_RESOLVED",
+        choiceType: choice.type,
+        choice: { decision },
         publicSummary,
       });
       this.emit(room, "skill:resolved", {
@@ -890,12 +997,27 @@ class SkillEngine {
     const state = room.skillState || createRoomSkillState();
     return {
       skillMode: room.skillMode,
+      equippedSkills: room.players.map((player) => ({
+        playerId: player.playerId,
+        skillIds: [...(player.skillRuntime?.equippedSkillIds || [])],
+      })),
       skillActions: [...(state.skillActionLog || [])].map((e) => ({
         at: e.at,
+        requestId: e.requestId || null,
         skillId: e.skillId,
         casterId: e.casterId,
         status: e.status,
         publicSummary: e.publicSummary,
+        counterPlayerId: e.counterPlayerId || null,
+        energyPaid: Number(e.energyPaid || 0),
+        counterEnergyPaid: Number(e.counterEnergyPaid || 0),
+        energyRefunded: Number(e.energyRefunded || 0),
+        energyRecycled: Number(e.energyRecycled || 0),
+        energyGained: Number(e.energyGained || 0),
+        target: e.target || null,
+        choiceType: e.choiceType || null,
+        choice: e.choice || null,
+        publicData: e.publicData || null,
       })),
       burnedCards: [...(state.burnedCards || [])],
       removedCards: [...(state.removedCards || [])],
@@ -906,6 +1028,9 @@ class SkillEngine {
 
   restorePrivateState(room, player) {
     if (!isSkillEnabled(room.skillMode)) return;
+    (player.skillRuntime?.privateResults || []).forEach((result) => {
+      this.emitPlayer(player, "skill:private-result", { ...result, restored: true });
+    });
     const choice = room.skillState?.skillChoice;
     if (!choice || choice.playerId !== player.playerId) return;
     if (choice.type === "QUANTUM_SELECT") {

@@ -40,13 +40,14 @@
   --safe-right: max(18px, env(safe-area-inset-right));
   --safe-bottom: max(18px, env(safe-area-inset-bottom));
   --safe-left: max(18px, env(safe-area-inset-left));
-  --asset-lobby: url("./assets/abyss-poker-lobby-banner.png");
-  --asset-table: url("./assets/abyss-poker-table-bg.png");
-  --asset-settlement: url("./assets/abyss-judgment-settlement.png");
-  --font-display: "Orbitron", "Rajdhani", "Noto Sans SC", sans-serif;
-  --font-ui: "Rajdhani", "Noto Sans SC", sans-serif;
-  --font-body: "Noto Sans SC", "Rajdhani", sans-serif;
-  --font-mono: "Share Tech Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --asset-lobby: url("./assets/abyss-poker-lobby-banner.webp");
+  --asset-table: url("./assets/abyss-poker-table-bg.webp");
+  --asset-settlement: url("./assets/abyss-judgment-settlement.webp");
+  --font-display: "Bahnschrift SemiCondensed", "Arial Narrow", "Microsoft YaHei UI", system-ui, sans-serif;
+  --font-ui: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-body: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-sans: var(--font-ui);
+  --font-mono: "Cascadia Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-family: var(--font-body);
 }
 

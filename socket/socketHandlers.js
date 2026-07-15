@@ -137,6 +137,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         if (!result.destroyed && roomManager.getRoom(result.room.roomId)) {
           gameEngine.broadcastRoomState(result.room);
           io.to(result.room.roomId).emit("player_left", {
+            roomId: result.room.roomId,
             playerId: result.player.playerId,
             players: roomManager.getPublicPlayers(result.room),
           });
@@ -151,6 +152,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         gameMode: room.gameMode,
         skillMode: room.skillMode,
         phase: room.phase,
+        handNo: room.handNo,
         hasPassword: Boolean(room.password),
         playerId: player.playerId,
         reconnectToken: player.reconnectToken,
@@ -227,6 +229,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       });
       emitRoomJoined(room, joined.player);
       io.to(room.roomId).emit("player_joined", {
+        roomId: room.roomId,
         playerId: joined.player.playerId,
         players: roomManager.getPublicPlayers(room),
       });
@@ -303,7 +306,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         return emitJoinError("重连凭证错误");
       }
       const effectivePlayers =
-        targetRoom.phase === "waiting"
+        ["waiting", "drafting"].includes(targetRoom.phase) && targetRoom.handNo === 0
           ? targetRoom.players.filter(
               (p) => p.isBot || p.socketId || (identity.playerId && p.playerId === identity.playerId)
             )
@@ -331,6 +334,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       socket.join(joined.room.roomId);
       emitRoomJoined(joined.room, joined.player);
       io.to(joined.room.roomId).emit(joined.reconnected ? "player_reconnected" : "player_joined", {
+        roomId: joined.room.roomId,
         playerId: joined.player.playerId,
         players: roomManager.getPublicPlayers(joined.room),
       });
@@ -355,13 +359,27 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         socket.emit("action_error", { message: "当前未加入房间" });
         return;
       }
-      const result = gameEngine.handlePlayerAction(
-        found.room,
-        found.playerIndex,
-        payload.action,
-        payload.amount
-      );
-      if (!result.ok) socket.emit("action_error", { message: result.error });
+      try {
+        const result = gameEngine.handlePlayerAction(
+          found.room,
+          found.playerIndex,
+          payload.action,
+          payload.amount,
+          {
+            enforceTurnToken: true,
+            handId: payload.handId,
+            turnId: payload.turnId,
+          }
+        );
+        if (!result.ok) socket.emit("action_error", { message: result.error });
+      } catch (error) {
+        logger.error("SOCKET", "牌局动作处理异常", {
+          roomId: found.room.roomId,
+          playerId: found.room.players[found.playerIndex]?.playerId || null,
+          error: error.message,
+        });
+        socket.emit("action_error", { message: "牌局状态异常，请等待同步后重试" });
+      }
     });
 
     socket.on("skill:loadout:set", (rawPayload = {}) => {
@@ -408,7 +426,10 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         skillId: skillId.value,
         target: safePayload(payload.target),
         requestId: requestId.value || undefined,
-      });
+        handId: payload.handId,
+        turnId: payload.turnId,
+        phase: payload.phase,
+      }, { enforceContext: true });
       if (!result.ok) {
         socket.emit("skill:failed", {
           message: result.error,
@@ -432,6 +453,32 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         skillId: payload.skillId || "NEURAL_INTERRUPT",
       });
       if (!result.ok) socket.emit("skill:failed", { message: result.error, reason: "counter" });
+    });
+
+    socket.on("skill:counter:skip", (rawPayload = {}) => {
+      if (!allowRate("skill", "skill:failed")) return;
+      const payload = safePayload(rawPayload);
+      const found = roomManager.getRoomBySocket(socket.id);
+      if (!found) {
+        socket.emit("skill:failed", { message: "当前未加入房间" });
+        return;
+      }
+      const requestId = readText(payload.requestId, {
+        label: "请求ID",
+        max: INPUT_LIMITS.requestId,
+        required: true,
+      });
+      if (!requestId.ok) {
+        socket.emit("skill:failed", { message: requestId.error, reason: "counter_skip" });
+        return;
+      }
+      const player = found.room.players[found.playerIndex];
+      const result = gameEngine.handleSkillCounterSkip(found.room, player, {
+        requestId: requestId.value,
+      });
+      if (!result.ok) {
+        socket.emit("skill:failed", { message: result.error, reason: "counter_skip" });
+      }
     });
 
     socket.on("skill:choice", (rawPayload = {}) => {
@@ -473,6 +520,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       });
       if (!found) return;
       io.to(found.room.roomId).emit("player_disconnected", {
+        roomId: found.room.roomId,
         playerId: found.player.playerId,
         players: roomManager.getPublicPlayers(found.room),
       });

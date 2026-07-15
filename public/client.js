@@ -5,6 +5,13 @@ const GAME_MODE = Object.freeze({
   OVERDRIVE: "overdrive",
 });
 const ACTIVE_PHASES = new Set(["pre_flop", "flop", "turn", "river"]);
+const MATCH_IN_PROGRESS_PHASES = new Set([
+  ...ACTIVE_PHASES,
+  "before_turn",
+  "before_river",
+  "showdown",
+  "end",
+]);
 const HAND_SETTLE_MS = 5000;
 const REMATCH_TIMEOUT_MS = 10000;
 const ALL_IN_EFFECT_MS = 4200;
@@ -18,7 +25,40 @@ const STORAGE = Object.freeze({
   revealCards: "abyss_reveal_cards",
   settings: "abyss_ui_settings_v2",
   skillLoadout: "abyss_skill_loadout_v1",
+  commitments: "abyss_hand_commitments_v1",
 });
+
+function safeStorageGet(storageName, key, fallback = "") {
+  try {
+    const value = window[storageName]?.getItem(key);
+    return value == null ? fallback : value;
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function safeStorageSet(storageName, key, value) {
+  try {
+    window[storageName]?.setItem(key, String(value));
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function safeStorageRemove(storageName, key) {
+  try {
+    window[storageName]?.removeItem(key);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+function clampStoredNumber(value, min, max, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+}
 
 function createPlayerId() {
   if (window.crypto && window.crypto.getRandomValues) {
@@ -29,11 +69,11 @@ function createPlayerId() {
   return "P" + Math.random().toString(36).slice(2, 14).toUpperCase();
 }
 
-const initialPlayerId = sessionStorage.getItem(STORAGE.playerId) || createPlayerId();
-const initialReconnectToken = sessionStorage.getItem(STORAGE.reconnectToken) || "";
-const initialRoomId = sessionStorage.getItem(STORAGE.roomId) || "";
+const initialPlayerId = safeStorageGet("sessionStorage", STORAGE.playerId) || createPlayerId();
+const initialReconnectToken = safeStorageGet("sessionStorage", STORAGE.reconnectToken);
+const initialRoomId = safeStorageGet("sessionStorage", STORAGE.roomId);
 const hasPendingReconnect = Boolean(initialRoomId && initialReconnectToken);
-sessionStorage.setItem(STORAGE.playerId, initialPlayerId);
+safeStorageSet("sessionStorage", STORAGE.playerId, initialPlayerId);
 
 function loadSettings() {
   const defaults = {
@@ -44,10 +84,44 @@ function loadSettings() {
     scale: 100,
     lowPerformance: false,
   };
+  let stored = {};
   try {
-    return Object.assign(defaults, JSON.parse(localStorage.getItem(STORAGE.settings) || "{}"));
+    const parsed = JSON.parse(safeStorageGet("localStorage", STORAGE.settings, "{}"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed;
   } catch (_error) {
-    return defaults;
+    stored = {};
+  }
+  return {
+    animation: ["high", "medium", "low"].includes(stored.animation)
+      ? stored.animation
+      : defaults.animation,
+    reduceMotion:
+      typeof stored.reduceMotion === "boolean" ? stored.reduceMotion : defaults.reduceMotion,
+    sfx: clampStoredNumber(stored.sfx, 0, 100, defaults.sfx),
+    music: clampStoredNumber(stored.music, 0, 100, defaults.music),
+    scale: clampStoredNumber(stored.scale, 85, 115, defaults.scale),
+    lowPerformance:
+      typeof stored.lowPerformance === "boolean"
+        ? stored.lowPerformance
+        : defaults.lowPerformance,
+  };
+}
+
+function loadStoredCommitments(roomId) {
+  if (!roomId) return new Map();
+  try {
+    const parsed = JSON.parse(safeStorageGet("sessionStorage", STORAGE.commitments, "{}"));
+    if (parsed?.roomId !== roomId || !Array.isArray(parsed.records)) return new Map();
+    const records = parsed.records.filter((record) =>
+      record &&
+      typeof record.handId === "string" &&
+      record.handId.length <= 128 &&
+      typeof record.commitment === "string" &&
+      /^[a-f\d]{64}$/i.test(record.commitment)
+    );
+    return new Map(records.map((record) => [record.handId, record]));
+  } catch (_error) {
+    return new Map();
   }
 }
 
@@ -55,10 +129,11 @@ const state = {
   playerId: initialPlayerId,
   reconnectToken: initialReconnectToken,
   roomId: initialRoomId,
-  myName: sessionStorage.getItem(STORAGE.playerName) || "",
+  myName: safeStorageGet("sessionStorage", STORAGE.playerName),
   gameMode: GAME_MODE.STANDARD,
   skillMode: "off",
   skillCatalog: [],
+  skillCatalogStatus: "idle",
   selectedLoadout: [],
   savedLoadout: [],
   skillConfig: { minEquipped: 2, maxEquipped: 4, maxLoad: 8 },
@@ -74,6 +149,7 @@ const state = {
   pendingChoice: null,
   reactionTimerRaf: 0,
   phase: "waiting",
+  handNo: 0,
   players: [],
   myCards: [],
   showdownCards: {},
@@ -88,6 +164,7 @@ const state = {
   maxBet: 0,
   toCall: 0,
   actionDeadline: null,
+  turnId: null,
   actionCountdownRaf: 0,
   handHint: "等待发牌",
   handCategory: 0,
@@ -99,12 +176,13 @@ const state = {
   atLobby: !hasPendingReconnect,
   deliberateLeave: false,
   reconnecting: hasPendingReconnect,
-  showMyCards: localStorage.getItem(STORAGE.revealCards) !== "0",
+  showMyCards: safeStorageGet("localStorage", STORAGE.revealCards, "1") !== "0",
   rematchDeadlineAt: 0,
   rematchAcceptedIds: new Set(),
   rematchRaf: 0,
-  commitments: new Map(),
+  commitments: loadStoredCommitments(initialRoomId),
   activeCommitment: null,
+  fairnessChecks: new Map(),
   fairnessStatus: "pending",
   settings: loadSettings(),
   uiPending: {
@@ -301,6 +379,65 @@ const el = {
   protocolButtons: document.querySelectorAll(".protocol-btn"),
 };
 
+const modalLayers = [...document.querySelectorAll(".modal-layer")];
+const mainContent = byId("main-content");
+
+function visibleModalLayers() {
+  return modalLayers.filter((modal) => !modal.classList.contains("hidden"));
+}
+
+function modalFocusables(modal) {
+  return [...modal.querySelectorAll(
+    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+  )].filter((node) => node.getClientRects().length > 0);
+}
+
+function syncModalIsolation() {
+  const visible = visibleModalLayers();
+  const hasModal = visible.length > 0;
+  if (mainContent) mainContent.inert = hasModal;
+  if (el.btnSettings) el.btnSettings.inert = hasModal;
+  const top = visible.at(-1);
+  if (top && !top.contains(document.activeElement)) {
+    requestAnimationFrame(() => {
+      if (top.classList.contains("hidden") || top.contains(document.activeElement)) return;
+      const target = modalFocusables(top)[0] || top.querySelector(".modal-panel");
+      if (target) {
+        if (!target.hasAttribute("tabindex") && target.matches(".modal-panel")) {
+          target.setAttribute("tabindex", "-1");
+        }
+        target.focus();
+      }
+    });
+  }
+}
+
+if (typeof MutationObserver === "function") {
+  const modalObserver = new MutationObserver(syncModalIsolation);
+  modalLayers.forEach((modal) => modalObserver.observe(modal, { attributes: true, attributeFilter: ["class"] }));
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const top = visibleModalLayers().at(-1);
+  if (!top) return;
+  const focusables = modalFocusables(top);
+  if (!focusables.length) {
+    event.preventDefault();
+    top.querySelector(".modal-panel")?.focus();
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
 const PHASE_LABELS = Object.freeze({
   waiting: "等待",
   pre_flop: "翻牌前",
@@ -326,27 +463,31 @@ let ambientOscillator = null;
 let ambientGain = null;
 let connectionBannerTimer = 0;
 let allInEffectTimer = 0;
+let allInEffectEndsAt = 0;
+let delayedHandResultTimer = 0;
 let skillPreviewReturnFocus = null;
+let skillCatalogPromise = null;
 const uiPendingTimers = new Map();
 const boardPulseTimers = new Map();
 
 function refreshPendingUi(key) {
+  const offline = !socket.connected;
   if (key === "room") {
     el.protocolButtons?.forEach((button) => {
-      button.disabled = state.uiPending.room;
+      button.disabled = state.uiPending.room || offline;
       button.setAttribute("aria-busy", state.uiPending.room ? "true" : "false");
     });
-    if (el.btnJoin) el.btnJoin.disabled = state.uiPending.room;
-    if (el.btnJoinPasswordConfirm) el.btnJoinPasswordConfirm.disabled = state.uiPending.room;
+    if (el.btnJoin) el.btnJoin.disabled = state.uiPending.room || offline;
+    if (el.btnJoinPasswordConfirm) el.btnJoinPasswordConfirm.disabled = state.uiPending.room || offline;
   }
   if (key === "password" && el.btnSetRoomPassword) {
-    el.btnSetRoomPassword.disabled = state.uiPending.password;
+    el.btnSetRoomPassword.disabled = state.uiPending.password || offline;
   }
   if (key === "action") renderActions();
   if (key === "skill") renderSkillHud();
   if (key === "loadout") renderSkillDraft();
-  if (key === "counter" && el.btnSkillCounter) el.btnSkillCounter.disabled = state.uiPending.counter;
-  if (key === "choice" && el.btnSkillChoiceConfirm) el.btnSkillChoiceConfirm.disabled = state.uiPending.choice;
+  if (key === "counter" && el.btnSkillCounter) el.btnSkillCounter.disabled = state.uiPending.counter || offline;
+  if (key === "choice" && el.btnSkillChoiceConfirm) el.btnSkillChoiceConfirm.disabled = state.uiPending.choice || offline;
 }
 
 function beginUiRequest(key, timeoutMs = 4000) {
@@ -360,6 +501,16 @@ function beginUiRequest(key, timeoutMs = 4000) {
   );
   refreshPendingUi(key);
   return true;
+}
+
+function canSendRealtime({ notify = true } = {}) {
+  if (socket.connected) return true;
+  if (notify) showToast("实时连接尚未恢复，请稍候再试", "error");
+  return false;
+}
+
+function beginRealtimeRequest(key, timeoutMs = 4000) {
+  return canSendRealtime() && beginUiRequest(key, timeoutMs);
 }
 
 function endUiRequest(key) {
@@ -427,6 +578,18 @@ function playTone(kind) {
 function updateAmbientAudio() {
   const context = Number(state.settings.music) > 0 ? ensureAudioContext() : audioContext;
   if (!context) return;
+  if (Number(state.settings.music) <= 0 && ambientOscillator) {
+    try {
+      ambientOscillator.stop();
+      ambientOscillator.disconnect();
+      ambientGain?.disconnect();
+    } catch (_error) {
+      // Already-stopped audio nodes are safe to discard.
+    }
+    ambientOscillator = null;
+    ambientGain = null;
+    return;
+  }
   if (!ambientOscillator && Number(state.settings.music) > 0) {
     ambientOscillator = context.createOscillator();
     ambientGain = context.createGain();
@@ -443,7 +606,7 @@ function updateAmbientAudio() {
 }
 
 function saveSettings() {
-  localStorage.setItem(STORAGE.settings, JSON.stringify(state.settings));
+  safeStorageSet("localStorage", STORAGE.settings, JSON.stringify(state.settings));
 }
 
 function applySettings() {
@@ -692,6 +855,8 @@ function setRaiseExpanded(expanded) {
 function renderActions() {
   const me = getMe();
   const isMyTurn =
+    socket.connected &&
+    me?.isConnected !== false &&
     state.currentTurnPlayerId === state.playerId &&
     ACTIVE_PHASES.has(state.phase) &&
     !state.handSettling &&
@@ -852,15 +1017,19 @@ function renderWaitingRoom() {
 
 function renderFairness() {
   const commitment = state.activeCommitment;
+  const verifiedCount = [...state.fairnessChecks.values()].filter(
+    (result) => result === "verified"
+  ).length;
+  const totalCount = state.commitments.size;
   el.commitmentShort.textContent = commitment?.commitment
     ? commitment.commitment.slice(0, 8).toUpperCase()
     : "待定";
   el.fairnessHandId.textContent = commitment?.handId ? "HAND " + commitment.handId.slice(0, 12) : "HAND —";
   const labels = {
     pending: "牌局开始前将锁定牌堆承诺",
-    locked: "牌堆承诺已锁定，等待终局揭示",
-    verified: "SHA-256 验证通过，牌堆未被中途修改",
-    failed: "承诺验证失败，请检查服务器日志",
+    locked: "牌堆已锁定：摊牌即时验证，弃牌手在整场结束后验证",
+    verified: `SHA-256 验证通过（${verifiedCount}/${totalCount} 手），牌堆未被中途修改`,
+    failed: `本场存在承诺验证失败（已验证 ${verifiedCount}/${totalCount} 手），请检查服务器日志`,
   };
   el.fairnessResult.textContent = labels[state.fairnessStatus] || labels.pending;
   const summary =
@@ -876,6 +1045,25 @@ function renderFairness() {
   el.fairnessSummary.dataset.status = state.fairnessStatus;
   el.fairnessSummary.classList.toggle("verified", state.fairnessStatus === "verified");
   el.fairnessSummary.classList.toggle("failed", state.fairnessStatus === "failed");
+}
+
+function refreshFairnessStatus() {
+  const results = [...state.fairnessChecks.values()];
+  if (results.includes("failed")) {
+    state.fairnessStatus = "failed";
+  } else if (state.commitments.size > 0 && results.length === state.commitments.size) {
+    state.fairnessStatus = "verified";
+  } else if (state.commitments.size > 0) {
+    state.fairnessStatus = "locked";
+  } else {
+    state.fairnessStatus = "pending";
+  }
+}
+
+function recordFairnessCheck(handId, result) {
+  if (handId) state.fairnessChecks.set(handId, result);
+  refreshFairnessStatus();
+  renderFairness();
 }
 
 function renderState() {
@@ -919,6 +1107,13 @@ function setConnectionUI(connected, message) {
     el.connectionBanner.classList.add("offline");
     el.connectionBanner.classList.remove("hidden");
   }
+  Object.keys(state.uiPending).forEach((key) => refreshPendingUi(key));
+  if (state.gameOver && state.rematchDeadlineAt) {
+    el.btnRematchYes.disabled = !connected || state.rematchAcceptedIds.has(state.playerId);
+    el.btnRematchNo.disabled = !connected;
+  }
+  renderActions();
+  renderSkillHud();
 }
 
 function logAction(message) {
@@ -1016,6 +1211,7 @@ function playAllInEffect(actorId) {
       actorId === state.playerId ? "YOU ARE ALL IN" : "OPPONENT IS ALL IN";
   }
   el.flash.classList.remove("hidden");
+  allInEffectEndsAt = Date.now() + ALL_IN_EFFECT_MS;
   const allowShake =
     !state.settings.reduceMotion &&
     !state.settings.lowPerformance &&
@@ -1029,6 +1225,7 @@ function playAllInEffect(actorId) {
     el.flash.classList.add("hidden");
     document.body.classList.remove("shake");
     allInEffectTimer = 0;
+    allInEffectEndsAt = 0;
   }, ALL_IN_EFFECT_MS);
   playAllInHaptics();
   playTone("allin");
@@ -1065,41 +1262,93 @@ function shouldIgnoreSyncEvent(payload, { allowPendingJoin = false } = {}) {
 }
 
 function persistSession() {
-  sessionStorage.setItem(STORAGE.playerId, state.playerId);
-  if (state.reconnectToken) sessionStorage.setItem(STORAGE.reconnectToken, state.reconnectToken);
-  if (state.roomId) sessionStorage.setItem(STORAGE.roomId, state.roomId);
-  if (state.myName) sessionStorage.setItem(STORAGE.playerName, state.myName);
+  safeStorageSet("sessionStorage", STORAGE.playerId, state.playerId);
+  if (state.reconnectToken) {
+    safeStorageSet("sessionStorage", STORAGE.reconnectToken, state.reconnectToken);
+  }
+  if (state.roomId) safeStorageSet("sessionStorage", STORAGE.roomId, state.roomId);
+  if (state.myName) safeStorageSet("sessionStorage", STORAGE.playerName, state.myName);
+}
+
+function persistCommitments() {
+  if (!state.roomId || !(state.commitments instanceof Map)) return;
+  const records = [...state.commitments.values()];
+  safeStorageSet(
+    "sessionStorage",
+    STORAGE.commitments,
+    JSON.stringify({ roomId: state.roomId, records })
+  );
 }
 
 function clearRoomSession() {
   state.roomId = "";
   state.reconnectToken = "";
-  sessionStorage.removeItem(STORAGE.roomId);
-  sessionStorage.removeItem(STORAGE.reconnectToken);
+  safeStorageRemove("sessionStorage", STORAGE.roomId);
+  safeStorageRemove("sessionStorage", STORAGE.reconnectToken);
 }
 
 function resetLocalRoom() {
   clearHandSettlement();
   clearRematch();
+  resetTransientUi();
   state.players = [];
   state.myCards = [];
   state.showdownCards = {};
   state.bestFiveCodes = new Set();
   state.communityCards = [];
   state.phase = "waiting";
+  state.handNo = 0;
   state.pot = 0;
   state.currentBet = 0;
   state.currentTurnPlayerId = null;
   state.validActions = [];
   state.actionDeadline = null;
+  state.turnId = null;
   state.handHint = "等待发牌";
   state.handCategory = 0;
   el.selfHandType.dataset.category = "0";
   state.gameOver = false;
+  state.skillState = null;
+  state.skillSelf = null;
+  state.nullifiedCommunityCardIds = [];
+  state.commitments = new Map();
+  safeStorageRemove("sessionStorage", STORAGE.commitments);
   state.activeCommitment = null;
+  state.fairnessChecks = new Map();
   state.fairnessStatus = "pending";
-  el.gameOverModal.classList.add("hidden");
-  el.leaveConfirmModal.classList.add("hidden");
+}
+
+function resetTransientUi() {
+  if (state.reactionTimerRaf) cancelAnimationFrame(state.reactionTimerRaf);
+  state.reactionTimerRaf = 0;
+  state.pendingReaction = null;
+  state.pendingChoice = null;
+  if (allInEffectTimer) clearTimeout(allInEffectTimer);
+  allInEffectTimer = 0;
+  allInEffectEndsAt = 0;
+  if (delayedHandResultTimer) clearTimeout(delayedHandResultTimer);
+  delayedHandResultTimer = 0;
+  if (state.actionCountdownRaf) cancelAnimationFrame(state.actionCountdownRaf);
+  state.actionCountdownRaf = 0;
+  boardPulseTimers.forEach((timer, className) => {
+    clearTimeout(timer);
+    el.board.classList.remove(className);
+  });
+  boardPulseTimers.clear();
+  modalLayers.forEach((modal) => modal.classList.add("hidden"));
+  el.flash.classList.add("hidden");
+  el.riverOverload.classList.add("hidden");
+  el.protocolBurst.classList.add("hidden");
+  el.resultBanner.classList.add("hidden");
+  el.chipFx.textContent = "";
+  document.body.classList.remove("shake", "river-phase");
+  setRaiseExpanded(false);
+  try {
+    navigator.vibrate?.(0);
+  } catch (_error) {
+    // Vibration cancellation is optional.
+  }
+  syncModalIsolation();
 }
 
 function emitJoin(roomId, password) {
@@ -1124,9 +1373,9 @@ function completeReturnToLobby() {
   state.deliberateLeave = true;
   endAllUiRequests();
   if (state.gameOver && state.rematchDeadlineAt) {
-    socket.emit("rematch_response", { accepted: false });
+    if (socket.connected) socket.emit("rematch_response", { accepted: false });
   }
-  socket.emit("leave_room");
+  if (socket.connected) socket.emit("leave_room");
   resetLocalRoom();
   clearRoomSession();
   state.atLobby = true;
@@ -1135,7 +1384,9 @@ function completeReturnToLobby() {
 }
 
 function returnToLobby() {
-  const active = ACTIVE_PHASES.has(state.phase) && !state.gameOver;
+  const active =
+    !state.gameOver &&
+    (MATCH_IN_PROGRESS_PHASES.has(state.phase) || (state.phase === "waiting" && state.handNo > 0));
   if (active) {
     el.leaveConfirmModal.classList.remove("hidden");
     el.btnLeaveCancel.focus();
@@ -1149,6 +1400,8 @@ function clearHandSettlement() {
   state.handSettleEndAt = 0;
   if (state.handSettleRaf) cancelAnimationFrame(state.handSettleRaf);
   if (state.handSettleTimer) clearTimeout(state.handSettleTimer);
+  if (delayedHandResultTimer) clearTimeout(delayedHandResultTimer);
+  delayedHandResultTimer = 0;
   state.handSettleRaf = 0;
   state.handSettleTimer = 0;
   el.handSettleModal.classList.add("hidden");
@@ -1172,6 +1425,7 @@ function startHandSettlement(payload) {
   state.validActions = [];
   state.currentTurnPlayerId = null;
   state.actionDeadline = null;
+  state.turnId = null;
   state.handSettleEndAt = Date.now() + Number(payload.settleMs || HAND_SETTLE_MS);
   state.communityCards = payload.communityCards || state.communityCards;
   state.showdownCards = {};
@@ -1268,6 +1522,7 @@ function showGameOver(payload) {
   state.currentTurnPlayerId = null;
   state.validActions = [];
   state.actionDeadline = null;
+  state.turnId = null;
   if (Array.isArray(payload.players)) state.players = payload.players;
   const won = payload.winner === state.playerId;
   el.gameOverTitle.textContent = won ? "整场胜利" : "整场结束";
@@ -1296,7 +1551,9 @@ async function sha256Hex(text) {
 
 async function verifyHandReveal(payload) {
   const deck = Array.isArray(payload.deck) ? payload.deck : [];
-  const codes = deck.map((card) => card?.code).filter(Boolean);
+  const codes = deck
+    .map((card) => typeof card === "string" ? card : card?.code)
+    .filter(Boolean);
   const known = state.commitments.get(payload.handId);
   const validShape =
     codes.length === 52 &&
@@ -1310,8 +1567,7 @@ async function verifyHandReveal(payload) {
     known.commitment === commitment &&
     typeof payload.nonce === "string";
   if (!window.crypto?.subtle || !validShape || !metadataMatches) {
-    state.fairnessStatus = "failed";
-    renderFairness();
+    recordFairnessCheck(payload.handId, "failed");
     showToast("牌堆承诺验证失败", "error");
     return;
   }
@@ -1323,11 +1579,17 @@ async function verifyHandReveal(payload) {
       serialized +
       String(payload.nonce)
   );
-  state.fairnessStatus = computed.toLowerCase() === String(commitment).toLowerCase() ? "verified" : "failed";
-  renderFairness();
+  const result = computed.toLowerCase() === String(commitment).toLowerCase()
+    ? "verified"
+    : "failed";
+  recordFairnessCheck(payload.handId, result);
   showToast(
-    state.fairnessStatus === "verified" ? "牌堆承诺验证通过" : "牌堆承诺不一致",
-    state.fairnessStatus === "verified" ? "success" : "error"
+    result === "verified" && state.fairnessStatus !== "failed"
+      ? "牌堆承诺验证通过"
+      : result === "verified"
+        ? "本手验证通过，但本场已有异常"
+        : "牌堆承诺不一致",
+    result === "verified" && state.fairnessStatus !== "failed" ? "success" : "error"
   );
   if (payload.profile && state.gameMode === GAME_MODE.OVERDRIVE) {
     el.overdriveProfileLabel.textContent = payload.profile.label || payload.profile.type || "高爆牌局";
@@ -1360,7 +1622,7 @@ function protocolSummaryText(gameMode, skillMode) {
 
 function loadSavedLoadout() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE.skillLoadout) || "[]");
+    const parsed = JSON.parse(safeStorageGet("localStorage", STORAGE.skillLoadout, "[]"));
     return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
   } catch (_error) {
     return [];
@@ -1377,7 +1639,8 @@ function validateLoadoutIds(ids, catalog = state.skillCatalog) {
   const unique = [...new Set(ids)];
   if (unique.length !== ids.length) return { ok: false, load: 0, error: "技能不能重复" };
   if (!catalog.length) {
-    return { ok: true, load: 0, skillIds: unique, pendingCatalog: true };
+    const error = state.skillCatalogStatus === "error" ? "技能目录加载失败，请重试" : "技能目录加载中";
+    return { ok: false, load: 0, error, pendingCatalog: state.skillCatalogStatus !== "error" };
   }
   let load = 0;
   for (const id of unique) {
@@ -1398,7 +1661,10 @@ function syncProtocolUi() {
   el.protocolInputs?.forEach((input) => {
     const selected = input.value === value;
     input.checked = selected;
-    input.closest(".protocol-card")?.classList.toggle("selected", selected);
+    const card = input.closest(".protocol-card");
+    card?.classList.toggle("selected", selected);
+    card?.setAttribute("aria-current", selected ? "true" : "false");
+    if (card) card.tabIndex = selected ? 0 : -1;
   });
   if (el.protocolSummary) {
     el.protocolSummary.textContent = protocolSummaryText(state.gameMode, state.skillMode || "off");
@@ -1413,7 +1679,11 @@ function updateSkillPrepUi() {
     el.skillPrepStatus.classList.toggle("ready", ready);
     el.skillPrepStatus.textContent = ready
       ? `已配置 ${state.savedLoadout.length} 技能 · 负载 ${load}/8`
-      : "未配置 · 技能协议不可进入";
+      : state.skillCatalogStatus === "error"
+        ? "目录加载失败 · 请进入构筑重试"
+        : state.skillCatalogStatus !== "ready"
+          ? "技能目录加载中…"
+          : "未配置 · 技能协议不可进入";
   }
   el.protocolCards?.forEach((card) => {
     const needsSkill = card.dataset.skillMode === "abyss";
@@ -1427,7 +1697,7 @@ function setProtocol(gameMode, skillMode) {
 }
 
 function openSkillLab(pendingAction = null) {
-  state.pendingRoomAction = pendingAction;
+  if (pendingAction !== null || !state.pendingRoomAction) state.pendingRoomAction = pendingAction;
   state.selectedLoadout = [...state.savedLoadout];
   showScreen("skillLab");
   renderSkillLab();
@@ -1439,23 +1709,55 @@ function closeSkillLab() {
 }
 
 async function ensureSkillCatalog() {
-  if (state.skillCatalog.length) return state.skillCatalog;
-  try {
-    const response = await fetch("/api/skills");
-    if (!response.ok) throw new Error("skill api failed");
-    const data = await response.json();
-    state.skillCatalog = Array.isArray(data.skills) ? data.skills : [];
-    if (data.config) {
-      state.skillConfig = {
-        minEquipped: data.config.minEquipped || 2,
-        maxEquipped: data.config.maxEquipped || 4,
-        maxLoad: data.config.maxLoad || 8,
-      };
+  if (state.skillCatalogStatus === "ready" && state.skillCatalog.length) return state.skillCatalog;
+  if (skillCatalogPromise) return skillCatalogPromise;
+  state.skillCatalogStatus = "loading";
+  updateSkillPrepUi();
+  skillCatalogPromise = (async () => {
+    try {
+      const response = await fetch("/api/skills");
+      if (!response.ok) throw new Error("skill api failed");
+      const data = await response.json();
+      const catalog = Array.isArray(data.skills) ? data.skills : [];
+      if (!catalog.length) throw new Error("empty skill catalog");
+      state.skillCatalog = catalog;
+      state.skillCatalogStatus = "ready";
+      if (data.config) {
+        state.skillConfig = {
+          minEquipped: data.config.minEquipped || 2,
+          maxEquipped: data.config.maxEquipped || 4,
+          maxLoad: data.config.maxLoad || 8,
+        };
+      }
+      return state.skillCatalog;
+    } catch (_error) {
+      state.skillCatalogStatus = "error";
+      showToast("技能目录加载失败，请检查网络后重试", "error");
+      return [];
+    } finally {
+      skillCatalogPromise = null;
+      updateSkillPrepUi();
     }
-  } catch (_error) {
-    showToast("技能目录加载失败", "error");
+  })();
+  return skillCatalogPromise;
+}
+
+function queueHandSettlement(payload) {
+  if (shouldIgnoreSyncEvent(payload)) return;
+  const remainingEffectMs = Math.max(0, allInEffectEndsAt - Date.now());
+  if (remainingEffectMs < 120) {
+    startHandSettlement(payload);
+    return;
   }
-  return state.skillCatalog;
+  if (delayedHandResultTimer) clearTimeout(delayedHandResultTimer);
+  const totalSettleMs = Number(payload.settleMs || HAND_SETTLE_MS);
+  delayedHandResultTimer = setTimeout(() => {
+    delayedHandResultTimer = 0;
+    startHandSettlement({
+      ...payload,
+      settleMs: Math.max(1800, totalSettleMs - remainingEffectMs),
+    });
+  }, remainingEffectMs);
 }
 
 const SKILL_TAG_LABELS = Object.freeze({
@@ -1628,7 +1930,7 @@ function saveLoadoutFromLab() {
   const validation = validateLoadoutIds(state.selectedLoadout);
   if (!validation.ok) return showToast(validation.error || "构筑无效", "error");
   state.savedLoadout = [...validation.skillIds];
-  localStorage.setItem(STORAGE.skillLoadout, JSON.stringify(state.savedLoadout));
+  safeStorageSet("localStorage", STORAGE.skillLoadout, JSON.stringify(state.savedLoadout));
   updateSkillPrepUi();
   showToast("技能构筑已保存", "success");
   const pending = state.pendingRoomAction;
@@ -1644,7 +1946,9 @@ function requireLoadoutForSkillMode(skillMode, pendingAction) {
   state.pendingRoomAction = pendingAction;
   showToast("请先完成技能自定义配置", "error");
   ensureSkillCatalog()
-    .then(() => openSkillLab(state.pendingRoomAction || pendingAction))
+    .then((catalog) => {
+      if (catalog.length) openSkillLab(state.pendingRoomAction || pendingAction);
+    })
     .finally(() => endUiRequest("room"));
   return false;
 }
@@ -1652,13 +1956,13 @@ function requireLoadoutForSkillMode(skillMode, pendingAction) {
 function startRoomAction(type, gameMode, skillMode) {
   setProtocol(gameMode, skillMode);
   if (!requireLoadoutForSkillMode(skillMode, { type, gameMode, skillMode })) return;
-  if (!beginUiRequest("room", 7000)) return;
+  if (!beginRealtimeRequest("room", 7000)) return;
 
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
   state.myName = (el.inputName.value || "").trim() || "player1";
   state.atLobby = false;
-  sessionStorage.setItem(STORAGE.playerName, state.myName);
+  safeStorageSet("sessionStorage", STORAGE.playerName, state.myName);
   if (type === "solo") {
     socket.emit("create_solo_room", {
       playerName: state.myName,
@@ -1696,13 +2000,13 @@ function confirmJoinWithPassword() {
   const password = (el.modalJoinPassword?.value || "").trim();
   if (!roomId) return showToast("请输入房间号", "error");
   if (!password) return showToast("请输入房间密码", "error");
-  if (!beginUiRequest("room", 7000)) return;
+  if (!beginRealtimeRequest("room", 7000)) return;
   el.joinPasswordModal?.classList.add("hidden");
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
   state.myName = (el.inputName.value || "").trim() || "player2";
   state.atLobby = false;
-  sessionStorage.setItem(STORAGE.playerName, state.myName);
+  safeStorageSet("sessionStorage", STORAGE.playerName, state.myName);
   emitJoin(roomId, password);
 }
 
@@ -1713,7 +2017,7 @@ function maybeAutoSubmitLoadout() {
   const me = getMe();
   if (me?.skills?.loadoutConfirmed) return;
   if (state.autoLoadoutSubmitted) return;
-  if (!beginUiRequest("loadout", 5000)) return;
+  if (!beginRealtimeRequest("loadout", 5000)) return;
   state.selectedLoadout = [...state.savedLoadout];
   state.autoLoadoutSubmitted = true;
   socket.emit("skill:loadout:set", { skillIds: state.savedLoadout });
@@ -1724,6 +2028,21 @@ el.protocolCards?.forEach((card) => {
   card.addEventListener("click", (event) => {
     if (event.target.closest(".protocol-btn")) return;
     setProtocol(card.dataset.gameMode || "standard", card.dataset.skillMode || "off");
+  });
+  card.addEventListener("keydown", (event) => {
+    if (event.target !== card) return;
+    const cards = [...el.protocolCards];
+    const index = cards.indexOf(card);
+    if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) {
+      event.preventDefault();
+      const direction = ["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1;
+      const next = cards[(index + direction + cards.length) % cards.length];
+      setProtocol(next.dataset.gameMode || "standard", next.dataset.skillMode || "off");
+      next.focus();
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setProtocol(card.dataset.gameMode || "standard", card.dataset.skillMode || "off");
+    }
   });
 });
 el.protocolButtons?.forEach((button) => {
@@ -1742,14 +2061,19 @@ el.protocolButtons?.forEach((button) => {
 el.btnJoin.addEventListener("click", () => {
   const roomId = (el.inputRoom.value || "").trim().toUpperCase();
   if (!roomId) return showToast("请输入房间号", "error");
-  if (!beginUiRequest("room", 7000)) return;
+  if (!beginRealtimeRequest("room", 7000)) return;
   prepareManualRoomRequest();
   state.autoLoadoutSubmitted = false;
   state.pendingJoinRoomId = roomId;
   state.myName = (el.inputName.value || "").trim() || "player2";
   state.atLobby = false;
-  sessionStorage.setItem(STORAGE.playerName, state.myName);
+  safeStorageSet("sessionStorage", STORAGE.playerName, state.myName);
   emitJoin(roomId, null);
+});
+el.inputRoom?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  el.btnJoin.click();
 });
 el.btnJoinPasswordConfirm?.addEventListener("click", confirmJoinWithPassword);
 el.btnJoinPasswordCancel?.addEventListener("click", () => {
@@ -1761,17 +2085,22 @@ el.modalJoinPassword?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") confirmJoinWithPassword();
 });
 el.btnSetRoomPassword?.addEventListener("click", () => {
-  if (!beginUiRequest("password", 4000)) return;
+  if (!beginRealtimeRequest("password", 4000)) return;
   socket.emit("room:set_password", {
     password: (el.inputWaitPassword?.value || "").trim() || "",
   });
+});
+el.inputWaitPassword?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  el.btnSetRoomPassword.click();
 });
 el.btnOpenSkillLab?.addEventListener("click", async () => {
   if (el.btnOpenSkillLab.disabled) return;
   el.btnOpenSkillLab.disabled = true;
   try {
-    await ensureSkillCatalog();
-    openSkillLab(null);
+    const catalog = await ensureSkillCatalog();
+    if (catalog.length) openSkillLab(null);
   } finally {
     el.btnOpenSkillLab.disabled = false;
   }
@@ -1805,9 +2134,13 @@ el.actionButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.dataset.action;
     if (!action || button.disabled) return;
-    const payload = { action };
+    const payload = {
+      action,
+      handId: state.activeCommitment?.handId || null,
+      turnId: state.turnId,
+    };
     if (action === "raise") payload.amount = Number(el.raiseInput.value);
-    if (!beginUiRequest("action", 3000)) return;
+    if (!beginRealtimeRequest("action", 3000)) return;
     ensureAudioContext();
     setRaiseExpanded(false);
     socket.emit("player_action", payload);
@@ -1838,16 +2171,18 @@ el.btnLeaveConfirm.addEventListener("click", () => {
 });
 el.btnToggleCards.addEventListener("click", () => {
   state.showMyCards = !state.showMyCards;
-  localStorage.setItem(STORAGE.revealCards, state.showMyCards ? "1" : "0");
+  safeStorageSet("localStorage", STORAGE.revealCards, state.showMyCards ? "1" : "0");
   updateEyeButton();
   renderCards();
 });
 
 el.btnRematchYes.addEventListener("click", () => {
+  if (!canSendRealtime()) return;
   el.btnRematchYes.disabled = true;
   socket.emit("rematch_response", { accepted: true });
 });
 el.btnRematchNo.addEventListener("click", () => {
+  if (!canSendRealtime()) return;
   el.btnRematchYes.disabled = true;
   el.btnRematchNo.disabled = true;
   socket.emit("rematch_response", { accepted: false });
@@ -1857,7 +2192,10 @@ el.btnSettings.addEventListener("click", () => {
   el.settingsModal.classList.remove("hidden");
   el.btnCloseSettings.focus();
 });
-el.btnCloseSettings.addEventListener("click", () => el.settingsModal.classList.add("hidden"));
+el.btnCloseSettings.addEventListener("click", () => {
+  el.settingsModal.classList.add("hidden");
+  el.btnSettings.focus();
+});
 el.btnCloseSkillPreview?.addEventListener("click", closeSkillPreview);
 el.btnSkillPreviewDone?.addEventListener("click", closeSkillPreview);
 el.skillPreviewModal?.addEventListener("click", (event) => {
@@ -1895,24 +2233,34 @@ el.settingLowPerformance.addEventListener("change", () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  const wasLeaveOpen = !el.leaveConfirmModal.classList.contains("hidden");
-  closeSkillPreview();
   setRaiseExpanded(false);
-  el.settingsModal.classList.add("hidden");
-  el.leaveConfirmModal.classList.add("hidden");
-  el.joinPasswordModal?.classList.add("hidden");
-  if (wasLeaveOpen) el.btnBackGame.focus();
+  const top = visibleModalLayers().at(-1);
+  if (!top) return;
+  if (top === el.skillPreviewModal) {
+    closeSkillPreview();
+  } else if (top === el.settingsModal) {
+    top.classList.add("hidden");
+    el.btnSettings.focus();
+  } else if (top === el.leaveConfirmModal) {
+    top.classList.add("hidden");
+    el.btnBackGame.focus();
+  } else if (top === el.joinPasswordModal) {
+    closeJoinPasswordModal();
+    el.inputRoom.focus();
+  } else if (top === el.skillPrivateModal) {
+    top.classList.add("hidden");
+  }
 });
 
 socket.on("connect", () => {
   setConnectionUI(true, "连接正常");
   playTone("connect");
-  const savedRoom = sessionStorage.getItem(STORAGE.roomId);
-  const savedToken = sessionStorage.getItem(STORAGE.reconnectToken);
+  const savedRoom = safeStorageGet("sessionStorage", STORAGE.roomId);
+  const savedToken = safeStorageGet("sessionStorage", STORAGE.reconnectToken);
   if (savedRoom && savedToken && !state.deliberateLeave) {
     state.roomId = savedRoom;
     state.reconnectToken = savedToken;
-    state.myName = sessionStorage.getItem(STORAGE.playerName) || state.myName;
+    state.myName = safeStorageGet("sessionStorage", STORAGE.playerName) || state.myName;
     state.atLobby = false;
     state.reconnecting = true;
     showScreen("wait");
@@ -1945,11 +2293,13 @@ function applyRoomJoinedPayload(payload, { fromLobby = false } = {}) {
   if (Object.prototype.hasOwnProperty.call(payload, "phase") && payload.phase) {
     state.phase = payload.phase;
   }
+  if (Object.prototype.hasOwnProperty.call(payload, "handNo")) state.handNo = Number(payload.handNo || 0);
   if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
     state.hasPassword = Boolean(payload.hasPassword);
   }
   if (Array.isArray(payload.skillCatalog) && payload.skillCatalog.length) {
     state.skillCatalog = payload.skillCatalog;
+    state.skillCatalogStatus = "ready";
   }
   state.playerId = payload.playerId || state.playerId;
   state.reconnectToken = payload.reconnectToken || state.reconnectToken;
@@ -1991,7 +2341,9 @@ socket.on("room_joined", (payload) => {
   if (enteringFromLobby && state.skillMode === "abyss" && !isLoadoutConfigured()) {
     showToast("技能局需先完成技能自定义配置", "error");
     completeReturnToLobby();
-    ensureSkillCatalog().then(() => openSkillLab(null));
+    ensureSkillCatalog().then((catalog) => {
+      if (catalog.length) openSkillLab(null);
+    });
     return;
   }
 
@@ -2005,6 +2357,7 @@ socket.on("room_state", (payload) => {
   state.gameMode = payload.gameMode || state.gameMode;
   state.skillMode = payload.skillMode || state.skillMode;
   state.phase = payload.phase || state.phase;
+  if (Object.prototype.hasOwnProperty.call(payload, "handNo")) state.handNo = Number(payload.handNo || 0);
   if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
     state.hasPassword = Boolean(payload.hasPassword);
   }
@@ -2020,19 +2373,27 @@ socket.on("room_state", (payload) => {
   state.nullifiedCommunityCardIds = payload.nullifiedCommunityCardIds || state.nullifiedCommunityCardIds;
   if (payload.skillState) state.skillState = payload.skillState;
   state.players = payload.players || state.players;
+  state.skillSelf = getMe()?.skills || state.skillSelf;
   if (Object.prototype.hasOwnProperty.call(payload, "actionDeadline")) {
     state.actionDeadline = payload.actionDeadline;
   }
-  if (payload.handId && payload.deckCommitment && !state.commitments.has(payload.handId)) {
-    const record = {
-      handId: payload.handId,
-      mode: payload.gameMode || state.gameMode,
-      skillMode: payload.skillMode || state.skillMode || "off",
-      commitment: payload.deckCommitment,
-    };
-    state.commitments.set(record.handId, record);
+  if (Object.prototype.hasOwnProperty.call(payload, "turnId")) {
+    state.turnId = payload.turnId || null;
+  }
+  if (payload.handId && payload.deckCommitment) {
+    let record = state.commitments.get(payload.handId);
+    if (!record) {
+      record = {
+        handId: payload.handId,
+        mode: payload.gameMode || state.gameMode,
+        skillMode: payload.skillMode || state.skillMode || "off",
+        commitment: payload.deckCommitment,
+      };
+      state.commitments.set(record.handId, record);
+      persistCommitments();
+    }
     state.activeCommitment = record;
-    state.fairnessStatus = "locked";
+    refreshFairnessStatus();
   }
   if (payload.phase === "game_over") state.gameOver = true;
   if (!state.atLobby) {
@@ -2061,6 +2422,7 @@ socket.on("game_started", (payload) => {
   if (payload.skillMode) state.skillMode = payload.skillMode;
   state.phase = "pre_flop";
   state.gameOver = false;
+  state.turnId = null;
   clearRematch();
   el.gameOverModal.classList.add("hidden");
   el.leaveConfirmModal.classList.add("hidden");
@@ -2106,6 +2468,7 @@ socket.on("community_cards", (payload) => {
     state.currentTurnPlayerId = null;
     state.validActions = [];
     state.actionDeadline = null;
+    state.turnId = null;
   }
   renderState();
   if (state.communityCards.length > previousCount) triggerStreetEffect(state.phase);
@@ -2119,6 +2482,10 @@ socket.on("player_turn", (payload) => {
   state.maxBet = Number(payload.maxBet || 0);
   state.toCall = Number(payload.toCall || 0);
   state.actionDeadline = payload.actionDeadline || null;
+  state.turnId = payload.turnId || null;
+  if (payload.handId && state.commitments.has(payload.handId)) {
+    state.activeCommitment = state.commitments.get(payload.handId);
+  }
   logAction(payload.playerId === state.playerId ? "轮到你行动" : "对手正在行动");
   renderState();
 });
@@ -2128,33 +2495,44 @@ socket.on("action_made", (payload) => {
   state.currentTurnPlayerId = null;
   state.validActions = [];
   state.actionDeadline = null;
+  state.turnId = null;
   if (Array.isArray(payload.playerChips)) state.players = payload.playerChips;
   if (typeof payload.pot === "number") state.pot = payload.pot;
-  const label = ACTION_LABELS[payload.action] || payload.action;
+  const presentedAction = payload.declaredAction === "allin" ? "allin" : payload.action;
+  const label = ACTION_LABELS[presentedAction] || presentedAction;
   logAction("玩家 " + payload.playerId + " · " + label + (payload.amount ? " " + payload.amount : ""));
   if (["call", "raise", "allin"].includes(payload.action) && payload.amount > 0) {
     flyChip(payload.playerId);
     playTone("chips");
   }
-  if (payload.action === "allin") playAllInEffect(payload.playerId);
+  if (presentedAction === "allin" || payload.action === "allin") playAllInEffect(payload.playerId);
   else playTone(payload.action);
   renderState();
 });
-socket.on("hand_result", startHandSettlement);
+socket.on("hand_result", queueHandSettlement);
 socket.on("game_over", showGameOver);
 socket.on("rematch_update", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   if (state.gameOver) updateRematch(payload);
 });
 socket.on("rematch_started", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   clearRematch();
   el.gameOverModal.classList.add("hidden");
   state.gameOver = false;
   state.phase = "waiting";
+  state.handNo = 0;
+  state.commitments = new Map();
+  state.fairnessChecks = new Map();
+  state.activeCommitment = null;
+  state.fairnessStatus = "pending";
+  safeStorageRemove("sessionStorage", STORAGE.commitments);
   if (Array.isArray(payload.players)) state.players = payload.players;
   logAction("双方确认，再来一局");
   renderState();
 });
 socket.on("hand_commitment", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   const record = {
     handId: payload.handId,
     mode: payload.mode,
@@ -2162,14 +2540,15 @@ socket.on("hand_commitment", (payload) => {
     commitment: payload.commitment,
   };
   state.commitments.set(record.handId, record);
+  persistCommitments();
   state.activeCommitment = record;
-  state.fairnessStatus = "locked";
+  refreshFairnessStatus();
   renderFairness();
 });
 socket.on("hand_reveal", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   verifyHandReveal(payload).catch(() => {
-    state.fairnessStatus = "failed";
-    renderFairness();
+    recordFairnessCheck(payload?.handId, "failed");
   });
 });
 socket.on("player_joined", (payload) => {
@@ -2203,6 +2582,7 @@ socket.on("player_left", (payload) => {
   showToast("玩家 " + payload.playerId + " 已离开", "info");
 });
 socket.on("room_closed", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endAllUiRequests();
   resetLocalRoom();
   clearRoomSession();
@@ -2266,10 +2646,10 @@ updateEyeButton();
 updateSkillPrepUi();
 ensureSkillCatalog().then(() => {
   const validation = validateLoadoutIds(state.savedLoadout);
-  if (state.savedLoadout.length && !validation.ok) {
+  if (state.skillCatalogStatus === "ready" && state.savedLoadout.length && !validation.ok) {
     state.savedLoadout = [];
     state.selectedLoadout = [];
-    localStorage.removeItem(STORAGE.skillLoadout);
+    safeStorageRemove("localStorage", STORAGE.skillLoadout);
   } else {
     state.selectedLoadout = [...state.savedLoadout];
   }
@@ -2320,6 +2700,7 @@ function renderSkillDraft() {
     : "选择 2–4 个技能，总负载不超过 8。";
   el.btnConfirmLoadout.disabled =
     confirmed ||
+    !socket.connected ||
     state.uiPending.loadout ||
     state.selectedLoadout.length < 2 ||
     state.selectedLoadout.length > 4 ||
@@ -2365,7 +2746,8 @@ function skillAvailability(def, skills, me) {
   const gameUsed = Number(skills?.skillUsesThisGame?.[def.id] || 0);
   const cardEdit = tags.has("HOLE_EDIT") || tags.has("DECK_EDIT") || tags.has("BOARD_EDIT");
   let reason = "可发动";
-  if (state.uiPending.skill) reason = "请求处理中";
+  if (!socket.connected) reason = "等待网络恢复";
+  else if (state.uiPending.skill) reason = "请求处理中";
   else if (state.skillState?.pendingSkill || state.skillState?.reactionWindow || state.skillState?.skillChoice) reason = "技能结算中";
   else if (state.players.some((player) => player.isAllIn)) reason = "All In 后锁定";
   else if (!me || me.status === "folded" || me.status === "out") reason = "当前已退出本手";
@@ -2390,7 +2772,7 @@ function renderSkillHud() {
   if (!enabled) return;
   const me = getMe();
   const opponent = getOpponent();
-  const selfSkills = state.skillSelf || me?.skills || {};
+  const selfSkills = me?.skills || state.skillSelf || {};
   el.selfEnergy.textContent = String(selfSkills.abyssEnergy ?? 0);
   el.opponentEnergy.textContent = String(opponent?.skills?.abyssEnergy ?? 0);
   el.skillSilenceFlag.classList.toggle("hidden", !state.skillState?.silenceActive);
@@ -2430,17 +2812,25 @@ function renderSkillHud() {
     const opponentNames = (opponent?.skills?.equippedSkillIds || []).map((skillId) =>
       state.skillCatalog.find((skill) => skill.id === skillId)?.name || skillId
     );
-    el.opponentSkillBar.textContent = opponentNames.length ? "对手构筑 · " + opponentNames.join(" / ") : "";
+    const opponentCloaked = opponent?.skills?.statusEffects?.some(
+      (effect) => effect.type === "CLOAK" && effect.phase === state.phase
+    );
+    el.opponentSkillBar.textContent = opponentNames.length
+      ? "对手构筑 · " + opponentNames.join(" / ") + (opponentCloaked ? " · 概率遮蔽" : "")
+      : "";
     el.opponentSkillBar.title = el.opponentSkillBar.textContent;
   }
 }
 
 function emitSkillUse(skillId, target = {}) {
-  if (!beginUiRequest("skill", 5000)) return false;
+  if (!beginRealtimeRequest("skill", 5000)) return false;
   socket.emit("skill:use", {
     skillId,
     target,
     requestId: "req_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8),
+    handId: state.activeCommitment?.handId || null,
+    turnId: state.turnId,
+    phase: state.phase,
   });
   return true;
 }
@@ -2508,12 +2898,12 @@ el.skillModeInputs?.forEach((input) =>
   input.addEventListener("change", () => setSkillMode(input.value))
 );
 el.btnConfirmLoadout?.addEventListener("click", () => {
-  if (!beginUiRequest("loadout", 5000)) return;
+  if (!beginRealtimeRequest("loadout", 5000)) return;
   socket.emit("skill:loadout:set", { skillIds: state.selectedLoadout });
 });
 el.btnSkillCounter?.addEventListener("click", () => {
   if (!state.pendingReaction) return;
-  if (!beginUiRequest("counter", 4000)) return;
+  if (!beginRealtimeRequest("counter", 4000)) return;
   socket.emit("skill:counter", {
     requestId: state.pendingReaction.requestId,
     skillId: "NEURAL_INTERRUPT",
@@ -2521,6 +2911,11 @@ el.btnSkillCounter?.addEventListener("click", () => {
   el.skillReactionModal.classList.add("hidden");
 });
 el.btnSkillCounterSkip?.addEventListener("click", () => {
+  if (!state.pendingReaction) return;
+  if (!beginRealtimeRequest("counter", 4000)) return;
+  socket.emit("skill:counter:skip", {
+    requestId: state.pendingReaction.requestId,
+  });
   el.skillReactionModal.classList.add("hidden");
   state.pendingReaction = null;
 });
@@ -2533,7 +2928,7 @@ el.btnSkillChoiceConfirm?.addEventListener("click", () => {
     state.pendingChoice = null;
     return;
   }
-  if (!beginUiRequest("choice", 5000)) return;
+  if (!beginRealtimeRequest("choice", 5000)) return;
   const payload = { ...state.pendingChoice.payload };
   socket.emit("skill:choice", payload);
   el.skillChoiceModal.classList.add("hidden");
@@ -2603,21 +2998,25 @@ socket.on("skill:loadout:confirmed", (payload) => {
 });
 
 socket.on("skill:pending", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   logAction("技能发动：" + payload.skillId);
 });
 
 socket.on("skill:reaction-window", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("skill");
   openReactionWindow(payload);
 });
 
-socket.on("skill:reaction-expired", () => {
+socket.on("skill:reaction-expired", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("counter");
   el.skillReactionModal.classList.add("hidden");
   state.pendingReaction = null;
 });
 
 socket.on("skill:resolved", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("skill");
   endUiRequest("counter");
   endUiRequest("choice");
@@ -2636,6 +3035,7 @@ socket.on("skill:resolved", (payload) => {
 });
 
 socket.on("skill:failed", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("skill");
   endUiRequest("counter");
   endUiRequest("choice");
@@ -2644,6 +3044,7 @@ socket.on("skill:failed", (payload) => {
 });
 
 socket.on("skill:private-result", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("skill");
   endUiRequest("choice");
   if (payload.scan) {
@@ -2653,7 +3054,15 @@ socket.on("skill:private-result", (payload) => {
     el.skillPrivateText.textContent = payload.message || "目标信号受到遮蔽，本次扫描失败。";
     el.skillPrivateModal.classList.remove("hidden");
   } else if (payload.choiceType === "QUANTUM_SELECT") {
-    state.pendingChoice = { type: "QUANTUM_SELECT", payload: { keepIndexes: [0, 1] } };
+    state.pendingChoice = {
+      type: "QUANTUM_SELECT",
+      payload: {
+        requestId: payload.requestId,
+        skillId: payload.skillId,
+        choiceType: payload.choiceType,
+        keepIndexes: [0, 1],
+      },
+    };
     el.skillChoiceTitle.textContent = "量子底牌";
     el.skillChoiceText.textContent = "从三张牌中恰好选择两张作为底牌";
     el.skillChoiceBody.textContent = "";
@@ -2684,7 +3093,15 @@ socket.on("skill:private-result", (payload) => {
     el.skillChoiceModal.classList.remove("hidden");
     el.skillChoiceBody.querySelector("button")?.focus();
   } else if (payload.choiceType === "FORK_DECISION") {
-    state.pendingChoice = { type: "FORK_DECISION", payload: { decision: "keep" } };
+    state.pendingChoice = {
+      type: "FORK_DECISION",
+      payload: {
+        requestId: payload.requestId,
+        skillId: payload.skillId,
+        choiceType: payload.choiceType,
+        decision: "keep",
+      },
+    };
     el.skillChoiceTitle.textContent = "分岔观测";
     el.skillChoiceText.textContent =
       "即将发出：" +
@@ -2714,6 +3131,7 @@ socket.on("skill:private-result", (payload) => {
 });
 
 socket.on("skill:choice-window", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("skill");
   if (payload.playerId !== state.playerId) {
     showToast("对手正在进行技能选择…", "info");
@@ -2721,5 +3139,6 @@ socket.on("skill:choice-window", (payload) => {
 });
 
 socket.on("skill:pre-deal-window", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
   showToast("即将发" + (payload.nextPhase === "river" ? "河牌" : "转牌") + "：可发动分岔观测", "info");
 });

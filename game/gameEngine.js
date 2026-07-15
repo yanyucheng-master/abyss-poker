@@ -19,6 +19,7 @@ const {
   getPublicRoomSkillSnapshot,
 } = require("./skills/skillEngine");
 const { SKILL_CONFIG } = require("./skillConfig");
+const { clearSkillTimers } = require("./skills/skillState");
 const {
   otherIndex,
   getActivePlayers,
@@ -32,6 +33,7 @@ const {
 
 const HAND_SETTLE_MS = 5000;
 const FULL_BOARD_SETTLE_MS = 6000;
+const ALL_IN_SETTLE_MS = 10000;
 const REMATCH_TIMEOUT_MS = 10000;
 const ACTION_TIMEOUT_MS = 30000;
 
@@ -78,7 +80,33 @@ class GameEngine {
       clearTimeout(room.actionTimer);
       room.actionTimer = null;
     }
+    if (room.botActionTimer) {
+      clearTimeout(room.botActionTimer);
+      room.botActionTimer = null;
+    }
     room.actionDeadline = null;
+  }
+
+  abortPendingRoomWork(room) {
+    this.clearActionTimer(room);
+    for (const timerKey of ["nextHandTimer"]) {
+      if (room[timerKey]) {
+        clearTimeout(room[timerKey]);
+        room[timerKey] = null;
+      }
+    }
+    if (room.rematch?.timer) {
+      clearTimeout(room.rematch.timer);
+      room.rematch.timer = null;
+    }
+    clearSkillTimers(room);
+    if (room.skillState) {
+      room.skillState.pendingSkill = null;
+      room.skillState.reactionWindow = null;
+      room.skillState.skillChoice = null;
+      room.skillState.preDealWindow = null;
+    }
+    room.skillPausedAction = null;
   }
 
   scheduleActionTimeout(room, playerIndex, turn, timeoutMs = ACTION_TIMEOUT_MS) {
@@ -90,8 +118,10 @@ class GameEngine {
     if (player.isBot) return;
     const handNo = room.handNo;
     const playerId = player.playerId;
+    const turnId = room.turnId;
     room.actionTimer = setTimeout(() => {
       if (room.handNo !== handNo || room.currentPlayerIndex !== playerIndex) return;
+      if (room.turnId !== turnId) return;
       if (room.players[playerIndex]?.playerId !== playerId) return;
       if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
       const latest = getValidActions(room, playerIndex);
@@ -153,6 +183,34 @@ class GameEngine {
       ...this.skillEngine.buildRevealExtras(room),
     };
     room.handRevealSent = false;
+    room.handRevealDeferred = false;
+  }
+
+  completeHandReveal(room) {
+    if (!room.handReveal) return null;
+    Object.assign(room.handReveal, this.skillEngine.buildRevealExtras(room));
+    return room.handReveal;
+  }
+
+  rememberRevealedHand(room, reveal) {
+    if (!reveal?.handId) return;
+    room.revealedHandHistory = room.revealedHandHistory || [];
+    if (room.revealedHandHistory.some((entry) => entry.handId === reveal.handId)) return;
+    room.revealedHandHistory.push({
+      ...reveal,
+      deck: (reveal.deck || []).map((card) => typeof card === "string" ? card : card.code),
+      burnedCards: (reveal.burnedCards || []).map((card) =>
+        typeof card === "string" ? card : card.code
+      ),
+      removedCards: (reveal.removedCards || []).map((card) =>
+        typeof card === "string" ? card : card.code
+      ),
+      skillActions: (reveal.skillActions || []).map((entry) => ({ ...entry })),
+      equippedSkills: (reveal.equippedSkills || []).map((entry) => ({
+        ...entry,
+        skillIds: [...(entry.skillIds || [])],
+      })),
+    });
   }
 
   revealHandCommitment(room) {
@@ -166,8 +224,57 @@ class GameEngine {
         at: Date.now(),
       });
     }
-    Object.assign(room.handReveal, this.skillEngine.buildRevealExtras(room));
-    this.emitToRoom(room, "hand_reveal", room.handReveal);
+    const reveal = this.completeHandReveal(room);
+    this.rememberRevealedHand(room, reveal);
+    this.emitToRoom(room, "hand_reveal", reveal);
+  }
+
+  deferHandCommitmentReveal(room) {
+    if (!room.handReveal || room.handRevealSent || room.handRevealDeferred) return;
+    const reveal = this.completeHandReveal(room);
+    room.handRevealDeferred = true;
+    room.deferredHandReveals = room.deferredHandReveals || [];
+    room.deferredHandReveals.push({
+      ...reveal,
+      // Folded hands stay private until match end. Keep their audit record
+      // compact because a long heads-up match may defer many hands.
+      deck: (reveal.deck || []).map((card) => typeof card === "string" ? card : card.code),
+      burnedCards: (reveal.burnedCards || []).map((card) =>
+        typeof card === "string" ? card : card.code
+      ),
+      removedCards: (reveal.removedCards || []).map((card) =>
+        typeof card === "string" ? card : card.code
+      ),
+    });
+  }
+
+  flushDeferredHandReveals(room) {
+    const reveals = room.deferredHandReveals || [];
+    reveals.forEach((reveal) => {
+      this.rememberRevealedHand(room, reveal);
+      this.emitToRoom(room, "hand_reveal", reveal);
+    });
+    if (room.handReveal && reveals.some((reveal) => reveal.handId === room.handReveal.handId)) {
+      room.handRevealSent = true;
+      room.handRevealDeferred = false;
+    }
+    room.deferredHandReveals = [];
+  }
+
+  visibleHandResultForPlayer(payload, recipient, { revealAll = false } = {}) {
+    if (revealAll) return payload;
+    const players = (payload.players || []).map((detail) => {
+      if (detail.playerId === recipient.playerId) return detail;
+      return {
+        playerId: detail.playerId,
+        name: detail.name,
+        folded: detail.folded,
+        cards: [],
+        bestFive: [],
+        handName: detail.folded ? "已弃牌" : undefined,
+      };
+    });
+    return { ...payload, players };
   }
 
   emitHandResult(room, payload, { revealAll = false } = {}) {
@@ -176,18 +283,7 @@ class GameEngine {
       return;
     }
     room.players.forEach((recipient) => {
-      const players = (payload.players || []).map((detail) => {
-        if (detail.playerId === recipient.playerId) return detail;
-        return {
-          playerId: detail.playerId,
-          name: detail.name,
-          folded: detail.folded,
-          cards: [],
-          bestFive: [],
-          handName: detail.folded ? "已弃牌" : undefined,
-        };
-      });
-      this.emitToPlayer(recipient, "hand_result", { ...payload, players });
+      this.emitToPlayer(recipient, "hand_result", this.visibleHandResultForPlayer(payload, recipient));
     });
   }
 
@@ -256,9 +352,15 @@ class GameEngine {
   buildHandResultPayload(room, { reason, winner, tie, pot, playersDetail }) {
     const bust = room.players.some((p) => p.chips <= 0);
     const isFullBoard = (room.communityCards || []).length >= 5;
+    const isAllInShowdown = reason === "showdown" && room.players.some((player) => player.isAllIn);
+    const hasAllInPresentation = isAllInShowdown || Boolean(room.hadAllInActionThisHand);
     return {
       reason,
-      settleMs: reason === "showdown" && isFullBoard ? FULL_BOARD_SETTLE_MS : HAND_SETTLE_MS,
+      settleMs: hasAllInPresentation
+        ? ALL_IN_SETTLE_MS
+        : reason === "showdown" && isFullBoard
+          ? FULL_BOARD_SETTLE_MS
+          : HAND_SETTLE_MS,
       pot,
       tie: Boolean(tie),
       winner: winner?.playerId || null,
@@ -291,11 +393,13 @@ class GameEngine {
       gameMode: normalizeGameMode(room.gameMode),
       skillMode: normalizeSkillMode(room.skillMode),
       phase: room.phase,
+      handNo: room.handNo,
       pot: room.pot,
       currentBet: room.currentBet,
       dealer: room.players[room.dealerIndex]?.playerId || null,
       currentPlayer: current?.playerId || null,
       activePlayerId: current?.playerId || null,
+      turnId: room.turnId || null,
       communityCards: room.communityCards,
       actionDeadline: room.actionDeadline || null,
       handId: room.handId || null,
@@ -329,6 +433,8 @@ class GameEngine {
     room.phase = "waiting";
     room.dealerIndex = 0;
     room.currentPlayerIndex = 0;
+    room.turnSeq = 0;
+    room.turnId = null;
     room.deck = [];
     room.communityCards = [];
     room.pot = 0;
@@ -342,6 +448,10 @@ class GameEngine {
     room.deckCommitment = null;
     room.handReveal = null;
     room.handRevealSent = false;
+    room.handRevealDeferred = false;
+    room.deferredHandReveals = [];
+    room.revealedHandHistory = [];
+    room.hadAllInActionThisHand = false;
     room.privateOverdriveProfile = null;
     room.players.forEach((player) => {
       player.chips = 1000;
@@ -405,6 +515,7 @@ class GameEngine {
   }
 
   beginRematchVote(room, gameOverPayload) {
+    this.flushDeferredHandReveals(room);
     if (room.rematch?.timer) clearTimeout(room.rematch.timer);
     const deadlineAt = Date.now() + REMATCH_TIMEOUT_MS;
     room.rematch = {
@@ -481,7 +592,7 @@ class GameEngine {
 
   handleSkillLoadout(room, player, skillIds) {
     if (!isSkillEnabled(room.skillMode)) return { ok: false, error: "当前房间未启用技能" };
-    if (!["waiting", "drafting"].includes(room.phase)) {
+    if (room.handNo > 0 || !["waiting", "drafting"].includes(room.phase)) {
       return { ok: false, error: "对局开始后不能更换技能" };
     }
     const result = setPlayerLoadout(player, skillIds);
@@ -497,12 +608,16 @@ class GameEngine {
     return result;
   }
 
-  handleSkillUse(room, player, payload) {
-    return this.skillEngine.requestUse(room, player, payload || {});
+  handleSkillUse(room, player, payload, options = {}) {
+    return this.skillEngine.requestUse(room, player, payload || {}, options);
   }
 
   handleSkillCounter(room, player, payload) {
     return this.skillEngine.requestCounter(room, player, payload || {});
+  }
+
+  handleSkillCounterSkip(room, player, payload) {
+    return this.skillEngine.declineCounter(room, player, payload || {});
   }
 
   handleSkillChoice(room, player, payload) {
@@ -513,6 +628,10 @@ class GameEngine {
     const state = room.skillState;
     if (!state?.preDealWindow) return;
     if (state.pendingSkill || state.reactionWindow || state.skillChoice) return;
+    if (state.preDealBotTimer) {
+      clearTimeout(state.preDealBotTimer);
+      state.preDealBotTimer = null;
+    }
     if (state.preDealTimer) {
       clearTimeout(state.preDealTimer);
       state.preDealTimer = null;
@@ -543,8 +662,27 @@ class GameEngine {
       this.emitToPlayer(player, "hand_hint", this.buildHandHint(player, room.communityCards, room));
     }
 
-    if (room.handRevealSent && room.handReveal) {
+    if (room.phase === "game_over") {
+      const restoredIds = new Set();
+      (room.revealedHandHistory || []).forEach((reveal) => {
+        this.emitToPlayer(player, "hand_reveal", reveal);
+        restoredIds.add(reveal.handId);
+      });
+      if (room.handRevealSent && room.handReveal && !restoredIds.has(room.handReveal.handId)) {
+        this.emitToPlayer(player, "hand_reveal", room.handReveal);
+      }
+    } else if (room.handRevealSent && room.handReveal) {
       this.emitToPlayer(player, "hand_reveal", room.handReveal);
+    }
+
+    if (room.phase === "end" && room.lastHandResult) {
+      this.emitToPlayer(
+        player,
+        "hand_result",
+        this.visibleHandResultForPlayer(room.lastHandResult, player, {
+          revealAll: room.lastHandResult.reason === "showdown",
+        })
+      );
     }
 
     if (room.phase === "game_over" && room.lastGameOverPayload) {
@@ -561,6 +699,8 @@ class GameEngine {
     const turn = getValidActions(room, room.currentPlayerIndex);
     this.emitToPlayer(player, "player_turn", {
       playerId: current.playerId,
+      handId: room.handId || null,
+      turnId: room.turnId || null,
       validActions: turn.validActions,
       minRaise: turn.minRaiseTo,
       maxBet: turn.maxTotalBet,
@@ -618,8 +758,11 @@ class GameEngine {
     room.currentBet = 0;
     room.lastRaiseSize = room.bigBlind;
     room.lastActionAt = Date.now();
+    room.turnSeq = 0;
+    room.turnId = null;
     room.lastHandResult = null;
     room.lastGameOverPayload = null;
+    room.hadAllInActionThisHand = false;
     room.history.push({ type: "hand_start", handNo: room.handNo, at: Date.now() });
 
     room.players.forEach((p) => {
@@ -639,9 +782,17 @@ class GameEngine {
 
     const sbIndex = room.dealerIndex;
     const bbIndex = otherIndex(sbIndex);
-    collectBet(room, room.players[sbIndex], room.smallBlind);
-    collectBet(room, room.players[bbIndex], room.bigBlind);
-    room.currentBet = room.bigBlind;
+    const effectiveStack = Math.min(...room.players.map((player) => player.chips));
+    collectBet(room, room.players[sbIndex], Math.min(room.smallBlind, effectiveStack));
+    collectBet(room, room.players[bbIndex], Math.min(room.bigBlind, effectiveStack));
+    room.currentBet = Math.max(...room.players.map((player) => player.streetBet));
+    if (room.players.some((player) => player.isAllIn)) {
+      room.players.forEach((player) => {
+        if (!player.isAllIn && player.status === "active" && player.streetBet === room.currentBet) {
+          player.hasActed = true;
+        }
+      });
+    }
     room.lastRaiseSize = room.bigBlind;
     room.currentPlayerIndex = sbIndex;
 
@@ -669,17 +820,21 @@ class GameEngine {
 
     this.emitToRoom(room, "community_cards", { cards: room.communityCards, phase: room.phase });
     this.broadcastRoomState(room);
-    this.emitTurn(room);
+    if (!this.runoutToShowdownIfAllIn(room)) this.emitTurn(room);
   }
 
   emitTurn(room, { timeoutMs = ACTION_TIMEOUT_MS } = {}) {
     if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
     const current = room.players[room.currentPlayerIndex];
     if (current?.status === "disconnected" && !current.isAllIn) {
+      room.turnSeq = Number(room.turnSeq || 0) + 1;
+      room.turnId = `${room.handId || room.handNo}:${room.turnSeq}`;
       const pausedTurn = { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
       this.scheduleActionTimeout(room, room.currentPlayerIndex, pausedTurn, timeoutMs);
       this.emitToRoom(room, "player_turn", {
         playerId: current.playerId,
+        handId: room.handId || null,
+        turnId: room.turnId,
         validActions: [],
         minRaise: 0,
         maxBet: 0,
@@ -696,9 +851,13 @@ class GameEngine {
     }
     const turnPlayer = room.players[room.currentPlayerIndex];
     const turn = getValidActions(room, room.currentPlayerIndex);
+    room.turnSeq = Number(room.turnSeq || 0) + 1;
+    room.turnId = `${room.handId || room.handNo}:${room.turnSeq}`;
     this.scheduleActionTimeout(room, room.currentPlayerIndex, turn, timeoutMs);
     this.emitToRoom(room, "player_turn", {
       playerId: turnPlayer.playerId,
+      handId: room.handId || null,
+      turnId: room.turnId,
       validActions: turn.validActions,
       minRaise: turn.minRaiseTo,
       maxBet: turn.maxTotalBet,
@@ -754,7 +913,7 @@ class GameEngine {
     endHandSkills(room, { reason: "fold", winner, tie: false });
     room.lastHandResult = handResult;
     this.emitHandResult(room, handResult, { revealAll: false });
-    this.revealHandCommitment(room);
+    this.deferHandCommitmentReveal(room);
     this.finalizeHand(room, handResult.settleMs);
   }
 
@@ -776,19 +935,23 @@ class GameEngine {
       !autoRunout
     ) {
       const beforePhase = nextPhase === "turn" ? "before_turn" : "before_river";
-      const eligible = room.players.find((p) => {
-        if (!p.skillRuntime?.equippedSkillIds?.includes("FORK_OBSERVATION")) return false;
-        const prev = room.phase;
+      const candidates = room.players.filter((player) =>
+        player.skillRuntime?.equippedSkillIds?.includes("FORK_OBSERVATION")
+      );
+      let eligible = null;
+      let prevPhase = room.phase;
+      if (candidates.length) {
+        // Entering the pre-deal phase must expire phase-scoped silence/cloak
+        // before FORK_OBSERVATION is validated.
         room.phase = beforePhase;
-        const ok = this.skillEngine.validateUse(room, p, "FORK_OBSERVATION", {});
-        room.phase = prev;
-        return ok.ok;
-      });
+        onStreetPhaseChanged(room, beforePhase);
+        eligible = candidates.find((player) =>
+          this.skillEngine.validateUse(room, player, "FORK_OBSERVATION", {}).ok
+        );
+      }
       if (eligible) {
         const state = room.skillState;
         const expiresAt = Date.now() + SKILL_CONFIG.PRE_DEAL_SKILL_WINDOW_MS;
-        const prevPhase = room.phase;
-        room.phase = beforePhase;
         state.preDealWindow = { nextPhase, expiresAt, fromPhase: prevPhase };
         state._preDealAutoRunout = autoRunout;
         this.emitToRoom(room, "skill:pre-deal-window", {
@@ -802,10 +965,19 @@ class GameEngine {
         state.preDealTimer = setTimeout(() => this.continuePreDeal(room), SKILL_CONFIG.PRE_DEAL_SKILL_WINDOW_MS);
         if (typeof state.preDealTimer.unref === "function") state.preDealTimer.unref();
         if (eligible.isBot) {
-          setTimeout(() => {
-            if (!room.skillState?.preDealWindow) return;
+          const handId = room.handId;
+          const botTimer = setTimeout(() => {
+            if (state.preDealBotTimer !== botTimer) return;
+            state.preDealBotTimer = null;
+            if (
+              room.handId !== handId ||
+              room.phase !== beforePhase ||
+              room.skillState?.preDealWindow?.nextPhase !== nextPhase
+            ) return;
             this.continuePreDeal(room);
           }, 500);
+          state.preDealBotTimer = botTimer;
+          if (typeof botTimer.unref === "function") botTimer.unref();
         }
         return;
       }
@@ -883,17 +1055,53 @@ class GameEngine {
     const potBefore = room.pot;
 
     if (!first) {
-      // No evaluable hands (e.g. mid-hand disconnect edge) — return pot to remaining players.
+      // A malformed/over-edited board must still terminate cleanly. Return the
+      // matched pot as a void tie instead of leaving the room stuck at showdown.
       const recipients = alive.length ? alive : room.players.filter((p) => p.status !== "folded");
       if (recipients.length && room.pot > 0) {
         const share = Math.floor(room.pot / recipients.length);
         recipients.forEach((p) => {
           p.chips += share;
         });
+        const remainder = room.pot - share * recipients.length;
+        if (remainder > 0) {
+          const bigBlind = room.players[otherIndex(room.dealerIndex)];
+          (recipients.includes(bigBlind) ? bigBlind : recipients[0]).chips += remainder;
+        }
         room.pot = 0;
       }
-      this.logger.warn("GAME", "摊牌无有效牌型，已退还底池", { roomId: room.roomId, pot: potBefore });
-      this.broadcastRoomState(room);
+      this.logger.warn("GAME", "摊牌无有效牌型，按无效平局退还底池", {
+        roomId: room.roomId,
+        pot: potBefore,
+      });
+      this.eventBus.emit("game:showdown", {
+        roomId: room.roomId,
+        tie: true,
+        pot: potBefore,
+        void: true,
+      });
+      this.emitToRoom(room, "showdown", {
+        players: [],
+        winner: null,
+        tie: true,
+        void: true,
+        pot: potBefore,
+      });
+      const handResult = this.buildHandResultPayload(room, {
+        reason: "showdown",
+        winner: null,
+        tie: true,
+        pot: potBefore,
+        playersDetail: room.players.map((player) =>
+          this.buildPlayerHandDetail(player, room.communityCards, {}, room)
+        ),
+      });
+      endHandSkills(room, { reason: "showdown", winner: null, tie: true });
+      room.lastHandResult = handResult;
+      this.emitHandResult(room, handResult, { revealAll: true });
+      this.revealHandCommitment(room);
+      room.phase = "end";
+      this.finalizeHand(room, handResult.settleMs);
       return;
     }
 
@@ -909,8 +1117,8 @@ class GameEngine {
       const used = half * 2;
       const oddChip = room.pot - used;
       if (oddChip > 0) {
-        const owner = room.players.find((p) => p.playerId === room.ownerPlayerId);
-        if (owner) owner.chips += oddChip;
+        const bigBlind = room.players[otherIndex(room.dealerIndex)];
+        if (bigBlind) bigBlind.chips += oddChip;
       }
     } else {
       first.player.chips += room.pot;
@@ -1031,18 +1239,36 @@ class GameEngine {
   }
 
   scheduleBotAction(room, botIndex, turn) {
-    setTimeout(() => {
+    if (room.botActionTimer) clearTimeout(room.botActionTimer);
+    const handId = room.handId;
+    const turnId = room.turnId;
+    const botId = room.players[botIndex]?.playerId;
+    const timer = setTimeout(() => {
+      if (room.botActionTimer !== timer) return;
+      room.botActionTimer = null;
+      if (room.handId !== handId || room.turnId !== turnId) return;
       if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
       if (room.currentPlayerIndex !== botIndex) return;
       const bot = room.players[botIndex];
-      if (!bot || !bot.isBot || bot.status !== "active" || bot.isAllIn) return;
+      if (!bot || bot.playerId !== botId || !bot.isBot || bot.status !== "active" || bot.isAllIn) return;
       const picked = this.chooseBotAction(room, botIndex, turn);
       this.handlePlayerAction(room, botIndex, picked.action, picked.amount);
     }, 800);
+    room.botActionTimer = timer;
+    if (typeof timer.unref === "function") timer.unref();
   }
 
   resolveDisconnectTimeout(room, loser) {
-    this.clearActionTimer(room);
+    if (
+      !room ||
+      !loser ||
+      this.roomManager.getRoom(room.roomId) !== room ||
+      !room.players.includes(loser) ||
+      room.phase === "game_over"
+    ) {
+      return { ok: false, error: "stale_disconnect_timeout" };
+    }
+    this.abortPendingRoomWork(room);
     loser.status = "out";
     const winner = room.players.find((p) => p.playerId !== loser.playerId);
     if (winner && room.pot > 0) winner.chips += room.pot;
@@ -1055,6 +1281,7 @@ class GameEngine {
     room.phase = "game_over";
     room.pot = 0;
     room.currentBet = 0;
+    this.flushDeferredHandReveals(room);
     this.revealHandCommitment(room);
     this.beginRematchVote(room, {
       winner: winner?.playerId || null,
@@ -1065,9 +1292,19 @@ class GameEngine {
       players: this.roomManager.getPublicPlayers(room),
     });
     this.broadcastRoomState(room);
+    return { ok: true };
   }
 
   handlePlayerAction(room, playerIndex, action, amount, options = {}) {
+    if (!room || room.players.length !== 2) {
+      return { ok: false, error: "牌局席位状态异常，请重新进入房间" };
+    }
+    if (
+      options.enforceTurnToken &&
+      (options.handId !== room.handId || options.turnId !== room.turnId)
+    ) {
+      return { ok: false, error: "该操作已过期，请按当前回合重新选择" };
+    }
     if (["waiting", "drafting", "showdown", "end", "game_over", "before_turn", "before_river"].includes(room.phase)) {
       return { ok: false, error: "当前阶段不可行动" };
     }
@@ -1158,10 +1395,15 @@ class GameEngine {
       return { ok: false, error: "未知操作" };
     }
 
+    if (action === "allin" || appliedAction === "allin") {
+      room.hadAllInActionThisHand = true;
+    }
+
     this.clearActionTimer(room);
     room.history.push({
       type: "action",
       action: appliedAction,
+      declaredAction: action,
       amount: appliedAmount,
       playerId: player.playerId,
       at: Date.now(),
@@ -1172,12 +1414,14 @@ class GameEngine {
       roomId: room.roomId,
       playerId: player.playerId,
       action: appliedAction,
+      declaredAction: action,
       amount: appliedAmount,
     });
     this.eventBus.emit("game:action", {
       roomId: room.roomId,
       playerId: player.playerId,
       action: appliedAction,
+      declaredAction: action,
       amount: appliedAmount,
     });
 
@@ -1186,6 +1430,7 @@ class GameEngine {
     this.emitToRoom(room, "action_made", {
       playerId: player.playerId,
       action: appliedAction,
+      declaredAction: action,
       amount: appliedAmount,
       pot: room.pot,
       playerChips: this.roomManager.getPublicPlayers(room),

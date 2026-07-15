@@ -5,6 +5,8 @@ const {
   validateLoadout,
   setPlayerLoadout,
   beginHandSkills,
+  onStreetPhaseChanged,
+  endHandSkills,
   getPublicRoomSkillSnapshot,
 } = require("../game/skills/skillEngine");
 const { SkillEngine } = require("../game/skills/skillEngine");
@@ -120,6 +122,255 @@ describe("skill energy and room flow", () => {
     expect(a.player.skillRuntime.abyssEnergy).toBe(SKILL_CONFIG.INITIAL_ABYSS_ENERGY);
   });
 
+  test("loadouts cannot be swapped while a started match is paused in waiting", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const player = roomManager.joinRoom({
+      roomId: room.roomId,
+      playerName: "A",
+      playerId: "PA",
+      socketId: "s1",
+    }).player;
+    setPlayerLoadout(player, ["MEMORY_REWRITE", "NEURAL_INTERRUPT", "ADVERSITY_CIRCUIT"]);
+    const original = [...player.skillRuntime.equippedSkillIds];
+    room.handNo = 2;
+    room.phase = "waiting";
+
+    const result = engine.handleSkillLoadout(room, player, [
+      "ECHO_SCAN",
+      "ABYSS_BREATH",
+      "EMBER_RECYCLE",
+      "OVERLOAD_CORE",
+    ]);
+    expect(result.ok).toBe(false);
+    expect(player.skillRuntime.equippedSkillIds).toEqual(original);
+  });
+
+  test("paid private skill result is replayed after reconnect", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const caster = roomManager.joinRoom({
+      roomId: room.roomId,
+      playerName: "A",
+      playerId: "PA",
+      socketId: "s1",
+    }).player;
+    const opponent = roomManager.joinRoom({
+      roomId: room.roomId,
+      playerName: "B",
+      playerId: "PB",
+      socketId: "s2",
+    }).player;
+    engine.handleSkillLoadout(room, caster, [
+      "ECHO_SCAN",
+      "ABYSS_BREATH",
+      "EMBER_RECYCLE",
+      "OVERLOAD_CORE",
+    ]);
+    engine.handleSkillLoadout(room, opponent, [
+      "NEURAL_INTERRUPT",
+      "ADVERSITY_CIRCUIT",
+      "PROBABILITY_CLOAK",
+    ]);
+    room.phase = "flop";
+    room.communityCards = createDeck().slice(0, 3);
+    room.currentPlayerIndex = 0;
+    caster.skillRuntime.abyssEnergy = 10;
+
+    expect(engine.handleSkillUse(room, caster, { skillId: "ECHO_SCAN", requestId: "scan-r" }).ok).toBe(true);
+    caster.socketId = null;
+    engine.skillEngine.resolvePending(room, false, null);
+    expect(caster.skillRuntime.privateResults).toHaveLength(1);
+    expect(io.emits.some((entry) => entry.event === "skill:private-result")).toBe(false);
+
+    caster.socketId = "s3";
+    engine.skillEngine.restorePrivateState(room, caster);
+    const restored = io.emits.find(
+      (entry) => entry.event === "skill:private-result" && entry.payload.restored
+    );
+    expect(restored.payload).toEqual(expect.objectContaining({ requestId: "scan-r", skillId: "ECHO_SCAN" }));
+  });
+
+  test("abyss breath eligibility survives an active skill used after entering the turn", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const caster = roomManager.joinRoom({ roomId: room.roomId, playerId: "PA", socketId: "s1" }).player;
+    const opponent = roomManager.joinRoom({ roomId: room.roomId, playerId: "PB", socketId: "s2" }).player;
+    setPlayerLoadout(caster, ["ECHO_SCAN", "ABYSS_BREATH", "EMBER_RECYCLE", "OVERLOAD_CORE"]);
+    setPlayerLoadout(opponent, ["ADVERSITY_CIRCUIT", "PROBABILITY_CLOAK", "OVERLOAD_CORE"]);
+    beginHandSkills(room);
+    const deck = createDeck();
+    caster.cards = deck.slice(0, 2);
+    opponent.cards = deck.slice(2, 4);
+    room.communityCards = deck.slice(4, 8);
+    room.phase = "turn";
+    room.currentPlayerIndex = 0;
+    caster.skillRuntime.abyssEnergy = 8;
+
+    onStreetPhaseChanged(room, "turn");
+    expect(caster.skillRuntime.breathEligible).toBe(true);
+    expect(engine.handleSkillUse(room, caster, { skillId: "ECHO_SCAN", requestId: "turn-scan" }).ok).toBe(true);
+    const afterSkill = caster.skillRuntime.abyssEnergy;
+    expect(caster.skillRuntime.breathEligible).toBe(true);
+    endHandSkills(room, { reason: "showdown", winner: caster, tie: false });
+    expect(caster.skillRuntime.abyssEnergy).toBe(afterSkill + 1);
+  });
+
+  test("phase-scoped silence expires before the turn fork window", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const caster = roomManager.joinRoom({ roomId: room.roomId, playerId: "PA", socketId: "s1" }).player;
+    const opponent = roomManager.joinRoom({ roomId: room.roomId, playerId: "PB", socketId: "s2" }).player;
+    setPlayerLoadout(caster, ["FORK_OBSERVATION", "ABYSS_BREATH", "ADVERSITY_CIRCUIT"]);
+    setPlayerLoadout(opponent, ["SILENCE_ZONE", "ABYSS_BREATH", "ADVERSITY_CIRCUIT"]);
+    beginHandSkills(room);
+    room.phase = "flop";
+    room.communityCards = createDeck().slice(0, 3);
+    room.deck = createDeck().slice(3);
+    room.currentPlayerIndex = 0;
+    room.skillState.silenceActive = true;
+    caster.skillRuntime.abyssEnergy = 10;
+
+    engine.moveToNextStreet(room);
+
+    expect(room.phase).toBe("before_turn");
+    expect(room.skillState.silenceActive).toBe(false);
+    expect(room.skillState.preDealWindow?.nextPhase).toBe("turn");
+    expect(engine.handleSkillUse(room, caster, {
+      skillId: "FORK_OBSERVATION",
+      requestId: "fork-after-silence",
+    }).ok).toBe(true);
+    expect(room.skillState.skillChoice).toEqual(expect.objectContaining({
+      type: "FORK_DECISION",
+      requestId: "fork-after-silence",
+    }));
+    engine.abortPendingRoomWork(room);
+  });
+
+  test("skill reveal contains public loadouts and replayable energy audit fields", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const caster = roomManager.joinRoom({ roomId: room.roomId, playerId: "PA", socketId: "s1" }).player;
+    const opponent = roomManager.joinRoom({ roomId: room.roomId, playerId: "PB", socketId: "s2" }).player;
+    setPlayerLoadout(caster, ["ECHO_SCAN", "ABYSS_BREATH", "EMBER_RECYCLE", "OVERLOAD_CORE"]);
+    setPlayerLoadout(opponent, ["PROBABILITY_CLOAK", "ABYSS_BREATH", "ADVERSITY_CIRCUIT"]);
+    beginHandSkills(room);
+    const deck = createDeck();
+    caster.cards = deck.slice(0, 2);
+    opponent.cards = deck.slice(2, 4);
+    room.communityCards = deck.slice(4, 7);
+    room.phase = "flop";
+    room.currentPlayerIndex = 0;
+    caster.skillRuntime.abyssEnergy = 10;
+
+    expect(engine.handleSkillUse(room, caster, {
+      skillId: "ECHO_SCAN",
+      requestId: "audit-scan",
+    }).ok).toBe(true);
+    const reveal = engine.skillEngine.buildRevealExtras(room);
+    expect(reveal.equippedSkills).toEqual(expect.arrayContaining([
+      { playerId: "PA", skillIds: caster.skillRuntime.equippedSkillIds },
+      { playerId: "PB", skillIds: opponent.skillRuntime.equippedSkillIds },
+    ]));
+    expect(reveal.skillActions).toContainEqual(expect.objectContaining({
+      requestId: "audit-scan",
+      skillId: "ECHO_SCAN",
+      casterId: "PA",
+      status: "SUCCESS",
+      energyPaid: 2,
+    }));
+    expect(reveal.skillActions[0]).not.toHaveProperty("private");
+  });
+
+  test("a stale hand or turn token cannot execute an action-window skill", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const engine = new GameEngine({ io, roomManager, logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const caster = roomManager.joinRoom({ roomId: room.roomId, playerId: "PA", socketId: "s1" }).player;
+    const opponent = roomManager.joinRoom({ roomId: room.roomId, playerId: "PB", socketId: "s2" }).player;
+    setPlayerLoadout(caster, ["ECHO_SCAN", "ABYSS_BREATH", "EMBER_RECYCLE", "OVERLOAD_CORE"]);
+    setPlayerLoadout(opponent, ["PROBABILITY_CLOAK", "ABYSS_BREATH", "ADVERSITY_CIRCUIT"]);
+    beginHandSkills(room);
+    const deck = createDeck();
+    caster.cards = deck.slice(0, 2);
+    opponent.cards = deck.slice(2, 4);
+    room.communityCards = deck.slice(4, 7);
+    room.phase = "flop";
+    room.handId = "hand-current";
+    room.turnId = "hand-current:4";
+    room.currentPlayerIndex = 0;
+    caster.skillRuntime.abyssEnergy = 10;
+    const before = caster.skillRuntime.abyssEnergy;
+
+    const stale = engine.handleSkillUse(room, caster, {
+      skillId: "ECHO_SCAN",
+      requestId: "stale-scan",
+      handId: "hand-old",
+      turnId: room.turnId,
+      phase: room.phase,
+    }, { enforceContext: true });
+
+    expect(stale.ok).toBe(false);
+    expect(caster.skillRuntime.abyssEnergy).toBe(before);
+    expect(room.skillState.pendingSkill).toBeNull();
+  });
+
+  test("stale skill choice cannot resolve a newer choice window", () => {
+    jest.useFakeTimers();
+    try {
+      const io = makeIoStub();
+      const roomManager = new RoomManager({ logger, eventBus });
+      const engine = new GameEngine({ io, roomManager, logger, eventBus });
+      const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+      const player = roomManager.joinRoom({ roomId: room.roomId, playerId: "PA", socketId: "s1" }).player;
+      const currentChoice = {
+        type: "FORK_DECISION",
+        skillId: "FORK_OBSERVATION",
+        playerId: player.playerId,
+        requestId: "new-choice",
+        upcoming: createDeck()[0],
+      };
+      room.skillState.skillChoice = currentChoice;
+      room.skillState.choiceTimer = setTimeout(() => {}, 1000);
+
+      const result = engine.handleSkillChoice(room, player, {
+        requestId: "old-choice",
+        skillId: "QUANTUM_HOLE_CARDS",
+        choiceType: "QUANTUM_SELECT",
+        keepIndexes: [0, 1],
+      });
+      expect(result.ok).toBe(false);
+      expect(room.skillState.skillChoice).toBe(currentChoice);
+      expect(room.skillState.choiceTimer).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("showdown loser recovery is not consumed by the passive-energy cap", () => {
+    const io = makeIoStub();
+    const roomManager = new RoomManager({ logger, eventBus });
+    const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+    const winner = roomManager.joinRoom({ roomId: room.roomId, playerId: "PA", socketId: "s1" }).player;
+    const loser = roomManager.joinRoom({ roomId: room.roomId, playerId: "PB", socketId: "s2" }).player;
+    loser.skillRuntime.abyssEnergy = 5;
+    loser.skillRuntime.passiveEnergyGainedThisHand = SKILL_CONFIG.MAX_BONUS_ENERGY_PER_HAND;
+
+    endHandSkills(room, { reason: "showdown", winner, tie: false });
+    expect(loser.skillRuntime.abyssEnergy).toBe(5 + SKILL_CONFIG.SHOWDOWN_LOSER_BONUS);
+  });
+
   test("all-in blocks active skills and silence blocks later actives", () => {
     const io = makeIoStub();
     const roomManager = new RoomManager({ logger, eventBus });
@@ -230,6 +481,64 @@ describe("skill energy and room flow", () => {
     expect(room.skillState.pendingSkill).toBeNull();
     expect(room.actionDeadline).not.toBeNull();
     jest.useRealTimers();
+  });
+
+  test("declining a counter window resolves the pending skill immediately", () => {
+    jest.useFakeTimers();
+    try {
+      const io = makeIoStub();
+      const roomManager = new RoomManager({ logger, eventBus });
+      const engine = new GameEngine({ io, roomManager, logger, eventBus });
+      const room = roomManager.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+      const a = roomManager.joinRoom({
+        roomId: room.roomId,
+        playerName: "A",
+        playerId: "PA",
+        socketId: "s1",
+      }).player;
+      const b = roomManager.joinRoom({
+        roomId: room.roomId,
+        playerName: "B",
+        playerId: "PB",
+        socketId: "s2",
+      }).player;
+      engine.handleSkillLoadout(room, a, ["ECHO_SCAN", "ABYSS_BREATH", "EMBER_RECYCLE"]);
+      engine.handleSkillLoadout(room, b, ["NEURAL_INTERRUPT", "ADVERSITY_CIRCUIT"]);
+      room.phase = "flop";
+      room.communityCards = createDeck().slice(0, 3);
+      a.cards = createDeck().slice(3, 5);
+      b.cards = createDeck().slice(5, 7);
+      room.currentPlayerIndex = 0;
+      a.skillRuntime.abyssEnergy = 10;
+      b.skillRuntime.abyssEnergy = 10;
+
+      const use = engine.handleSkillUse(room, a, {
+        skillId: "ECHO_SCAN",
+        requestId: "scan-skip",
+      });
+      expect(use.ok).toBe(true);
+      expect(room.skillState.reactionWindow).toBeTruthy();
+
+      const skipped = engine.handleSkillCounterSkip(room, b, { requestId: "scan-skip" });
+      expect(skipped.ok).toBe(true);
+      expect(room.skillState.pendingSkill).toBeNull();
+      expect(room.skillState.reactionWindow).toBeNull();
+      expect(b.skillRuntime.skillUsesThisHand.NEURAL_INTERRUPT || 0).toBe(0);
+      expect(io.emits).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event: "skill:reaction-expired",
+            payload: expect.objectContaining({ reason: "declined" }),
+          }),
+          expect.objectContaining({
+            event: "skill:resolved",
+            payload: expect.objectContaining({ requestId: "scan-skip", status: "SUCCESS" }),
+          }),
+        ])
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test("nullify protocol excludes card from showdown evaluation", () => {
@@ -343,7 +652,12 @@ describe("skill energy and room flow", () => {
       expiresAt: Date.now() + 1000,
     };
 
-    const result = engine.handleSkillChoice(room, a, { keepIndexes: [0, 1.5] });
+    const result = engine.handleSkillChoice(room, a, {
+      requestId: "quantum-invalid-index",
+      skillId: "QUANTUM_HOLE_CARDS",
+      choiceType: "QUANTUM_SELECT",
+      keepIndexes: [0, 1.5],
+    });
     expect(result.ok).toBe(true);
     expect(a.cards).toEqual(options.slice(0, 2));
     expect(a.cards.every(Boolean)).toBe(true);

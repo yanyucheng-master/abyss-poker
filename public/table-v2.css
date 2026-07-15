@@ -727,7 +727,7 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
 
   .salon-ui #screen-game #btn-back-game {
     min-width: 50px;
-    min-height: 40px;
+    min-height: 44px;
     padding: 5px;
     font-size: 1.15rem;
   }
@@ -973,7 +973,7 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   .salon-ui #screen-game .action-dock:not(:has(.skill-hud:not(.hidden))) {
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: auto 46px 50px 44px;
+    grid-template-rows: 98px 46px 50px 44px;
     gap: 4px;
     min-height: 0;
     padding: 5px;
@@ -1002,10 +1002,10 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
     grid-row: 1;
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr);
-    grid-template-rows: 38px;
+    grid-template-rows: 92px;
     align-items: center;
     gap: 5px;
-    min-height: 44px;
+    min-height: 98px;
     padding: 3px 5px;
   }
 
@@ -1029,22 +1029,23 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   }
 
   .salon-ui #screen-game .skill-bar {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-auto-rows: 38px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, 44px);
+    grid-auto-rows: 44px;
     gap: 4px;
     padding-bottom: 1px;
   }
 
   .salon-ui #screen-game .skill-slot {
     min-width: 0;
-    min-height: 38px;
+    min-height: 44px;
   }
 
   .salon-ui #screen-game .skill-use-btn {
     min-width: 0;
-    min-height: 38px;
-    padding: 4px 17px 4px 4px;
-    font-size: 0.5rem;
+    min-height: 44px;
+    padding: 4px 34px 4px 7px;
+    font-size: 0.56rem;
   }
 
   .salon-ui #screen-game .skill-use-cost {
@@ -1061,8 +1062,8 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   .salon-ui #screen-game .skill-slot .skill-zoom-button {
     top: 3px;
     right: 3px;
-    width: 15px;
-    height: 15px;
+    width: 32px;
+    height: 32px;
     border-radius: 5px;
     transform: none;
   }
@@ -1073,8 +1074,8 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   }
 
   .salon-ui #screen-game .skill-slot .skill-zoom-glyph {
-    width: 9px;
-    height: 9px;
+    width: 12px;
+    height: 12px;
   }
 
   .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) .turn-status,
@@ -1126,7 +1127,7 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   }
 
   .salon-ui #screen-game .raise-console.collapsed #btn-raise {
-    min-height: 42px;
+    min-height: 44px;
   }
 
   .salon-ui #screen-game .raise-console .raise-heading,
@@ -1274,25 +1275,26 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
 
   .salon-ui #screen-game .action-dock,
   .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) {
-    grid-template-rows: 36px 36px 44px 36px;
+    grid-template-rows: 98px 36px 44px 44px;
   }
 
   .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) .skill-hud,
   .salon-ui #screen-game .skill-hud {
-    min-height: 36px;
-    grid-template-rows: 30px;
+    min-height: 98px;
+    grid-template-rows: 92px;
   }
 
   .salon-ui #screen-game .skill-use-btn {
-    min-height: 30px;
+    min-height: 44px;
   }
 
   .salon-ui #screen-game .skill-bar {
-    grid-auto-rows: 30px;
+    grid-template-rows: repeat(2, 44px);
+    grid-auto-rows: 44px;
   }
 
   .salon-ui #screen-game .skill-slot {
-    min-height: 30px;
+    min-height: 44px;
   }
 
   .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) .turn-status,
@@ -1312,56 +1314,337 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   }
 
   .salon-ui #screen-game .raise-console.collapsed #btn-raise {
-    min-height: 34px;
+    min-height: 44px;
   }
 }
 
 @media (max-width: 340px) {
+  .salon-ui #screen-game .poker-board {
+    grid-template-rows: 52px minmax(118px, 1fr) 56px;
+  }
+
+  .salon-ui #screen-game .table-center {
+    grid-template-rows: 18px 58px 36px;
+  }
+
+  .salon-ui #screen-game .pot-core {
+    width: 36px;
+    height: 36px;
+  }
+
+  .salon-ui #screen-game .self-stage {
+    min-height: 56px;
+  }
+
+  .salon-ui #screen-game .self-stage .player-avatar {
+    display: none;
+  }
+
+  .salon-ui #screen-game .self-stage > .player-console {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+    min-height: 44px;
+    padding: 2px 4px;
+  }
+
+  .salon-ui #screen-game .self-stage .player-metrics {
+    flex-wrap: nowrap;
+    gap: 2px 5px;
+    font-size: 0.5rem;
+  }
+
   .salon-ui #screen-game .deck-stack {
     display: none;
   }
 
   .salon-ui #screen-game .action-dock,
   .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) {
-    grid-template-rows: 44px 36px 44px 36px;
+    grid-template-rows: 98px 36px 44px 44px;
   }
 
   .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) .skill-hud,
   .salon-ui #screen-game .skill-hud {
-    grid-template-columns: 82px minmax(0, 1fr);
-    grid-template-rows: 38px;
-    min-height: 44px;
+    grid-template-columns: 68px minmax(0, 1fr);
+    grid-template-rows: 92px;
+    min-height: 98px;
   }
 
   .salon-ui #screen-game .skill-bar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(2, 18px);
-    grid-auto-rows: 18px;
-    gap: 2px 4px;
+    grid-template-rows: repeat(2, 44px);
+    grid-auto-rows: 44px;
+    gap: 4px;
+    overflow: hidden;
   }
 
   .salon-ui #screen-game .skill-slot {
-    min-height: 18px;
+    min-height: 44px;
   }
 
   .salon-ui #screen-game .skill-use-btn {
-    min-height: 18px;
-    padding: 2px 13px 2px 2px;
-    font-size: 0.5rem;
+    min-height: 44px;
+    padding: 2px 34px 2px 5px;
+    font-size: 0.52rem;
     letter-spacing: 0;
   }
 
   .salon-ui #screen-game .skill-slot .skill-zoom-button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .salon-ui #screen-game .skill-slot .skill-zoom-glyph {
     width: 12px;
     height: 12px;
   }
 
-  .salon-ui #screen-game .skill-slot .skill-zoom-glyph {
-    width: 7px;
-    height: 7px;
-  }
-
   .salon-ui #screen-game .skill-use-cost {
     display: none;
+  }
+}
+
+/* Short landscape phones and low desktop windows need a dedicated table
+ * composition. The regular desktop rows intentionally favor spectacle and
+ * otherwise push the local player's cards below the felt. */
+@media (min-width: 641px) and (max-height: 560px) {
+  body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
+    padding: 4px 8px;
+  }
+
+  .salon-ui #screen-game.game-screen.active {
+    grid-template-rows: 48px minmax(0, 1fr) auto;
+    gap: 4px;
+  }
+
+  .salon-ui:has(#screen-game.active) .settings-trigger {
+    top: 9px;
+    right: 12px;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  .salon-ui #screen-game .game-topbar {
+    grid-template-columns: 70px minmax(0, 1fr) auto;
+    padding: 3px 43px 3px 4px;
+  }
+
+  .salon-ui #screen-game #btn-back-game {
+    min-height: 40px;
+    padding-inline: 8px;
+  }
+
+  .salon-ui #screen-game .inline-stat {
+    display: none;
+  }
+
+  .salon-ui #screen-game .topbar-status {
+    gap: 4px;
+  }
+
+  .salon-ui #screen-game .connection-chip,
+  .salon-ui #screen-game .fairness-chip {
+    min-height: 24px;
+    padding-inline: 6px;
+    font-size: 0.56rem;
+  }
+
+  .salon-ui #screen-game .poker-board {
+    grid-template-rows: 44px minmax(96px, 1fr) 50px;
+    padding: 4px 8px;
+    border-radius: 15px;
+  }
+
+  .salon-ui #screen-game .opponent-zone {
+    grid-template-columns: minmax(190px, 290px) auto;
+    gap: 6px;
+    width: min(500px, 100%);
+  }
+
+  .salon-ui #screen-game .opponent-zone .player-console {
+    min-height: 42px;
+    padding: 3px 7px;
+  }
+
+  .salon-ui #screen-game .opponent-cards {
+    --card-w: 30px;
+    gap: 3px;
+  }
+
+  .salon-ui #screen-game .table-center {
+    grid-template-rows: 16px 58px 25px;
+    align-content: center;
+    gap: 2px;
+    width: min(600px, 86vw);
+  }
+
+  .salon-ui #screen-game .street-header {
+    gap: 6px;
+    font-size: 0.55rem;
+  }
+
+  .salon-ui #screen-game .street-header .action-log {
+    max-width: 180px;
+    font-size: 0.52rem;
+  }
+
+  .salon-ui #screen-game .board-midline {
+    gap: 6px;
+  }
+
+  .salon-ui #screen-game .community-row {
+    --card-w: 40px;
+    gap: 3px;
+  }
+
+  .salon-ui #screen-game .deck-stack {
+    width: 30px;
+    height: 43px;
+  }
+
+  .salon-ui #screen-game .pot-core {
+    width: 26px;
+    height: 26px;
+  }
+
+  .salon-ui #screen-game .pot-core .core-value span {
+    display: none;
+  }
+
+  .salon-ui #screen-game .pot-core .core-value strong {
+    font-size: 0.78rem;
+  }
+
+  .salon-ui #screen-game .self-zone {
+    width: min(520px, 100%);
+  }
+
+  .salon-ui #screen-game .self-stage {
+    grid-template-columns: auto minmax(180px, 1fr);
+    gap: 5px;
+    min-height: 48px;
+    padding: 2px 5px;
+  }
+
+  .salon-ui #screen-game .self-cards {
+    --card-w: 30px;
+    gap: 3px;
+  }
+
+  .salon-ui #screen-game .self-cards-wrap {
+    gap: 3px;
+  }
+
+  .salon-ui #screen-game .card-visibility {
+    width: 28px;
+    height: 28px;
+  }
+
+  .salon-ui #screen-game .self-stage > .player-console {
+    min-height: 42px;
+    padding: 3px 6px;
+  }
+
+  .salon-ui #screen-game .player-avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .salon-ui #screen-game .player-title-row > strong {
+    font-size: 0.72rem;
+  }
+
+  .salon-ui #screen-game .player-metrics {
+    gap: 2px 7px;
+    margin-top: 1px;
+    font-size: 0.55rem;
+  }
+
+  .salon-ui #screen-game .hand-hint {
+    display: none;
+  }
+
+  .salon-ui #screen-game .action-dock,
+  .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) {
+    grid-template-columns:
+      minmax(150px, 0.75fr)
+      minmax(92px, 0.42fr)
+      minmax(210px, 1fr)
+      minmax(140px, 0.62fr);
+    gap: 5px;
+    min-height: 0;
+    padding: 5px;
+  }
+
+  .salon-ui #screen-game .action-dock:not(:has(.skill-hud:not(.hidden))) {
+    grid-template-columns: minmax(90px, 0.42fr) minmax(240px, 1fr) minmax(145px, 0.62fr);
+  }
+
+  .salon-ui #screen-game .action-dock:has(.skill-hud:not(.hidden)) .skill-hud,
+  .salon-ui #screen-game .skill-hud {
+    grid-template-rows: 13px 75px;
+    gap: 2px;
+    padding: 2px 4px;
+  }
+
+  .salon-ui #screen-game .skill-energy-row {
+    gap: 4px;
+    font-size: 0.52rem;
+  }
+
+  .salon-ui #screen-game .skill-bar {
+    grid-template-rows: repeat(2, 36px);
+    grid-auto-rows: 36px;
+    gap: 3px;
+  }
+
+  .salon-ui #screen-game .skill-slot,
+  .salon-ui #screen-game .skill-use-btn {
+    min-height: 36px;
+  }
+
+  .salon-ui #screen-game .skill-use-btn {
+    padding: 3px 31px 3px 5px;
+    font-size: 0.54rem;
+  }
+
+  .salon-ui #screen-game .skill-slot .skill-zoom-button {
+    right: 3px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .salon-ui #screen-game .turn-status {
+    padding: 4px 5px;
+  }
+
+  .salon-ui #screen-game .action-countdown {
+    width: 34px;
+    height: 34px;
+  }
+
+  .salon-ui #screen-game #turn-message {
+    font-size: 0.62rem;
+  }
+
+  .salon-ui #screen-game .action-button {
+    min-width: 0;
+    min-height: 48px;
+    padding-inline: 3px;
+    font-size: 0.72rem;
+  }
+
+  .salon-ui #screen-game .raise-console {
+    padding: 4px;
+  }
+
+  .salon-ui #screen-game .raise-console .raise-heading,
+  .salon-ui #screen-game .raise-console.collapsed .raise-heading {
+    grid-template-columns: minmax(54px, 0.48fr) minmax(64px, 1fr);
+    gap: 3px;
+  }
+
+  .salon-ui #screen-game .raise-amount-meta {
+    padding-inline: 5px 14px;
   }
 }

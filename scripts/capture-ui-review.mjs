@@ -20,12 +20,28 @@ async function captureDesktop(browser) {
   await primeLoadout(page);
   await page.screenshot({ path: path.join(OUTPUT, "desktop-lobby.png"), fullPage: true });
 
+  await page.click("#btn-settings");
+  await page.screenshot({ path: path.join(OUTPUT, "desktop-settings.png"), fullPage: true });
+  await page.click("#btn-close-settings");
+
   await page.click("#btn-open-skill-lab");
   await page.waitForSelector("#screen-skill-lab.active");
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUTPUT, "desktop-skill-lab.png"), fullPage: true });
 
   await page.click("#btn-back-skill-lab");
+  await page.waitForSelector("#screen-auth.active");
+  await page.evaluate(() => {
+    document
+      .querySelector(
+        '.protocol-card[data-game-mode="standard"][data-skill-mode="off"] .protocol-btn[data-room-action="create"]'
+      )
+      ?.click();
+  });
+  await page.waitForSelector("#screen-wait.active", { timeout: 10000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(OUTPUT, "desktop-wait.png"), fullPage: true });
+  await page.click("#btn-back-wait");
   await page.waitForSelector("#screen-auth.active");
   await page.evaluate(() => {
     document
@@ -50,6 +66,31 @@ async function captureMobile(browser) {
   const page = await context.newPage();
   await primeLoadout(page);
   await page.screenshot({ path: path.join(OUTPUT, "mobile-lobby.png"), fullPage: true });
+
+  await page.click("#btn-settings");
+  await page.screenshot({ path: path.join(OUTPUT, "mobile-settings.png"), fullPage: true });
+  await page.click("#btn-close-settings");
+
+  await page.click("#btn-open-skill-lab");
+  await page.waitForSelector("#screen-skill-lab.active");
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(OUTPUT, "mobile-skill-lab.png"), fullPage: true });
+  await page.click("#btn-back-skill-lab");
+  await page.waitForSelector("#screen-auth.active");
+
+  await page.evaluate(() => {
+    document
+      .querySelector(
+        '.protocol-card[data-game-mode="standard"][data-skill-mode="off"] .protocol-btn[data-room-action="create"]'
+      )
+      ?.click();
+  });
+  await page.waitForSelector("#screen-wait.active", { timeout: 10000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(OUTPUT, "mobile-wait.png"), fullPage: true });
+  await page.click("#btn-back-wait");
+  await page.waitForSelector("#screen-auth.active");
+
   await page.evaluate(() => {
     document
       .querySelector(

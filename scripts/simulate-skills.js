@@ -12,8 +12,11 @@ const { RoomManager } = require("../game/roomManager");
 const { GameEngine } = require("../game/gameEngine");
 const { GAME_MODE } = require("../game/gameModes");
 const { SKILL_MODE } = require("../game/skillModes");
-const logger = require("../utils/logger");
 const eventBus = require("../utils/eventBus");
+
+// Batch simulation should report aggregate failures, not emit thousands of
+// per-room production log lines.
+const logger = Object.freeze({ info() {}, warn() {}, error() {} });
 
 const LOADOUTS = [
   ["ECHO_SCAN", "PROBABILITY_CLOAK", "SILENCE_ZONE", "EMBER_RECYCLE"],

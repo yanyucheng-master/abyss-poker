@@ -13,6 +13,7 @@ function getToCall(room, player) {
 function getEffectiveMaxTotal(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
+  if (!player || !opponent) return player?.streetBet || 0;
   // Raise targets are expressed as this street's total bet. Keep the cap in
   // the same unit so previous-street contributions cannot inflate the slider.
   const playerMax = player.streetBet + player.chips;
@@ -28,7 +29,7 @@ function getMinRaiseTo(room) {
 function getValidActions(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
-  if (!player || player.status !== "active" || player.isAllIn) {
+  if (!player || !opponent || player.status !== "active" || player.isAllIn) {
     return { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
   }
   const toCall = getToCall(room, player);

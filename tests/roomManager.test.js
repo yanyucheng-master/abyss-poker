@@ -1,6 +1,7 @@
 const { EventEmitter } = require("events");
 const { RoomManager } = require("../game/roomManager");
 const { GAME_MODE } = require("../game/gameModes");
+const { SKILL_MODE } = require("../game/skillModes");
 
 const logger = {
   info: jest.fn(),
@@ -9,6 +10,28 @@ const logger = {
 };
 
 describe("roomManager", () => {
+  test("destroyRoom cancels bot-owned action and skill timers", () => {
+    jest.useFakeTimers();
+    try {
+      const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+      const room = rm.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
+      const fired = jest.fn();
+      room.botActionTimer = setTimeout(fired, 1000);
+      room.skillState.botChoiceTimer = setTimeout(fired, 1000);
+      room.skillState.preDealBotTimer = setTimeout(fired, 1000);
+
+      rm.destroyRoom(room.roomId);
+      jest.advanceTimersByTime(1100);
+
+      expect(fired).not.toHaveBeenCalled();
+      expect(room.botActionTimer).toBeNull();
+      expect(room.skillState.botChoiceTimer).toBeNull();
+      expect(room.skillState.preDealBotTimer).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test("创建房间并加入", () => {
     const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
     const room = rm.createRoom(null);
@@ -167,5 +190,167 @@ describe("roomManager", () => {
 
     const botFail = rm.addBotPlayer(room, "AI2");
     expect(botFail.ok).toBe(false);
+  });
+
+  test("all-in seat reconnects as an active contender", () => {
+    const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+    const room = rm.createRoom(null);
+    const joined = rm.joinRoom({
+      roomId: room.roomId,
+      playerName: "A",
+      socketId: "s1",
+      playerId: "P1",
+    });
+    room.handNo = 1;
+    room.phase = "turn";
+    joined.player.chips = 0;
+    joined.player.isAllIn = true;
+    rm.markDisconnected("s1", jest.fn());
+
+    const restored = rm.joinRoom({
+      roomId: room.roomId,
+      playerName: "A",
+      socketId: "s2",
+      playerId: "P1",
+      reconnectToken: joined.player.reconnectToken,
+    });
+    expect(restored.ok).toBe(true);
+    expect(restored.player).toEqual(expect.objectContaining({ status: "active", isAllIn: true }));
+  });
+
+  test("folded seat stays folded across disconnect and reconnect", () => {
+    const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+    const room = rm.createRoom(null);
+    const joined = rm.joinRoom({
+      roomId: room.roomId,
+      playerName: "A",
+      socketId: "s1",
+      playerId: "P1",
+    });
+    room.handNo = 1;
+    room.phase = "flop";
+    joined.player.status = "folded";
+    rm.markDisconnected("s1", jest.fn());
+    expect(joined.player.status).toBe("folded");
+
+    rm.joinRoom({
+      roomId: room.roomId,
+      socketId: "s2",
+      playerId: "P1",
+      reconnectToken: joined.player.reconnectToken,
+    });
+    expect(joined.player.status).toBe("folded");
+  });
+
+  test("a disconnected active seat folded by the server stays folded on reconnect", () => {
+    const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+    const room = rm.createRoom(null);
+    const joined = rm.joinRoom({ roomId: room.roomId, socketId: "s1", playerId: "P1" });
+    room.handNo = 1;
+    room.phase = "end";
+    rm.markDisconnected("s1", jest.fn());
+    joined.player.status = "folded";
+
+    rm.joinRoom({
+      roomId: room.roomId,
+      socketId: "s2",
+      playerId: "P1",
+      reconnectToken: joined.player.reconnectToken,
+    });
+    expect(joined.player.status).toBe("folded");
+  });
+
+  test("an out seat is not resurrected by a game-over reconnect", () => {
+    const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+    const room = rm.createRoom(null);
+    const joined = rm.joinRoom({ roomId: room.roomId, socketId: "s1", playerId: "P1" });
+    room.handNo = 3;
+    room.phase = "game_over";
+    joined.player.status = "out";
+    joined.player.chips = 100;
+
+    rm.joinRoom({
+      roomId: room.roomId,
+      socketId: "s2",
+      playerId: "P1",
+      reconnectToken: joined.player.reconnectToken,
+    });
+    expect(joined.player.status).toBe("out");
+  });
+
+  test("pre-match stale seat pruning cancels its disconnect timeout", () => {
+    jest.useFakeTimers();
+    try {
+      const rm = new RoomManager({
+        logger,
+        eventBus: new EventEmitter(),
+        reconnectTtlMs: 100,
+      });
+      const room = rm.createRoom(null);
+      rm.joinRoom({ roomId: room.roomId, socketId: "s1", playerId: "P1" });
+      const onTimeout = jest.fn();
+      rm.markDisconnected("s1", onTimeout);
+
+      const replacement = rm.joinRoom({ roomId: room.roomId, socketId: "s2", playerId: "P2" });
+      expect(replacement.ok).toBe(true);
+      expect(room.players.map((player) => player.playerId)).toEqual(["P2"]);
+      jest.advanceTimersByTime(200);
+      expect(onTimeout).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("mid-match waiting state preserves the disconnected seat for its token", () => {
+    const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+    const room = rm.createRoom(null);
+    const first = rm.joinRoom({ roomId: room.roomId, socketId: "s1", playerId: "P1" });
+    rm.joinRoom({ roomId: room.roomId, socketId: "s2", playerId: "P2" });
+    room.handNo = 2;
+    room.phase = "waiting";
+    first.player.chips = 777;
+    rm.markDisconnected("s1", jest.fn());
+
+    const intruder = rm.joinRoom({ roomId: room.roomId, socketId: "s3", playerId: "P3" });
+    expect(intruder.ok).toBe(false);
+    expect(room.players.map((player) => player.playerId)).toEqual(["P1", "P2"]);
+
+    const restored = rm.joinRoom({
+      roomId: room.roomId,
+      socketId: "s4",
+      playerId: "P1",
+      reconnectToken: first.player.reconnectToken,
+    });
+    expect(restored.ok).toBe(true);
+    expect(restored.player.chips).toBe(777);
+  });
+
+  test.each(["before_turn", "before_river", "end", "waiting"])(
+    "leaving during an established match forfeits in %s",
+    (phase) => {
+      const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+      const room = rm.createRoom(null);
+      const first = rm.joinRoom({ roomId: room.roomId, socketId: "s1", playerId: "P1" });
+      rm.joinRoom({ roomId: room.roomId, socketId: "s2", playerId: "P2" });
+      room.handNo = 1;
+      room.phase = phase;
+      first.player.chips = 0;
+      first.player.isAllIn = true;
+      const onForfeit = jest.fn();
+
+      const result = rm.removePlayerBySocket("s1", { onForfeit });
+      expect(result.forfeited).toBe(true);
+      expect(onForfeit).toHaveBeenCalledWith(room, first.player);
+      expect(room.players).toHaveLength(2);
+    }
+  );
+
+  test("room password is immutable once the match has started", () => {
+    const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
+    const room = rm.createRoom(null);
+    const joined = rm.joinRoom({ roomId: room.roomId, socketId: "s1", playerId: "P1" });
+    room.handNo = 1;
+    room.phase = "waiting";
+    expect(rm.setRoomPassword(room, joined.player, "changed").ok).toBe(false);
   });
 });
