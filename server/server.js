@@ -4,6 +4,7 @@ const path = require("path");
 const { Server } = require("socket.io");
 const { RoomManager } = require("../game/roomManager");
 const { GameEngine } = require("../game/gameEngine");
+const { createMatchmakingService } = require("../socket/matchmakingHandlers");
 const { registerSocketHandlers } = require("../socket/socketHandlers");
 const logger = require("../utils/logger");
 const eventBus = require("../utils/eventBus");
@@ -39,13 +40,14 @@ function createAppServer(options = {}) {
     reconnectTtlMs: options.reconnectTtlMs,
   });
   const gameEngine = new GameEngine({ io, roomManager, logger, eventBus });
+  const matchmaking = createMatchmakingService({ io, roomManager, gameEngine, logger });
 
-  registerSocketHandlers({ io, roomManager, gameEngine, logger });
+  registerSocketHandlers({ io, roomManager, gameEngine, logger, matchmaking });
 
   eventBus.on("game:action", (payload) => logger.info("EVENT", "动作事件", payload));
   eventBus.on("game:showdown", (payload) => logger.info("EVENT", "摊牌事件", payload));
 
-  return { app, httpServer, io };
+  return { app, httpServer, io, roomManager, gameEngine, matchmaking };
 }
 
 function startServer(port = process.env.PORT || 3002, options = {}) {

@@ -74,13 +74,14 @@ class RoomManager {
     this.reconnectTtlMs = reconnectTtlMs;
   }
 
-  createRoom(password, gameMode = GAME_MODE.STANDARD, skillMode = SKILL_MODE.OFF) {
+  createRoom(password, gameMode = GAME_MODE.STANDARD, skillMode = SKILL_MODE.OFF, options = {}) {
     let roomId = generateCode();
     while (this.rooms.has(roomId)) roomId = generateCode();
     const room = {
       roomId,
       password: password || null,
       ownerPlayerId: null,
+      matchSource: options.matchSource || null,
       players: [],
       phase: "waiting",
       dealerIndex: 0,
@@ -129,6 +130,9 @@ class RoomManager {
 
   setRoomPassword(room, player, password) {
     if (!room || !player) return { ok: false, error: "房间不存在" };
+    if (room.matchSource === "quick") {
+      return { ok: false, error: "匹配房间不可设置密码" };
+    }
     if (room.handNo > 0 || !["waiting", "drafting"].includes(room.phase)) {
       return { ok: false, error: "对局开始后不能修改密码" };
     }

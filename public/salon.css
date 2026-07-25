@@ -590,6 +590,54 @@
   background: rgba(63, 154, 138, 0.16);
 }
 
+.salon-ui .protocol-actions .button-match {
+  border-color: rgba(255, 183, 77, 0.55);
+  background: rgba(255, 183, 77, 0.14);
+  color: #ffd89a;
+}
+
+.salon-ui .protocol-actions .button-match:hover {
+  background: rgba(255, 183, 77, 0.24);
+}
+
+.salon-ui .match-queue-panel {
+  max-width: 420px;
+}
+
+.salon-ui .match-queue-lane {
+  margin: 0 0 12px;
+  color: #d8d2c4;
+  font-size: 0.92rem;
+}
+
+.salon-ui .match-queue-timer {
+  font-size: 1.4rem;
+  margin: 8px 0 12px;
+  color: #f5efe3;
+}
+
+.salon-ui .match-queue-timer strong {
+  color: #ffb74d;
+  font-variant-numeric: tabular-nums;
+}
+
+.salon-ui .match-queue-hint {
+  margin: 0 0 16px;
+  color: #a8a095;
+  font-size: 0.82rem;
+}
+
+.salon-ui .match-invite-countdown {
+  margin: 12px 0 16px;
+  font-size: 1.1rem;
+  color: #f5efe3;
+}
+
+.salon-ui .match-invite-countdown strong {
+  color: #ffb74d;
+  font-variant-numeric: tabular-nums;
+}
+
 .salon-ui .protocol-actions .button-primary {
   min-height: 36px;
 }

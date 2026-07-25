@@ -125,6 +125,46 @@
       </section>
     </div>
 
+    <div id="match-queue-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="match-queue-title">
+      <section class="modal-panel match-queue-panel glass-panel" tabindex="-1">
+        <p class="eyebrow">GLOBAL MATCHMAKING</p>
+        <h2 id="match-queue-title">正在匹配</h2>
+        <p id="match-queue-lane" class="match-queue-lane">标准局 · 无技能</p>
+        <div class="match-queue-timer">
+          已等待 <strong id="match-wait-seconds">0</strong>s
+        </div>
+        <p class="match-queue-hint">可随时取消；60 秒后询问是否继续匹配</p>
+        <div class="modal-actions">
+          <button id="btn-match-cancel" class="button button-ghost" type="button">取消匹配</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="match-continue-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="match-continue-title">
+      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
+        <p class="eyebrow">MATCH SESSION</p>
+        <h2 id="match-continue-title">本轮匹配已结束</h2>
+        <p>60 秒内未找到对手，是否继续匹配？继续后将重新开始 60 秒计时。</p>
+        <div class="modal-actions">
+          <button id="btn-match-stop" class="button button-ghost" type="button">结束</button>
+          <button id="btn-match-continue" class="button button-primary" type="button">继续匹配</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="match-invite-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="match-invite-title">
+      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
+        <p class="eyebrow">CROSS-LANE INVITE</p>
+        <h2 id="match-invite-title">跨赛道开局邀请</h2>
+        <p id="match-invite-text">对手邀请你切换到另一条赛道立即开局。</p>
+        <div class="match-invite-countdown">剩余 <strong id="match-invite-seconds">6</strong>s</div>
+        <div class="modal-actions">
+          <button id="btn-match-decline" class="button button-ghost" type="button">拒绝</button>
+          <button id="btn-match-accept" class="button button-primary" type="button">接受</button>
+        </div>
+      </section>
+    </div>
+
     <div id="join-password-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="join-password-title">
       <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
         <p class="eyebrow">SECURE ACCESS</p>
@@ -254,6 +294,7 @@
               <strong>标准局 <small>无技能</small></strong>
               <span class="protocol-desc">完整随机牌堆</span>
               <div class="protocol-actions">
+                <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
               </div>
@@ -264,6 +305,7 @@
               <strong>高爆局 <small>无技能</small></strong>
               <span class="protocol-desc">高潜力起手与河牌</span>
               <div class="protocol-actions">
+                <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
               </div>
@@ -274,6 +316,7 @@
               <strong>标准局 <small>深渊技能</small></strong>
               <span class="protocol-desc">需先完成技能构筑</span>
               <div class="protocol-actions">
+                <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
               </div>
@@ -284,6 +327,7 @@
               <strong>高爆局 <small>深渊技能</small></strong>
               <span class="protocol-desc">高爆 + 技能同开</span>
               <div class="protocol-actions">
+                <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
                 <button type="button" class="button button-primary protocol-btn" data-room-action="create">建房</button>
               </div>

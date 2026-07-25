@@ -193,7 +193,14 @@ const state = {
     counter: false,
     choice: false,
     password: false,
+    match: false,
   },
+  matching: false,
+  matchQueuedAt: 0,
+  matchWaitRaf: 0,
+  pendingMatchInvite: null,
+  matchInviteRaf: 0,
+  matchSource: null,
 };
 
 function byId(id) {
@@ -260,6 +267,18 @@ const el = {
   inputRoom: byId("input-room"),
   btnJoin: byId("btn-join"),
   joinPasswordModal: byId("join-password-modal"),
+  matchQueueModal: byId("match-queue-modal"),
+  matchQueueLane: byId("match-queue-lane"),
+  matchWaitSeconds: byId("match-wait-seconds"),
+  btnMatchCancel: byId("btn-match-cancel"),
+  matchContinueModal: byId("match-continue-modal"),
+  btnMatchContinue: byId("btn-match-continue"),
+  btnMatchStop: byId("btn-match-stop"),
+  matchInviteModal: byId("match-invite-modal"),
+  matchInviteText: byId("match-invite-text"),
+  matchInviteSeconds: byId("match-invite-seconds"),
+  btnMatchAccept: byId("btn-match-accept"),
+  btnMatchDecline: byId("btn-match-decline"),
   modalJoinPassword: byId("modal-join-password"),
   btnJoinPasswordConfirm: byId("btn-join-password-confirm"),
   btnJoinPasswordCancel: byId("btn-join-password-cancel"),
@@ -1013,7 +1032,11 @@ function renderWaitingRoom() {
   const isHost = Boolean(host && host.playerId === state.playerId);
   state.isHost = isHost;
   if (el.waitPasswordPanel) {
-    el.waitPasswordPanel.classList.toggle("hidden", !isHost || !["waiting", "drafting"].includes(state.phase || "waiting"));
+    const canSetPassword =
+      !state.matchSource &&
+      isHost &&
+      ["waiting", "drafting"].includes(state.phase || "waiting");
+    el.waitPasswordPanel.classList.toggle("hidden", !canSetPassword);
   }
 }
 
@@ -1318,6 +1341,7 @@ function resetLocalRoom() {
   state.activeCommitment = null;
   state.fairnessChecks = new Map();
   state.fairnessStatus = "pending";
+  state.matchSource = null;
 }
 
 function resetTransientUi() {
@@ -1374,6 +1398,7 @@ function prepareManualRoomRequest() {
 function completeReturnToLobby() {
   state.deliberateLeave = true;
   endAllUiRequests();
+  cancelMatchmaking({ silent: true });
   if (state.gameOver && state.rematchDeadlineAt) {
     if (socket.connected) socket.emit("rematch_response", { accepted: false });
   }
@@ -1952,7 +1977,10 @@ function saveLoadoutFromLab() {
   const pending = state.pendingRoomAction;
   state.pendingRoomAction = null;
   closeSkillLab();
-  if (pending) startRoomAction(pending.type, pending.gameMode, pending.skillMode);
+  if (pending) {
+    if (pending.type === "match") startMatchAction(pending.gameMode, pending.skillMode);
+    else startRoomAction(pending.type, pending.gameMode, pending.skillMode);
+  }
 }
 
 function requireLoadoutForSkillMode(skillMode, pendingAction) {
@@ -1969,7 +1997,122 @@ function requireLoadoutForSkillMode(skillMode, pendingAction) {
   return false;
 }
 
+function laneLabel(gameMode, skillMode) {
+  const mode = gameMode === GAME_MODE.OVERDRIVE ? "高爆局" : "标准局";
+  const skill = skillMode === "abyss" ? " · 深渊技能" : " · 无技能";
+  return mode + skill;
+}
+
+function stopMatchWaitTimer() {
+  if (state.matchWaitRaf) cancelAnimationFrame(state.matchWaitRaf);
+  state.matchWaitRaf = 0;
+}
+
+function updateMatchWaitTimer() {
+  if (!state.matching || !state.matchQueuedAt) return;
+  const seconds = Math.floor((Date.now() - state.matchQueuedAt) / 1000);
+  if (el.matchWaitSeconds) el.matchWaitSeconds.textContent = String(seconds);
+  state.matchWaitRaf = requestAnimationFrame(updateMatchWaitTimer);
+}
+
+function openMatchQueueUi(gameMode, skillMode) {
+  state.matching = true;
+  if (el.matchQueueLane) el.matchQueueLane.textContent = laneLabel(gameMode, skillMode);
+  el.matchQueueModal?.classList.remove("hidden");
+  el.matchContinueModal?.classList.add("hidden");
+  syncModalIsolation();
+  stopMatchWaitTimer();
+  updateMatchWaitTimer();
+}
+
+function closeMatchQueueUi() {
+  state.matching = false;
+  state.matchQueuedAt = 0;
+  stopMatchWaitTimer();
+  el.matchQueueModal?.classList.add("hidden");
+  el.matchContinueModal?.classList.add("hidden");
+  syncModalIsolation();
+}
+
+function stopMatchInviteTimer() {
+  if (state.matchInviteRaf) cancelAnimationFrame(state.matchInviteRaf);
+  state.matchInviteRaf = 0;
+}
+
+function closeMatchInviteModal() {
+  state.pendingMatchInvite = null;
+  stopMatchInviteTimer();
+  el.matchInviteModal?.classList.add("hidden");
+  syncModalIsolation();
+}
+
+function updateMatchInviteCountdown() {
+  const invite = state.pendingMatchInvite;
+  if (!invite) return;
+  const remainingMs = Math.max(0, invite.expiresAt - Date.now());
+  if (el.matchInviteSeconds) {
+    el.matchInviteSeconds.textContent = String(Math.ceil(remainingMs / 1000));
+  }
+  if (remainingMs <= 0) {
+    closeMatchInviteModal();
+    return;
+  }
+  state.matchInviteRaf = requestAnimationFrame(updateMatchInviteCountdown);
+}
+
+function openMatchInviteModal(payload) {
+  state.pendingMatchInvite = {
+    inviteId: payload.inviteId,
+    targetGameMode: payload.targetGameMode,
+    targetSkillMode: payload.targetSkillMode,
+    expiresAt: Number(payload.expiresAt || Date.now() + 6000),
+  };
+  if (el.matchInviteText) {
+    const lane = laneLabel(payload.targetGameMode, payload.targetSkillMode);
+    const opponent = payload.opponentName ? `（${payload.opponentName}）` : "";
+    el.matchInviteText.textContent = `邀请你切换到 ${lane} 立即开局${opponent}。`;
+  }
+  el.matchInviteModal?.classList.remove("hidden");
+  syncModalIsolation();
+  stopMatchInviteTimer();
+  updateMatchInviteCountdown();
+}
+
+function cancelMatchmaking({ silent = false } = {}) {
+  if (!state.matching && !state.matchQueuedAt) return;
+  if (socket.connected && state.matching) {
+    socket.emit("match:cancel");
+  }
+  closeMatchQueueUi();
+  closeMatchInviteModal();
+  endUiRequest("match");
+  if (!silent) showToast("已取消匹配", "success");
+}
+
+function startMatchAction(gameMode, skillMode) {
+  setProtocol(gameMode, skillMode);
+  if (!requireLoadoutForSkillMode(skillMode, { type: "match", gameMode, skillMode })) return;
+  if (!beginRealtimeRequest("match", 7000)) return;
+
+  prepareManualRoomRequest();
+  state.autoLoadoutSubmitted = false;
+  state.myName = (el.inputName.value || "").trim() || "player1";
+  // 入队成功后再离开大厅态，避免入队失败时卡在非大厅状态
+  safeStorageSet("sessionStorage", STORAGE.playerName, state.myName);
+
+  socket.emit("match:queue", {
+    playerName: state.myName,
+    playerId: state.playerId,
+    reconnectToken: state.reconnectToken || undefined,
+    gameMode: state.gameMode,
+    skillMode: state.skillMode,
+    // 跨邀进技能局需要双方有效构筑；与当前所选赛道无关
+    hasSkillLoadout: isLoadoutConfigured(),
+  });
+}
+
 function startRoomAction(type, gameMode, skillMode) {
+  if (state.matching) cancelMatchmaking({ silent: true });
   setProtocol(gameMode, skillMode);
   if (!requireLoadoutForSkillMode(skillMode, { type, gameMode, skillMode })) return;
   if (!beginRealtimeRequest("room", 7000)) return;
@@ -2067,14 +2210,39 @@ el.protocolButtons?.forEach((button) => {
     event.stopPropagation();
     const card = button.closest(".protocol-card");
     if (!card) return;
-    startRoomAction(
-      button.dataset.roomAction === "solo" ? "solo" : "create",
-      card.dataset.gameMode || "standard",
-      card.dataset.skillMode || "off"
-    );
+    const gameMode = card.dataset.gameMode || "standard";
+    const skillMode = card.dataset.skillMode || "off";
+    const action = button.dataset.roomAction;
+    if (action === "match") {
+      startMatchAction(gameMode, skillMode);
+      return;
+    }
+    startRoomAction(action === "solo" ? "solo" : "create", gameMode, skillMode);
   });
 });
+el.btnMatchCancel?.addEventListener("click", () => cancelMatchmaking());
+el.btnMatchContinue?.addEventListener("click", () => {
+  if (!beginRealtimeRequest("match", 7000)) return;
+  el.matchContinueModal?.classList.add("hidden");
+  socket.emit("match:continue");
+});
+el.btnMatchStop?.addEventListener("click", () => cancelMatchmaking());
+el.btnMatchAccept?.addEventListener("click", () => {
+  const invite = state.pendingMatchInvite;
+  if (!invite) return;
+  if (!beginRealtimeRequest("match", 4000)) return;
+  socket.emit("match:invite:accept", { inviteId: invite.inviteId });
+  closeMatchInviteModal();
+});
+el.btnMatchDecline?.addEventListener("click", () => {
+  const invite = state.pendingMatchInvite;
+  if (!invite) return;
+  if (!beginRealtimeRequest("match", 4000)) return;
+  socket.emit("match:invite:decline", { inviteId: invite.inviteId });
+  closeMatchInviteModal();
+});
 el.btnJoin.addEventListener("click", () => {
+  if (state.matching) cancelMatchmaking({ silent: true });
   const roomId = (el.inputRoom.value || "").trim().toUpperCase();
   if (!roomId) return showToast("请输入房间号", "error");
   if (!beginRealtimeRequest("room", 7000)) return;
@@ -2301,6 +2469,60 @@ socket.on("connect_error", () => setConnectionUI(false, "无法连接服务器�
 socket.io.on("reconnect_attempt", () => setConnectionUI(false, "正在恢复实时连接…"));
 socket.io.on("reconnect_failed", () => showToast("自动重连失败，请刷新页面", "error"));
 
+socket.on("match:queued", (payload) => {
+  endUiRequest("match");
+  state.atLobby = false;
+  state.matchQueuedAt = Number(payload.queuedAt || Date.now());
+  if (payload.playerId) {
+    state.playerId = payload.playerId;
+    safeStorageSet("sessionStorage", STORAGE.playerId, state.playerId);
+  }
+  openMatchQueueUi(payload.gameMode || state.gameMode, payload.skillMode || state.skillMode);
+});
+
+socket.on("match:found", () => {
+  closeMatchQueueUi();
+  closeMatchInviteModal();
+  el.matchContinueModal?.classList.add("hidden");
+  endUiRequest("match");
+});
+
+socket.on("match:cancelled", () => {
+  closeMatchQueueUi();
+  closeMatchInviteModal();
+  endUiRequest("match");
+  if (!state.roomId) state.atLobby = true;
+});
+
+socket.on("match:timeout", () => {
+  stopMatchWaitTimer();
+  closeMatchInviteModal();
+});
+
+socket.on("match:prompt_continue", () => {
+  closeMatchInviteModal();
+  el.matchQueueModal?.classList.add("hidden");
+  el.matchContinueModal?.classList.remove("hidden");
+  syncModalIsolation();
+});
+
+socket.on("match:invite", (payload) => {
+  openMatchInviteModal(payload);
+});
+
+socket.on("match:invite:expired", () => {
+  closeMatchInviteModal();
+});
+
+socket.on("match:error", (payload) => {
+  endUiRequest("match");
+  const msg = String(payload?.message || "匹配失败");
+  // 取消与成局竞态：已不在队列时不弹错误
+  if (/未在匹配/.test(msg) && (state.roomId || !state.matching)) return;
+  if (!state.matching && !state.roomId) state.atLobby = true;
+  showToast(msg, "error");
+});
+
 socket.on("room_created", (payload) => {
   state.roomId = payload.roomId;
   state.gameMode = payload.gameMode || state.gameMode;
@@ -2324,6 +2546,9 @@ function applyRoomJoinedPayload(payload, { fromLobby = false } = {}) {
   }
   state.playerId = payload.playerId || state.playerId;
   state.reconnectToken = payload.reconnectToken || state.reconnectToken;
+  if (Object.prototype.hasOwnProperty.call(payload, "matchSource")) {
+    state.matchSource = payload.matchSource || null;
+  }
   if (Array.isArray(payload.players)) state.players = payload.players;
   persistSession();
 }

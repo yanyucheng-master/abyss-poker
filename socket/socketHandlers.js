@@ -55,7 +55,7 @@ function safePayload(payload) {
   return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
 }
 
-function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
+function registerSocketHandlers({ io, roomManager, gameEngine, logger, matchmaking }) {
   io.on("connection", (socket) => {
     function allowRate(bucketName, errorEvent = "action_error") {
       const config = RATE_LIMITS[bucketName];
@@ -161,8 +161,121 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
       });
     }
 
+    function cancelMatchmaking() {
+      if (!matchmaking) return;
+      matchmaking.cancelForSocket(socket.id);
+    }
+
+    function leaveRoomsBeforeMatch() {
+      removeSocketFromRooms();
+    }
+
+    function readHasSkillLoadout(value) {
+      return value === true;
+    }
+
+    socket.on("match:queue", (rawPayload = {}) => {
+      if (!matchmaking) {
+        socket.emit("match:error", { message: "匹配服务不可用" });
+        return;
+      }
+      if (!allowRate("room", "match:error")) return;
+      const payload = safePayload(rawPayload);
+      const identity = parseIdentity(payload);
+      if (!identity.ok) return socket.emit("match:error", { message: identity.error });
+      const gameMode = readGameMode(payload.gameMode);
+      if (!gameMode.ok) return socket.emit("match:error", { message: gameMode.error });
+      const skillMode = readSkillMode(payload.skillMode);
+      if (!skillMode.ok) return socket.emit("match:error", { message: skillMode.error });
+      const hasSkillLoadout = readHasSkillLoadout(payload.hasSkillLoadout);
+
+      cancelMatchmaking();
+      leaveRoomsBeforeMatch();
+
+      const playerId =
+        identity.playerId ||
+        socket.data.abyssPlayerId ||
+        `P${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      socket.data.abyssPlayerId = playerId;
+
+      const result = matchmaking.queue.enqueue({
+        playerName: identity.playerName,
+        playerId,
+        socketId: socket.id,
+        reconnectToken: identity.reconnectToken,
+        gameMode: gameMode.value,
+        skillMode: skillMode.value,
+        hasSkillLoadout,
+      });
+      if (!result.ok) {
+        socket.emit("match:error", { message: result.error });
+        return;
+      }
+      socket.emit("match:queued", { ...result.entry, playerId });
+    });
+
+    socket.on("match:cancel", () => {
+      if (!matchmaking) return;
+      if (!allowRate("room", "match:error")) return;
+      const result = matchmaking.cancelForSocket(socket.id, "user");
+      // 已成局或不在队列：静默成功，避免与 match:found 竞态时误报错
+      if (result.ok) {
+        socket.emit("match:cancelled", { reason: "user" });
+      }
+    });
+
+    socket.on("match:continue", () => {
+      if (!matchmaking) return;
+      if (!allowRate("room", "match:error")) return;
+      const playerId = socket.data.abyssPlayerId;
+      if (!playerId) {
+        socket.emit("match:error", { message: "玩家标识缺失" });
+        return;
+      }
+      matchmaking.queue.updateSocketId(playerId, socket.id);
+      const result = matchmaking.queue.continueSession(playerId);
+      if (!result.ok) {
+        socket.emit("match:error", { message: result.error });
+        return;
+      }
+      socket.emit("match:queued", result.entry);
+    });
+
+    socket.on("match:invite:accept", (rawPayload = {}) => {
+      if (!matchmaking) return;
+      if (!allowRate("response", "match:error")) return;
+      const payload = safePayload(rawPayload);
+      const inviteId = readText(payload.inviteId, {
+        label: "邀请ID",
+        max: INPUT_LIMITS.requestId,
+        required: true,
+      });
+      if (!inviteId.ok) return socket.emit("match:error", { message: inviteId.error });
+      const playerId = socket.data.abyssPlayerId;
+      if (!playerId) return socket.emit("match:error", { message: "玩家标识缺失" });
+      const result = matchmaking.queue.acceptInvite(inviteId.value, playerId);
+      if (!result.ok) socket.emit("match:error", { message: result.error });
+    });
+
+    socket.on("match:invite:decline", (rawPayload = {}) => {
+      if (!matchmaking) return;
+      if (!allowRate("response", "match:error")) return;
+      const payload = safePayload(rawPayload);
+      const inviteId = readText(payload.inviteId, {
+        label: "邀请ID",
+        max: INPUT_LIMITS.requestId,
+        required: true,
+      });
+      if (!inviteId.ok) return socket.emit("match:error", { message: inviteId.error });
+      const playerId = socket.data.abyssPlayerId;
+      if (!playerId) return socket.emit("match:error", { message: "玩家标识缺失" });
+      const result = matchmaking.queue.declineInvite(inviteId.value, playerId);
+      if (!result.ok) socket.emit("match:error", { message: result.error });
+    });
+
     socket.on("create_room", (rawPayload = {}) => {
       if (!allowRate("room", "join_error")) return;
+      cancelMatchmaking();
       const payload = safePayload(rawPayload);
       const identity = parseIdentity(payload);
       if (!identity.ok) return emitJoinError(identity.error);
@@ -200,6 +313,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
 
     socket.on("create_solo_room", (rawPayload = {}) => {
       if (!allowRate("room", "join_error")) return;
+      cancelMatchmaking();
       const payload = safePayload(rawPayload);
       const identity = parseIdentity(payload);
       if (!identity.ok) return emitJoinError(identity.error);
@@ -282,6 +396,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         max: INPUT_LIMITS.password,
       });
       if (!password.ok) return emitJoinError(password.error);
+      cancelMatchmaking();
       const identity = parseIdentity(payload);
       if (!identity.ok) return emitJoinError(identity.error);
 
@@ -292,6 +407,12 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
         reconnectPlayer &&
         identity.reconnectToken &&
         reconnectPlayer.reconnectToken === identity.reconnectToken;
+      if (
+        targetRoom.matchSource === "quick" &&
+        !hasReconnectCredential
+      ) {
+        return emitJoinError("匹配房间不可直接加入");
+      }
       if (
         targetRoom.password &&
         targetRoom.password !== (password.value || null) &&
@@ -509,12 +630,14 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger }) {
 
     socket.on("leave_room", () => {
       if (!allowRate("response")) return;
+      cancelMatchmaking();
       const [result] = removeSocketFromRooms();
       socket.emit("left_room", { ok: true });
       if (!result) return;
     });
 
     socket.on("disconnect", () => {
+      matchmaking?.handleDisconnect(socket.id);
       const found = roomManager.markDisconnected(socket.id, (room, loser) => {
         gameEngine.resolveDisconnectTimeout(room, loser);
       });
