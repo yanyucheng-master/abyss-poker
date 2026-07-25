@@ -318,12 +318,30 @@
 
 .salon-ui body:has(#screen-auth.lobby-screen.active) .app-shell,
 .salon-ui:has(#screen-auth.lobby-screen.active) .app-shell {
-  padding-top: calc(var(--safe-top) + 48px);
+  padding-top: calc(var(--safe-top) + 12px);
+  padding-bottom: calc(var(--safe-bottom) + 8px);
 }
 
 .salon-ui #screen-auth.lobby-screen.active {
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   justify-content: flex-start;
+  min-height: 0;
+  height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px);
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px);
+  overflow: hidden;
+}
+
+.salon-ui #screen-auth.lobby-screen.active > .lobby-hero,
+.salon-ui #screen-auth.lobby-screen.active > .skill-prep-bar,
+.salon-ui #screen-auth.lobby-screen.active > .lobby-entry {
+  flex-shrink: 0;
+}
+
+.salon-ui #screen-auth.lobby-screen.active > .protocol-section {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .salon-ui .protocol-desc {
@@ -337,7 +355,7 @@
 .salon-ui .lobby-hero-compact {
   min-height: 0;
   margin: 0;
-  padding: 10px 16px 10px 8px;
+  padding: 6px 12px 6px 4px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(140, 110, 255, 0.28);
   background:
@@ -349,7 +367,7 @@
     var(--shadow),
     inset 0 1px 0 rgba(180, 140, 255, 0.12);
   align-items: center;
-  gap: 12px 18px;
+  gap: 8px 14px;
 }
 
 .salon-ui .lobby-brand {
@@ -363,11 +381,11 @@
 .salon-ui .lobby-logo-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: clamp(108px, 14vw, 156px);
-  height: clamp(108px, 14vw, 156px);
+  width: clamp(68px, 9vw, 96px);
+  height: clamp(68px, 9vw, 96px);
   display: grid;
   place-items: center;
-  margin: -6px 0 -8px;
+  margin: -2px 0 -4px;
 }
 
 .salon-ui .lobby-logo-wrap::before {
@@ -423,10 +441,10 @@
   display: block;
   margin: 0;
   font-family: "Noto Sans SC", var(--font-display), sans-serif;
-  font-size: clamp(1.85rem, 4.2vw, 2.75rem);
+  font-size: clamp(1.45rem, 3.2vw, 2rem);
   font-weight: 900;
   line-height: 1.05;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   color: #f4ecff;
   background: none;
   -webkit-background-clip: initial;
@@ -442,11 +460,12 @@
 }
 
 .salon-ui .lobby-hero-compact .hero-subtitle {
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   color: rgba(220, 210, 245, 0.72);
-  font-size: 0.84rem;
-  letter-spacing: 0.06em;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
   max-width: 22em;
+  line-height: 1.25;
 }
 
 .salon-ui .lobby-hero-meta {
@@ -455,20 +474,20 @@
 }
 
 .salon-ui .skill-prep-bar {
-  padding: 12px 14px;
+  padding: 7px 10px;
   border-radius: var(--radius-md);
   align-items: center;
 }
 
 .salon-ui .skill-prep-copy h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
 .salon-ui .skill-prep-status {
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .salon-ui .skill-prep-status.ready {
@@ -476,29 +495,28 @@
 }
 
 .salon-ui .protocol-section {
-  padding: 10px 12px;
+  padding: 7px 10px;
   border-radius: var(--radius-lg);
   min-height: 0 !important;
-  flex: 0 0 auto;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   justify-content: flex-start;
 }
 
 .salon-ui .protocol-grid {
-  gap: 10px;
+  gap: 7px;
   min-height: 0 !important;
-  flex: 0 0 auto !important;
+  flex: 1 1 auto !important;
   align-content: start;
   align-items: stretch;
   height: auto !important;
 }
 
 .salon-ui .protocol-card {
-  gap: 8px;
-  padding: 14px;
+  gap: 5px;
+  padding: 8px 9px;
   min-height: 0 !important;
   height: auto !important;
   border-radius: var(--radius-md);
@@ -533,7 +551,7 @@
 
 .salon-ui .protocol-section .section-heading h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
 .salon-ui .protocol-summary {
@@ -580,8 +598,8 @@
 
 .salon-ui .protocol-desc {
   color: #b7b2a6;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  font-size: 0.72rem;
+  line-height: 1.3;
   opacity: 1;
 }
 
@@ -643,30 +661,40 @@
 }
 
 .salon-ui .protocol-actions {
-  gap: 6px;
-  padding-top: 6px;
+  gap: 5px;
+  padding-top: 4px;
 }
 
 .salon-ui .protocol-actions .button {
-  min-height: 34px;
-  padding: 6px 8px;
-  font-size: 0.82rem;
+  min-height: 30px;
+  padding: 5px 6px;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 
 .salon-ui .lobby-entry {
-  padding: 12px 14px;
+  flex-shrink: 0;
+  padding: 8px 10px;
   border-radius: var(--radius-md);
 }
 
 .salon-ui .lobby-entry-head h2 {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
+  margin: 0 0 5px;
+  font-size: 0.9rem;
 }
 
 .salon-ui .lobby-entry-grid label {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+}
+
+.salon-ui .lobby-entry-grid {
+  margin-top: 4px;
+  gap: 5px 7px;
+}
+
+.salon-ui .lobby-entry-grid input {
+  padding: 7px 9px;
 }
 
 /* ══════════════════════════════════
@@ -1119,6 +1147,65 @@
   }
 }
 
+@media (min-width: 641px) and (max-height: 860px) {
+  .salon-ui:has(#screen-auth.lobby-screen.active) .app-shell {
+    padding-top: calc(var(--safe-top) + 8px);
+    padding-bottom: calc(var(--safe-bottom) + 6px);
+  }
+
+  .salon-ui #screen-auth.lobby-screen.active {
+    gap: 4px;
+    height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 14px);
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 14px);
+  }
+
+  .salon-ui .lobby-hero-compact {
+    padding: 4px 10px 4px 2px;
+    gap: 6px 10px;
+  }
+
+  .salon-ui .lobby-logo-wrap {
+    width: 56px;
+    height: 56px;
+  }
+
+  .salon-ui .lobby-hero-compact .hero-subtitle {
+    display: none;
+  }
+
+  .salon-ui .skill-prep-bar {
+    padding: 5px 8px;
+  }
+
+  .salon-ui .protocol-section {
+    padding: 5px 8px;
+    gap: 4px;
+  }
+
+  .salon-ui .protocol-desc {
+    display: none;
+  }
+
+  .salon-ui .protocol-card {
+    padding: 6px 7px;
+    gap: 3px;
+  }
+
+  .salon-ui .protocol-actions .button {
+    min-height: 28px;
+    font-size: 0.72rem;
+  }
+
+  .salon-ui .lobby-entry {
+    padding: 6px 8px;
+  }
+
+  .salon-ui .lobby-entry-head h2 {
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+  }
+}
+
 @media (min-width: 641px) and (max-height: 820px) {
   .salon-ui #screen-wait .room-manifest,
   .salon-ui #screen-wait .skill-draft-panel {
@@ -1172,11 +1259,14 @@
 
 @media (max-width: 640px) {
   .salon-ui:has(#screen-auth.lobby-screen.active) .app-shell {
-    padding-top: calc(var(--safe-top) + 36px);
+    padding-top: calc(var(--safe-top) + 8px);
+    padding-bottom: calc(var(--safe-bottom) + 6px);
   }
 
   .salon-ui #screen-auth.lobby-screen.active {
-    gap: 6px;
+    gap: 5px;
+    height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 14px);
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 14px);
   }
 
   .salon-ui .lobby-hero-compact {
