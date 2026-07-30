@@ -31,6 +31,121 @@ async function fit(page) {
   });
 }
 
+async function auditLobbyViewport(page, viewport) {
+  await page.setViewportSize(viewport);
+  await page.waitForTimeout(80);
+  return page.evaluate(({ width, height }) => {
+    const auth = document.getElementById("screen-auth");
+    const protocol = document.querySelector(".protocol-section");
+    const protocolGrid = document.querySelector(".protocol-grid");
+    const panels = [
+      document.querySelector(".lobby-hero"),
+      document.querySelector(".skill-prep-bar"),
+      protocol,
+      document.querySelector(".lobby-entry"),
+    ].filter(Boolean);
+    const interactive = [
+      ...document.querySelectorAll(
+        "#screen-auth input, #screen-auth button, #screen-auth .protocol-card"
+      ),
+    ].filter((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    const rect = (node) => node?.getBoundingClientRect();
+    const authRect = rect(auth);
+    const protocolRect = rect(protocol);
+    const gridRect = rect(protocolGrid);
+    const overlaps = panels.slice(1).flatMap((panel, index) => {
+      const previous = panels[index];
+      const previousRect = rect(previous);
+      const panelRect = rect(panel);
+      return previousRect && panelRect && previousRect.bottom > panelRect.top + 1
+        ? [`${previous.className} -> ${panel.className}`]
+        : [];
+    });
+    const clipped = interactive.flatMap((node) => {
+      const nodeRect = rect(node);
+      return nodeRect &&
+        (nodeRect.top < -1 ||
+          nodeRect.left < -1 ||
+          nodeRect.bottom > innerHeight + 1 ||
+          nodeRect.right > innerWidth + 1 ||
+          (authRect &&
+            (nodeRect.top < authRect.top - 1 ||
+              nodeRect.left < authRect.left - 1 ||
+              nodeRect.bottom > authRect.bottom + 1 ||
+              nodeRect.right > authRect.right + 1)))
+        ? [node.id || node.className]
+        : [];
+    });
+    return {
+      requested: { width, height },
+      actual: { width: innerWidth, height: innerHeight },
+      pageScrolls: document.documentElement.scrollHeight > innerHeight + 1,
+      authInsideViewport: Boolean(
+        authRect &&
+          authRect.top >= -1 &&
+          authRect.left >= -1 &&
+          authRect.bottom <= innerHeight + 1 &&
+          authRect.right <= innerWidth + 1
+      ),
+      protocolTailGap:
+        protocolRect && gridRect ? Math.max(0, protocolRect.bottom - gridRect.bottom) : null,
+      clipped,
+      overlaps,
+    };
+  }, viewport);
+}
+
+async function auditSettlementCardGeometry(page) {
+  await page.evaluate(() => {
+    const modal = document.getElementById("hand-settle-modal");
+    const row = document.getElementById("settle-community");
+    row.textContent = "";
+    ["4", "3", "2"].forEach((rank, index) => {
+      const card = document.createElement("div");
+      card.className = "card flip-reveal" + (index === 0 ? " red" : "");
+      const rankNode = document.createElement("strong");
+      const suitNode = document.createElement("span");
+      rankNode.textContent = rank;
+      suitNode.textContent = index === 0 ? "♥" : index === 1 ? "♣" : "♠";
+      card.append(rankNode, suitNode);
+      row.appendChild(card);
+    });
+    for (let index = 0; index < 2; index += 1) {
+      const slot = document.createElement("div");
+      slot.className = "card card-slot";
+      row.appendChild(slot);
+    }
+    modal.classList.remove("hidden");
+  });
+  await page.waitForTimeout(700);
+  const geometry = await page.evaluate(() => {
+    const modal = document.getElementById("hand-settle-modal");
+    const row = document.getElementById("settle-community");
+    const cards = [...row.children].map((card) => {
+      const rect = card.getBoundingClientRect();
+      return {
+        slot: card.classList.contains("card-slot"),
+        width: rect.width,
+        height: rect.height,
+        ratio: rect.height / rect.width,
+      };
+    });
+    const widths = cards.map((card) => card.width);
+    const heights = cards.map((card) => card.height);
+    row.textContent = "";
+    modal.classList.add("hidden");
+    return {
+      cards,
+      widthSpread: Math.max(...widths) - Math.min(...widths),
+      heightSpread: Math.max(...heights) - Math.min(...heights),
+    };
+  });
+  return geometry;
+}
+
 async function clickProtocol(page, gameMode, skillMode, action) {
   await page.evaluate(
     ({ gameMode, skillMode, action }) => {
@@ -69,7 +184,31 @@ async function main() {
     hasWaitPwd: Boolean(document.getElementById("input-wait-password")),
     status: document.getElementById("skill-prep-status")?.textContent || "",
   }));
-  report.push({ step: "lobby", lobbyFields, lobbyFit: await fit(page) });
+  const lobbyViewports = [];
+  for (const viewport of [
+    { width: 1920, height: 1080 },
+    { width: 1638, height: 1024 },
+    { width: 1440, height: 900 },
+    { width: 1366, height: 768 },
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+    { width: 900, height: 700 },
+    { width: 390, height: 844 },
+    { width: 375, height: 667 },
+    { width: 360, height: 640 },
+    { width: 320, height: 568 },
+  ]) {
+    lobbyViewports.push(await auditLobbyViewport(page, viewport));
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const settlementCards = await auditSettlementCardGeometry(page);
+  report.push({
+    step: "lobby",
+    lobbyFields,
+    lobbyFit: await fit(page),
+    lobbyViewports,
+    settlementCards,
+  });
 
   await page.click("#btn-open-skill-lab");
   await page.waitForSelector("#screen-skill-lab.active", { timeout: 5000 });
@@ -158,6 +297,8 @@ async function main() {
 
   const failures = [];
   const lobbyFit = report.find((r) => r.step === "lobby")?.lobbyFit;
+  const lobbyViewportAudits = report.find((r) => r.step === "lobby")?.lobbyViewports || [];
+  const settlementCardAudit = report.find((r) => r.step === "lobby")?.settlementCards;
   const labFit = report.find((r) => r.step === "skill-lab")?.labFit;
   const waitFit = report.find((r) => r.step === "wait-create")?.waitFit;
   const gameFit = report.find((r) => r.step === "abyss-solo")?.gameFit;
@@ -169,6 +310,27 @@ async function main() {
     failures.push("missing required lobby/wait/modal controls");
   }
   if (lobbyFit?.needsScroll) failures.push("lobby scrolls");
+  if (
+    lobbyViewportAudits.some(
+      (audit) =>
+        audit.pageScrolls ||
+        !audit.authInsideViewport ||
+        audit.clipped.length ||
+        audit.overlaps.length ||
+        audit.protocolTailGap == null ||
+        audit.protocolTailGap > 24
+    )
+  ) {
+    failures.push("lobby does not fit cleanly across required viewports");
+  }
+  if (
+    settlementCardAudit?.cards?.length !== 5 ||
+    settlementCardAudit.widthSpread > 0.75 ||
+    settlementCardAudit.heightSpread > 0.75 ||
+    settlementCardAudit.cards.some((card) => Math.abs(card.ratio - 1.42) > 0.03)
+  ) {
+    failures.push("settlement cards and empty slots do not share one geometry");
+  }
   if (!lab.active || lab.cards < 8) failures.push("skill lab incomplete");
   if (labFit?.needsScroll && labFit?.bodyOverflow !== "hidden") failures.push("skill lab page scrolls");
   if (!wait.active || !wait.roomId || wait.roomId === "——") failures.push("wait screen failed");

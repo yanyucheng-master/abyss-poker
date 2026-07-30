@@ -340,7 +340,7 @@
 }
 
 .salon-ui #screen-auth.lobby-screen.active > .protocol-section {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
 }
 
@@ -508,7 +508,7 @@
 .salon-ui .protocol-grid {
   gap: 7px;
   min-height: 0 !important;
-  flex: 1 1 auto !important;
+  flex: 0 0 auto !important;
   align-content: start;
   align-items: stretch;
   height: auto !important;
@@ -1270,7 +1270,7 @@
   }
 
   .salon-ui .lobby-hero-compact {
-    padding: 4px 8px 4px 2px;
+    padding: 4px 52px 4px 2px;
     gap: 6px 10px;
   }
 
@@ -1345,6 +1345,7 @@
   }
 
   .salon-ui .protocol-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     padding-top: 4px;
     gap: 4px;
   }
@@ -1644,6 +1645,73 @@
     right: 6px;
     width: 28px;
     height: 28px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 700px) {
+  .salon-ui:has(#screen-auth.lobby-screen.active) .app-shell {
+    padding-top: calc(var(--safe-top) + 2px);
+    padding-bottom: calc(var(--safe-bottom) + 2px);
+  }
+
+  .salon-ui #screen-auth.lobby-screen.active {
+    gap: 4px;
+    height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 4px);
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 4px);
+  }
+
+  .salon-ui .lobby-hero-compact {
+    padding-block: 2px;
+  }
+
+  .salon-ui .lobby-logo-wrap {
+    width: 50px;
+    height: 50px;
+    margin-block: -2px;
+  }
+
+  .salon-ui .lobby-hero-compact .hero-kicker {
+    display: none;
+  }
+
+  .salon-ui .skill-prep-bar {
+    padding: 4px 6px;
+  }
+
+  .salon-ui .skill-prep-status {
+    display: none;
+  }
+
+  .salon-ui .protocol-section {
+    padding: 5px;
+    gap: 3px;
+  }
+
+  .salon-ui .protocol-grid {
+    gap: 4px;
+  }
+
+  .salon-ui .protocol-card {
+    padding: 5px;
+    gap: 2px;
+  }
+
+  .salon-ui .protocol-card::before {
+    display: none;
+  }
+
+  .salon-ui .protocol-card > strong small {
+    margin-top: 1px;
+    font-size: 0.62rem;
+  }
+
+  .salon-ui .protocol-actions {
+    padding-top: 2px;
+    gap: 3px;
+  }
+
+  .salon-ui .lobby-entry {
+    padding: 6px 8px;
   }
 }
 

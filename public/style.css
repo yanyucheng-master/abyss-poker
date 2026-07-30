@@ -3041,6 +3041,7 @@ body.overdrive .overdrive-stage {
   place-items: center;
   width: var(--card-w);
   height: var(--card-h);
+  aspect-ratio: 1 / 1.42;
   flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid rgba(220, 232, 255, 0.85);
@@ -4293,7 +4294,8 @@ body.river-phase .poker-board {
 
 .settle-card-row {
   --card-w: clamp(38px, 5.4vw, 66px);
-  flex-wrap: wrap;
+  --card-h: calc(var(--card-w) * 1.42);
+  flex-wrap: nowrap;
 }
 
 .settle-empty {
