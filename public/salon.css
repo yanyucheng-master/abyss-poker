@@ -373,7 +373,8 @@
 .salon-ui .lobby-hero-compact {
   min-height: 0;
   margin: 0;
-  padding: clamp(10px, 1.6vh, 18px) 16px clamp(10px, 1.6vh, 18px) 8px;
+  /* 右侧给固定齿轮留空，避免模式标签挡到设置 */
+  padding: clamp(10px, 1.6vh, 18px) 64px clamp(10px, 1.6vh, 18px) 8px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(140, 110, 255, 0.28);
   background:
@@ -489,6 +490,7 @@
 .salon-ui .lobby-hero-meta {
   align-self: center;
   gap: 6px;
+  margin-right: 4px;
 }
 
 .salon-ui .skill-prep-bar {
@@ -1253,7 +1255,7 @@
   }
 
   .salon-ui .lobby-hero-compact {
-    padding: 6px 12px 6px 4px;
+    padding: 6px 56px 6px 4px;
     gap: 6px 10px;
   }
 
