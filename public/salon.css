@@ -252,28 +252,45 @@
 .salon-ui .settings-trigger {
   top: calc(var(--safe-top) + 10px);
   right: calc(var(--safe-right) + 10px);
-  width: 44px;
-  min-width: 44px;
-  min-height: 44px;
+  width: 40px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(212, 181, 106, 0.12), transparent 70%);
-  color: rgba(232, 224, 207, 0.78);
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: rgba(232, 224, 207, 0.72);
   box-shadow: none;
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.06em;
 }
 
+.salon-ui:has(#screen-auth.lobby-screen.active) .settings-trigger {
+  top: calc(var(--safe-top) + 18px);
+  right: calc(var(--safe-right) + 18px);
+  color: rgba(236, 228, 255, 0.78);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+
 .salon-ui .settings-trigger:hover {
   color: var(--bone);
-  background: radial-gradient(circle, rgba(212, 181, 106, 0.24), transparent 72%);
+  background: transparent;
+}
+
+.salon-ui:has(#screen-auth.lobby-screen.active) .settings-trigger:hover {
+  color: #fff;
+  text-shadow:
+    0 0 10px rgba(190, 140, 255, 0.55),
+    0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
 .salon-ui .settings-trigger:focus-visible {
   outline: 2px solid rgba(212, 181, 106, 0.88);
   outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* ══════════════════════════════════
@@ -510,23 +527,90 @@
   gap: clamp(8px, 1.1vw, 14px);
   min-height: 0 !important;
   flex: 1 1 auto !important;
-  align-content: stretch;
+  align-content: center;
   align-items: stretch;
   height: auto !important;
 }
 
 .salon-ui .protocol-card {
-  gap: clamp(6px, 0.9vh, 12px);
-  padding: clamp(12px, 1.8vh, 22px) clamp(10px, 1vw, 14px);
-  min-height: 0 !important;
-  height: 100% !important;
+  gap: 8px;
+  padding: clamp(12px, 1.6vh, 18px) clamp(10px, 1vw, 14px);
+  min-height: clamp(190px, 28vh, 250px) !important;
+  height: auto !important;
+  max-height: 280px;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background:
     linear-gradient(160deg, rgba(36, 42, 54, 0.95), rgba(12, 14, 20, 0.96));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  justify-content: space-between;
+  justify-content: flex-start;
+}
+
+.salon-ui .protocol-mid {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 0;
+  width: 100%;
+  margin: 2px 0 4px;
+  padding: 12px 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 213, 163, 0.1);
+  background:
+    radial-gradient(ellipse 80% 70% at 12% 20%, rgba(212, 181, 106, 0.1), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.28));
+}
+
+.salon-ui .protocol-card.overdrive .protocol-mid {
+  background:
+    radial-gradient(ellipse 80% 70% at 12% 20%, rgba(196, 92, 74, 0.14), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.28));
+  border-color: rgba(196, 92, 74, 0.16);
+}
+
+.salon-ui .protocol-card.abyss .protocol-mid {
+  background:
+    radial-gradient(ellipse 80% 70% at 12% 20%, rgba(63, 154, 138, 0.16), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.28));
+  border-color: rgba(63, 154, 138, 0.18);
+}
+
+.salon-ui .protocol-card.overdrive.abyss .protocol-mid {
+  background:
+    radial-gradient(ellipse 70% 60% at 10% 18%, rgba(196, 92, 74, 0.14), transparent 50%),
+    radial-gradient(ellipse 70% 60% at 88% 80%, rgba(63, 154, 138, 0.14), transparent 52%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.28));
+}
+
+.salon-ui .protocol-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(212, 181, 106, 0.4);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 42%),
+    radial-gradient(circle, rgba(212, 181, 106, 0.35), rgba(212, 181, 106, 0.05) 70%);
+  box-shadow: 0 0 16px rgba(212, 181, 106, 0.18);
+}
+
+.salon-ui .protocol-card.overdrive .protocol-mark {
+  border-color: rgba(196, 92, 74, 0.45);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 220, 210, 0.35), transparent 42%),
+    radial-gradient(circle, rgba(196, 92, 74, 0.4), rgba(196, 92, 74, 0.06) 70%);
+  box-shadow: 0 0 16px rgba(196, 92, 74, 0.2);
+}
+
+.salon-ui .protocol-card.abyss .protocol-mark {
+  border-color: rgba(63, 154, 138, 0.5);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(210, 255, 245, 0.3), transparent 42%),
+    radial-gradient(circle, rgba(63, 154, 138, 0.42), rgba(63, 154, 138, 0.06) 70%);
+  box-shadow: 0 0 16px rgba(63, 154, 138, 0.22);
 }
 
 .salon-ui .protocol-card::before {
@@ -598,10 +682,18 @@
 }
 
 .salon-ui .protocol-desc {
-  color: #b7b2a6;
-  font-size: clamp(0.76rem, 1vw, 0.9rem);
-  line-height: 1.4;
+  color: #d2ccc0;
+  font-size: clamp(0.8rem, 1.05vw, 0.95rem);
+  line-height: 1.35;
   opacity: 1;
+  font-weight: 600;
+}
+
+.salon-ui .protocol-note {
+  color: var(--muted);
+  font-size: clamp(0.7rem, 0.95vw, 0.8rem);
+  line-height: 1.35;
+  letter-spacing: 0.02em;
 }
 
 .salon-ui .protocol-actions .button-secondary {
@@ -1192,9 +1284,25 @@
     display: none;
   }
 
+  .salon-ui .protocol-note {
+    font-size: 0.7rem;
+  }
+
+  .salon-ui .protocol-mid {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+
+  .salon-ui .protocol-mark {
+    width: 20px;
+    height: 20px;
+  }
+
   .salon-ui .protocol-card {
     padding: 8px 9px;
     gap: 4px;
+    min-height: 0 !important;
+    max-height: none;
   }
 
   .salon-ui .protocol-actions .button {
@@ -1340,6 +1448,8 @@
   .salon-ui .protocol-card {
     padding: 8px;
     gap: 4px;
+    min-height: 0 !important;
+    max-height: none;
   }
 
   .salon-ui .protocol-card::before {
@@ -1349,6 +1459,20 @@
 
   .salon-ui .protocol-desc {
     display: none;
+  }
+
+  .salon-ui .protocol-mid {
+    padding: 8px 9px;
+    margin: 0;
+  }
+
+  .salon-ui .protocol-mark {
+    width: 18px;
+    height: 18px;
+  }
+
+  .salon-ui .protocol-note {
+    font-size: 0.66rem;
   }
 
   .salon-ui .protocol-card > strong {

@@ -331,7 +331,7 @@
           <div class="lobby-hero-meta">
             <span id="selected-mode-tag" class="mode-pill standard">标准</span>
             <span id="selected-skill-tag" class="mode-pill standard">无技能</span>
-            <span id="lobby-connection" class="connection-chip"><i class="status-dot"></i>连接中</span>
+            <span id="lobby-connection" class="connection-chip sr-only" aria-live="polite"><i class="status-dot"></i>连接中</span>
           </div>
         </header>
 
@@ -357,7 +357,11 @@
             <article class="protocol-card selected" data-game-mode="standard" data-skill-mode="off" role="listitem" tabindex="0" aria-current="true">
               <input type="radio" name="protocol" value="standard-off" checked tabindex="-1" />
               <strong>标准局 <small>无技能</small></strong>
-              <span class="protocol-desc">完整随机牌堆</span>
+              <div class="protocol-mid">
+                <span class="protocol-mark" aria-hidden="true"></span>
+                <span class="protocol-desc">完整随机牌堆</span>
+                <span class="protocol-note">经典盲注节奏 · 公平发牌</span>
+              </div>
               <div class="protocol-actions">
                 <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
@@ -368,7 +372,11 @@
             <article class="protocol-card overdrive" data-game-mode="overdrive" data-skill-mode="off" role="listitem" tabindex="-1">
               <input type="radio" name="protocol" value="overdrive-off" tabindex="-1" />
               <strong>高爆局 <small>无技能</small></strong>
-              <span class="protocol-desc">高潜力起手与河牌</span>
+              <div class="protocol-mid">
+                <span class="protocol-mark" aria-hidden="true"></span>
+                <span class="protocol-desc">高潜力起手与河牌</span>
+                <span class="protocol-note">戏剧性牌面 · 更快见分晓</span>
+              </div>
               <div class="protocol-actions">
                 <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
@@ -379,7 +387,11 @@
             <article class="protocol-card abyss" data-game-mode="standard" data-skill-mode="abyss" role="listitem" tabindex="-1">
               <input type="radio" name="protocol" value="standard-abyss" tabindex="-1" />
               <strong>标准局 <small>深渊技能</small></strong>
-              <span class="protocol-desc">需先完成技能构筑</span>
+              <div class="protocol-mid">
+                <span class="protocol-mark" aria-hidden="true"></span>
+                <span class="protocol-desc">需先完成技能构筑</span>
+                <span class="protocol-note">标准牌桌 · 技能改写局势</span>
+              </div>
               <div class="protocol-actions">
                 <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
@@ -390,7 +402,11 @@
             <article class="protocol-card overdrive abyss" data-game-mode="overdrive" data-skill-mode="abyss" role="listitem" tabindex="-1">
               <input type="radio" name="protocol" value="overdrive-abyss" tabindex="-1" />
               <strong>高爆局 <small>深渊技能</small></strong>
-              <span class="protocol-desc">高爆 + 技能同开</span>
+              <div class="protocol-mid">
+                <span class="protocol-mark" aria-hidden="true"></span>
+                <span class="protocol-desc">高爆 + 技能同开</span>
+                <span class="protocol-note">极限节奏 · 技能与牌面齐飞</span>
+              </div>
               <div class="protocol-actions">
                 <button type="button" class="button button-match protocol-btn" data-room-action="match">匹配</button>
                 <button type="button" class="button button-secondary protocol-btn" data-room-action="solo">人机</button>
