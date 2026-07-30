@@ -34,7 +34,7 @@
   --radius-sm: 9px;
   --ui-scale: 1;
   --motion-factor: 1;
-  --allin-duration: 3200ms;
+  --allin-duration: 2200ms;
   --blur: 18px;
   --safe-top: max(18px, env(safe-area-inset-top));
   --safe-right: max(18px, env(safe-area-inset-right));
@@ -3568,7 +3568,7 @@ body.overdrive .overdrive-stage {
   background-size: 46px 46px;
   mask-image: radial-gradient(circle, #000 8%, transparent 67%);
   will-change: opacity, transform;
-  animation: allin-grid 2800ms cubic-bezier(0.12, 0.72, 0.2, 1) both;
+  animation: allin-grid calc(var(--allin-duration) * 0.875) cubic-bezier(0.12, 0.72, 0.2, 1) both;
 }
 
 .allin-speedlines {
@@ -3584,7 +3584,7 @@ body.overdrive .overdrive-stage {
   );
   mask-image: radial-gradient(circle, transparent 0 14%, #000 34%, transparent 72%);
   will-change: opacity, transform;
-  animation: allin-lines 2000ms cubic-bezier(0.12, 0.72, 0.2, 1) both;
+  animation: allin-lines calc(var(--allin-duration) * 0.625) cubic-bezier(0.12, 0.72, 0.2, 1) both;
 }
 
 .allin-surge {
@@ -3599,7 +3599,7 @@ body.overdrive .overdrive-stage {
     0 0 80px rgba(255, 66, 208, 0.4),
     inset 0 0 80px rgba(255, 66, 208, 0.22);
   will-change: opacity, transform;
-  animation: allin-surge 2300ms cubic-bezier(0.08, 0.78, 0.12, 1) both;
+  animation: allin-surge calc(var(--allin-duration) * 0.72) cubic-bezier(0.08, 0.78, 0.12, 1) both;
 }
 
 .allin-surge.surge-inner {
@@ -3624,7 +3624,7 @@ body.overdrive .overdrive-stage {
     0 0 36px rgb(var(--allin-secondary) / 0.12);
   opacity: 0;
   will-change: opacity, transform;
-  animation: allin-frame 2500ms 70ms cubic-bezier(0.1, 0.78, 0.18, 1) both;
+  animation: allin-frame calc(var(--allin-duration) * 0.78) 50ms cubic-bezier(0.1, 0.78, 0.18, 1) both;
 }
 
 .allin-impact {
@@ -3642,7 +3642,7 @@ body.overdrive .overdrive-stage {
   );
   mask-image: radial-gradient(circle, transparent 0 24%, #000 34% 47%, transparent 69%);
   will-change: opacity, transform;
-  animation: allin-impact 2100ms 60ms cubic-bezier(0.08, 0.76, 0.16, 1) both;
+  animation: allin-impact calc(var(--allin-duration) * 0.66) 40ms cubic-bezier(0.08, 0.76, 0.16, 1) both;
 }
 
 .allin-shards {
@@ -3672,7 +3672,7 @@ body.overdrive .overdrive-stage {
   clip-path: polygon(50% 0, 100% 22%, 66% 100%, 0 72%);
   opacity: 0;
   will-change: opacity, transform;
-  animation: allin-shard 2100ms var(--delay) cubic-bezier(0.08, 0.72, 0.18, 1) both;
+  animation: allin-shard calc(var(--allin-duration) * 0.66) var(--delay) cubic-bezier(0.08, 0.72, 0.18, 1) both;
 }
 
 .allin-shards i:nth-child(1) { --tx: -46vw; --ty: -34vh; --rotation: -390deg; --delay: 40ms; }

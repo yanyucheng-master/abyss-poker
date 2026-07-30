@@ -14,8 +14,8 @@ const MATCH_IN_PROGRESS_PHASES = new Set([
 ]);
 const HAND_SETTLE_MS = 2000;
 const REMATCH_TIMEOUT_MS = 10000;
-const ALL_IN_EFFECT_MS = 3200;
-const ALL_IN_BOARD_PULSE_MS = 2900;
+const ALL_IN_EFFECT_MS = 2200;
+const ALL_IN_BOARD_PULSE_MS = 2000;
 const ALL_IN_VIBRATION_PATTERN = Object.freeze([80, 45, 130, 55, 220]);
 const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"]);
 const STORAGE = Object.freeze({
