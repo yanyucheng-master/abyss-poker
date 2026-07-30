@@ -3384,20 +3384,49 @@ body.overdrive .overdrive-stage {
   font-weight: 900;
 }
 
+.action-button .action-zh,
+.action-button .action-en,
+.action-button .action-amt,
 .action-button span,
 .action-button small {
   display: block;
 }
 
-.action-button span {
+.action-button .action-zh {
   font-size: 0.84rem;
   letter-spacing: 0.08em;
 }
 
-.action-button small {
+.action-button .action-en {
   margin-top: 3px;
   color: rgba(218, 228, 253, 0.64);
   font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}
+
+.action-button .action-amt {
+  margin-top: 2px;
+  color: rgba(218, 228, 253, 0.72);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.action-button span:not(.action-zh):not(.action-en) {
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+}
+
+.action-button small:not(.action-amt) {
+  margin-top: 3px;
+  color: rgba(218, 228, 253, 0.64);
+  font-size: 0.62rem;
+}
+
+.raise-presets .action-en,
+.raise-amount-meta .raise-to-en {
+  display: none;
 }
 
 .action-button.fold {

@@ -537,7 +537,13 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   transform: scale(0.985);
 }
 
-.salon-ui #screen-game .action-button small {
+.salon-ui #screen-game .action-button .action-en {
+  margin-top: 2px;
+  font-size: 0.49rem;
+  letter-spacing: 0.08em;
+}
+
+.salon-ui #screen-game .action-button .action-amt {
   margin-top: 2px;
   font-size: 0.49rem;
   letter-spacing: 0.08em;
@@ -1668,4 +1674,169 @@ html[data-allin-style="singularity"] {
   .salon-ui #screen-game .raise-amount-meta {
     padding-inline: 5px 14px;
   }
+}
+
+/* ══════════════════════════════════
+   PRO PLAYER MODE · 牌佬模式
+   ══════════════════════════════════ */
+body.pro-player-mode.salon-ui #screen-game .action-dock {
+  border-color: rgba(212, 181, 106, 0.28);
+  background:
+    linear-gradient(180deg, rgba(18, 16, 12, 0.72), rgba(8, 10, 16, 0.92)),
+    rgba(6, 8, 14, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(232, 213, 163, 0.12),
+    0 -8px 28px rgba(0, 0, 0, 0.35);
+}
+
+body.pro-player-mode.salon-ui #screen-game .turn-status {
+  letter-spacing: 0.08em;
+}
+
+body.pro-player-mode.salon-ui #screen-game #turn-kicker {
+  color: rgba(212, 181, 106, 0.82);
+  font-family: "Oswald", "Bahnschrift SemiCondensed", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+body.pro-player-mode.salon-ui #screen-game #turn-message {
+  font-family: "Rajdhani", "Segoe UI", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.pro-player-mode .action-button .action-zh,
+body.pro-player-mode .raise-presets .action-zh,
+body.pro-player-mode .raise-amount-meta .action-zh {
+  display: none !important;
+}
+
+body.pro-player-mode .action-button .action-en {
+  display: block;
+  margin-top: 0;
+  color: inherit;
+  font-size: clamp(0.92rem, 1.5vw, 1.18rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+
+body.pro-player-mode .action-button .action-amt {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: "Rajdhani", "Segoe UI", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+body.pro-player-mode .raise-amount-meta .raise-to-en {
+  display: inline;
+  margin-right: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+body.pro-player-mode .raise-presets .action-en {
+  display: inline;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+body.pro-player-mode.salon-ui #screen-game .action-button {
+  min-height: 58px;
+  border-radius: 8px;
+  border-width: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+body.pro-player-mode.salon-ui #screen-game .action-button:not(:disabled) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+body.pro-player-mode.salon-ui #screen-game .action-button.fold {
+  border-color: rgba(220, 80, 96, 0.55);
+  color: #ffd0d7;
+  background: linear-gradient(160deg, rgba(92, 18, 34, 0.92), rgba(28, 8, 14, 0.96));
+}
+
+body.pro-player-mode.salon-ui #screen-game .action-button.check,
+body.pro-player-mode.salon-ui #screen-game .action-button.call {
+  border-color: rgba(72, 180, 168, 0.5);
+  color: #d8fff6;
+  background: linear-gradient(160deg, rgba(14, 72, 68, 0.9), rgba(8, 22, 28, 0.96));
+}
+
+body.pro-player-mode.salon-ui #screen-game .action-button.allin {
+  border-color: rgba(255, 90, 180, 0.55);
+  color: #ffe0f4;
+  background: linear-gradient(160deg, rgba(88, 18, 72, 0.94), rgba(28, 8, 36, 0.97));
+}
+
+body.pro-player-mode.salon-ui #screen-game .action-button.raise {
+  border-color: rgba(212, 181, 106, 0.55);
+  color: #ffe9b8;
+  background: linear-gradient(160deg, rgba(72, 52, 18, 0.92), rgba(22, 16, 8, 0.96));
+}
+
+/* 字型变体 */
+html[data-pro-font="broadcast"] body.pro-player-mode .action-button .action-en,
+html[data-pro-font="broadcast"] body.pro-player-mode .raise-presets .action-en,
+html[data-pro-font="broadcast"] body.pro-player-mode .raise-amount-meta .raise-to-en {
+  font-family: "Oswald", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+html[data-pro-font="neonrail"] body.pro-player-mode .action-button .action-en,
+html[data-pro-font="neonrail"] body.pro-player-mode .raise-presets .action-en,
+html[data-pro-font="neonrail"] body.pro-player-mode .raise-amount-meta .raise-to-en {
+  font-family: "Orbitron", "Segoe UI", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-shadow:
+    0 0 8px rgba(120, 200, 255, 0.35),
+    0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+html[data-pro-font="chrome"] body.pro-player-mode .action-button .action-en,
+html[data-pro-font="chrome"] body.pro-player-mode .raise-presets .action-en,
+html[data-pro-font="chrome"] body.pro-player-mode .raise-amount-meta .raise-to-en {
+  font-family: "Rajdhani", "Segoe UI", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  background: linear-gradient(180deg, #fff6df 0%, #d4b56a 48%, #8a7040 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55));
+}
+
+html[data-pro-font="classic"] body.pro-player-mode .action-button .action-en,
+html[data-pro-font="classic"] body.pro-player-mode .raise-presets .action-en,
+html[data-pro-font="classic"] body.pro-player-mode .raise-amount-meta .raise-to-en {
+  font-family: "Teko", "Impact", "Arial Narrow", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+}
+
+.salon-ui .settings-grid .setting-row.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }

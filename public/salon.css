@@ -374,7 +374,7 @@
   min-height: 0;
   margin: 0;
   /* 右侧给固定齿轮留空，避免模式标签挡到设置 */
-  padding: clamp(10px, 1.6vh, 18px) 64px clamp(10px, 1.6vh, 18px) 8px;
+  padding: clamp(10px, 1.6vh, 18px) 108px clamp(10px, 1.6vh, 18px) 8px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(140, 110, 255, 0.28);
   background:
@@ -565,6 +565,7 @@
   background:
     radial-gradient(ellipse 80% 70% at 12% 20%, rgba(212, 181, 106, 0.1), transparent 55%),
     linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.28));
+  text-align: left;
 }
 
 .salon-ui .protocol-card.overdrive .protocol-mid {
@@ -586,33 +587,6 @@
     radial-gradient(ellipse 70% 60% at 10% 18%, rgba(196, 92, 74, 0.14), transparent 50%),
     radial-gradient(ellipse 70% 60% at 88% 80%, rgba(63, 154, 138, 0.14), transparent 52%),
     linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.28));
-}
-
-.salon-ui .protocol-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1px solid rgba(212, 181, 106, 0.4);
-  background:
-    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 42%),
-    radial-gradient(circle, rgba(212, 181, 106, 0.35), rgba(212, 181, 106, 0.05) 70%);
-  box-shadow: 0 0 16px rgba(212, 181, 106, 0.18);
-}
-
-.salon-ui .protocol-card.overdrive .protocol-mark {
-  border-color: rgba(196, 92, 74, 0.45);
-  background:
-    radial-gradient(circle at 35% 30%, rgba(255, 220, 210, 0.35), transparent 42%),
-    radial-gradient(circle, rgba(196, 92, 74, 0.4), rgba(196, 92, 74, 0.06) 70%);
-  box-shadow: 0 0 16px rgba(196, 92, 74, 0.2);
-}
-
-.salon-ui .protocol-card.abyss .protocol-mark {
-  border-color: rgba(63, 154, 138, 0.5);
-  background:
-    radial-gradient(circle at 35% 30%, rgba(210, 255, 245, 0.3), transparent 42%),
-    radial-gradient(circle, rgba(63, 154, 138, 0.42), rgba(63, 154, 138, 0.06) 70%);
-  box-shadow: 0 0 16px rgba(63, 154, 138, 0.22);
 }
 
 .salon-ui .protocol-card::before {
@@ -1255,7 +1229,7 @@
   }
 
   .salon-ui .lobby-hero-compact {
-    padding: 6px 56px 6px 4px;
+    padding: 6px 96px 6px 4px;
     gap: 6px 10px;
   }
 
@@ -1293,11 +1267,6 @@
   .salon-ui .protocol-mid {
     padding: 8px 10px;
     gap: 4px;
-  }
-
-  .salon-ui .protocol-mark {
-    width: 20px;
-    height: 20px;
   }
 
   .salon-ui .protocol-card {
@@ -1391,7 +1360,7 @@
   }
 
   .salon-ui .lobby-hero-compact {
-    padding: 4px 52px 4px 2px;
+    padding: 4px 72px 4px 2px;
     gap: 6px 10px;
   }
 
@@ -1466,11 +1435,6 @@
   .salon-ui .protocol-mid {
     padding: 8px 9px;
     margin: 0;
-  }
-
-  .salon-ui .protocol-mark {
-    width: 18px;
-    height: 18px;
   }
 
   .salon-ui .protocol-note {

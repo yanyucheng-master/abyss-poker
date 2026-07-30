@@ -18,6 +18,7 @@ const ALL_IN_EFFECT_MS = 2200;
 const ALL_IN_BOARD_PULSE_MS = 2000;
 const ALL_IN_VIBRATION_PATTERN = Object.freeze([80, 45, 130, 55, 220]);
 const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"]);
+const PRO_FONT_STYLES = Object.freeze(["broadcast", "neonrail", "chrome", "classic"]);
 const STORAGE = Object.freeze({
   playerId: "abyss_player_id",
   reconnectToken: "abyss_reconnect_token",
@@ -80,6 +81,8 @@ function loadSettings() {
   const defaults = {
     animation: "high",
     allInStyle: "abyss",
+    proPlayerMode: false,
+    proFontStyle: "broadcast",
     reduceMotion: window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     sfx: 55,
     music: 0,
@@ -100,6 +103,11 @@ function loadSettings() {
     allInStyle: ALL_IN_STYLES.includes(stored.allInStyle)
       ? stored.allInStyle
       : defaults.allInStyle,
+    proPlayerMode:
+      typeof stored.proPlayerMode === "boolean" ? stored.proPlayerMode : defaults.proPlayerMode,
+    proFontStyle: PRO_FONT_STYLES.includes(stored.proFontStyle)
+      ? stored.proFontStyle
+      : defaults.proFontStyle,
     reduceMotion:
       typeof stored.reduceMotion === "boolean" ? stored.reduceMotion : defaults.reduceMotion,
     sfx: clampStoredNumber(stored.sfx, 0, 100, defaults.sfx),
@@ -233,6 +241,9 @@ const el = {
   settingAnimation: byId("setting-animation"),
   settingAllInStyles: [...document.querySelectorAll('input[name="allin-style"]')],
   btnPreviewAllIn: byId("btn-preview-allin"),
+  settingProMode: byId("setting-pro-mode"),
+  settingProFont: byId("setting-pro-font"),
+  settingProFontRow: byId("setting-pro-font-row"),
   settingReduceMotion: byId("setting-reduce-motion"),
   settingSfx: byId("setting-sfx"),
   settingSfxValue: byId("setting-sfx-value"),
@@ -639,14 +650,24 @@ function saveSettings() {
 function applySettings() {
   document.documentElement.dataset.animation = state.settings.animation;
   document.documentElement.dataset.allinStyle = state.settings.allInStyle;
+  document.documentElement.dataset.proFont = state.settings.proFontStyle;
   document.body.classList.toggle("reduce-motion", Boolean(state.settings.reduceMotion));
   document.body.classList.toggle("low-performance", Boolean(state.settings.lowPerformance));
+  document.body.classList.toggle("pro-player-mode", Boolean(state.settings.proPlayerMode));
   document.documentElement.style.setProperty("--ui-scale", String(Number(state.settings.scale) / 100));
   el.settingAnimation.value = state.settings.animation;
   el.flash.dataset.allinStyle = state.settings.allInStyle;
   el.settingAllInStyles.forEach((input) => {
     input.checked = input.value === state.settings.allInStyle;
   });
+  if (el.settingProMode) el.settingProMode.checked = Boolean(state.settings.proPlayerMode);
+  if (el.settingProFont) {
+    el.settingProFont.value = state.settings.proFontStyle;
+    el.settingProFont.disabled = !state.settings.proPlayerMode;
+  }
+  if (el.settingProFontRow) {
+    el.settingProFontRow.classList.toggle("is-disabled", !state.settings.proPlayerMode);
+  }
   el.settingReduceMotion.checked = Boolean(state.settings.reduceMotion);
   el.settingSfx.value = String(state.settings.sfx);
   el.settingSfxValue.textContent = String(state.settings.sfx) + "%";
@@ -656,6 +677,7 @@ function applySettings() {
   el.settingScaleValue.textContent = String(state.settings.scale) + "%";
   el.settingLowPerformance.checked = Boolean(state.settings.lowPerformance);
   updateAmbientAudio();
+  if (el.game?.classList.contains("active")) renderActions();
 }
 
 function showToast(message, tone) {
@@ -930,16 +952,17 @@ function renderActions() {
   if (el.btnRaise) el.btnRaise.disabled = !canRaise;
   if (el.btnRaiseOptions) el.btnRaiseOptions.disabled = !canRaise;
   el.raiseInput.disabled = !canRaise;
+  const pro = Boolean(state.settings.proPlayerMode);
   if (canRaise) {
     el.raiseInput.min = String(state.minRaise);
     el.raiseInput.max = String(state.maxBet);
-    el.raiseMinLabel.textContent = "MIN " + state.minRaise;
-    el.raiseMaxLabel.textContent = "MAX " + state.maxBet;
+    el.raiseMinLabel.textContent = (pro ? "MIN " : "最小 ") + state.minRaise;
+    el.raiseMaxLabel.textContent = (pro ? "MAX " : "最大 ") + state.maxBet;
   } else {
     el.raiseInput.min = "0";
     el.raiseInput.max = "0";
-    el.raiseMinLabel.textContent = "MIN —";
-    el.raiseMaxLabel.textContent = "MAX —";
+    el.raiseMinLabel.textContent = pro ? "MIN —" : "最小 —";
+    el.raiseMaxLabel.textContent = pro ? "MAX —" : "最大 —";
     setRaiseExpanded(false);
   }
   el.raisePresets.forEach((button) => {
@@ -953,14 +976,27 @@ function renderActions() {
   }
 
   if (isMyTurn) {
-    el.turnKicker.textContent = "你的回合";
-    el.turnMessage.textContent = "选择一项行动";
+    el.turnKicker.textContent = pro ? "YOUR TURN" : "你的回合";
+    el.turnMessage.textContent = pro ? "SELECT AN ACTION" : "选择一项行动";
   } else if (state.currentTurnPlayerId) {
-    el.turnKicker.textContent = "对手回合";
-    el.turnMessage.textContent = getOpponent()?.status === "disconnected" ? "等待对手恢复连接" : "对手正在行动";
+    el.turnKicker.textContent = pro ? "OPPONENT" : "对手回合";
+    el.turnMessage.textContent =
+      getOpponent()?.status === "disconnected"
+        ? pro
+          ? "WAITING FOR RECONNECT"
+          : "等待对手恢复连接"
+        : pro
+          ? "THINKING..."
+          : "对手正在行动";
   } else {
-    el.turnKicker.textContent = "等待";
-    el.turnMessage.textContent = state.handSettling ? "正在结算" : "等待行动指令";
+    el.turnKicker.textContent = pro ? "HOLD" : "等待";
+    el.turnMessage.textContent = state.handSettling
+      ? pro
+        ? "SHOWDOWN"
+        : "正在结算"
+      : pro
+        ? "AWAITING ACTION"
+        : "等待行动指令";
   }
 }
 
@@ -2417,6 +2453,22 @@ el.settingAllInStyles.forEach((input) => {
 });
 el.btnPreviewAllIn?.addEventListener("click", () => {
   playAllInEffect(state.playerId, { preview: true });
+});
+el.settingProMode?.addEventListener("change", () => {
+  state.settings.proPlayerMode = Boolean(el.settingProMode.checked);
+  saveSettings();
+  applySettings();
+  showToast(
+    state.settings.proPlayerMode ? "牌佬模式已开启 · TOURNAMENT DESK" : "已退出牌佬模式",
+    "success"
+  );
+});
+el.settingProFont?.addEventListener("change", () => {
+  const next = el.settingProFont.value;
+  if (!PRO_FONT_STYLES.includes(next)) return;
+  state.settings.proFontStyle = next;
+  saveSettings();
+  applySettings();
 });
 el.settingReduceMotion.addEventListener("change", () => {
   state.settings.reduceMotion = el.settingReduceMotion.checked;

@@ -10,6 +10,12 @@
     />
     <title>深渊德州</title>
     <link rel="icon" type="image/webp" href="./assets/abyss-poker-logo.webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Oswald:wght@500;600;700&family=Rajdhani:wght@600;700&family=Teko:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./salon.css" />
     <link rel="stylesheet" href="./table-v2.css" />
@@ -159,6 +165,21 @@
               预览所选特效
             </button>
           </fieldset>
+
+          <label class="setting-row switch-row" for="setting-pro-mode">
+            <span><strong>牌佬模式</strong><small>国际赛桌手感 · 行动键仅显示英文艺术字</small></span>
+            <input id="setting-pro-mode" type="checkbox" role="switch" />
+          </label>
+
+          <label class="setting-row" for="setting-pro-font" id="setting-pro-font-row">
+            <span><strong>牌佬字型</strong><small>赛场播报体 / 霓虹轨 / 铬质板 / 经典宽字</small></span>
+            <select id="setting-pro-font">
+              <option value="broadcast">赛场播报</option>
+              <option value="neonrail">霓虹轨</option>
+              <option value="chrome">铬质板</option>
+              <option value="classic">经典宽字</option>
+            </select>
+          </label>
 
           <label class="setting-row switch-row" for="setting-reduce-motion">
             <span><strong>减少动态效果</strong><small>停用大幅位移与闪烁</small></span>
@@ -358,7 +379,6 @@
               <input type="radio" name="protocol" value="standard-off" checked tabindex="-1" />
               <strong>标准局 <small>无技能</small></strong>
               <div class="protocol-mid">
-                <span class="protocol-mark" aria-hidden="true"></span>
                 <span class="protocol-desc">完整随机牌堆</span>
                 <span class="protocol-note">经典盲注节奏 · 公平发牌</span>
               </div>
@@ -373,7 +393,6 @@
               <input type="radio" name="protocol" value="overdrive-off" tabindex="-1" />
               <strong>高爆局 <small>无技能</small></strong>
               <div class="protocol-mid">
-                <span class="protocol-mark" aria-hidden="true"></span>
                 <span class="protocol-desc">高潜力起手与河牌</span>
                 <span class="protocol-note">戏剧性牌面 · 更快见分晓</span>
               </div>
@@ -388,7 +407,6 @@
               <input type="radio" name="protocol" value="standard-abyss" tabindex="-1" />
               <strong>标准局 <small>深渊技能</small></strong>
               <div class="protocol-mid">
-                <span class="protocol-mark" aria-hidden="true"></span>
                 <span class="protocol-desc">需先完成技能构筑</span>
                 <span class="protocol-note">标准牌桌 · 技能改写局势</span>
               </div>
@@ -403,7 +421,6 @@
               <input type="radio" name="protocol" value="overdrive-abyss" tabindex="-1" />
               <strong>高爆局 <small>深渊技能</small></strong>
               <div class="protocol-mid">
-                <span class="protocol-mark" aria-hidden="true"></span>
                 <span class="protocol-desc">高爆 + 技能同开</span>
                 <span class="protocol-note">极限节奏 · 技能与牌面齐飞</span>
               </div>
@@ -687,10 +704,20 @@
           </div>
 
           <div class="primary-actions">
-            <button data-action="fold" class="action-button fold" type="button"><span>弃牌</span><small>FOLD</small></button>
-            <button data-action="check" class="action-button check" type="button"><span>过牌</span><small>CHECK</small></button>
-            <button data-action="call" class="action-button call" type="button"><span id="call-label">跟注</span><small id="call-amount">—</small></button>
-            <button data-action="allin" class="action-button allin" type="button"><span>全押</span><small>ALL IN</small></button>
+            <button data-action="fold" class="action-button fold" type="button">
+              <span class="action-zh">弃牌</span><span class="action-en">FOLD</span>
+            </button>
+            <button data-action="check" class="action-button check" type="button">
+              <span class="action-zh">过牌</span><span class="action-en">CHECK</span>
+            </button>
+            <button data-action="call" class="action-button call" type="button">
+              <span class="action-zh" id="call-label">跟注</span>
+              <span class="action-en">CALL</span>
+              <small id="call-amount" class="action-amt">—</small>
+            </button>
+            <button data-action="allin" class="action-button allin" type="button">
+              <span class="action-zh">全押</span><span class="action-en">ALL IN</span>
+            </button>
           </div>
 
           <div class="raise-console collapsed">
@@ -703,10 +730,14 @@
                 aria-expanded="false"
                 title="调整加注额度"
               >
-                <span>加注至</span><strong id="raise-value">0</strong><i aria-hidden="true">⌃</i>
+                <span class="action-zh">加注至</span>
+                <span class="action-en raise-to-en">RAISE TO</span>
+                <strong id="raise-value">0</strong>
+                <i aria-hidden="true">⌃</i>
               </button>
               <button data-action="raise" id="btn-raise" class="action-button raise" type="button">
-                <span id="raise-label">加注</span><small>RAISE</small>
+                <span class="action-zh" id="raise-label">加注</span>
+                <span class="action-en">RAISE</span>
               </button>
             </div>
             <div id="raise-panel" class="raise-panel">
@@ -714,10 +745,10 @@
               <input id="raise-input" type="range" min="0" max="0" step="1" value="0" />
               <div class="raise-range-labels"><span id="raise-min-label">最小 —</span><span id="raise-max-label">最大 —</span></div>
               <div class="raise-presets" aria-label="加注快捷值">
-                <button type="button" data-raise-preset="min">最小</button>
-                <button type="button" data-raise-preset="half">半池</button>
-                <button type="button" data-raise-preset="pot">满池</button>
-                <button type="button" data-raise-preset="max">最大</button>
+                <button type="button" data-raise-preset="min"><span class="action-zh">最小</span><span class="action-en">MIN</span></button>
+                <button type="button" data-raise-preset="half"><span class="action-zh">半池</span><span class="action-en">½ POT</span></button>
+                <button type="button" data-raise-preset="pot"><span class="action-zh">满池</span><span class="action-en">POT</span></button>
+                <button type="button" data-raise-preset="max"><span class="action-zh">最大</span><span class="action-en">MAX</span></button>
               </div>
             </div>
           </div>
