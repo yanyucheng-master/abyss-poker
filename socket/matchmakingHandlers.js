@@ -1,7 +1,7 @@
 const { MatchmakingQueue, SESSION_MS, INVITE_MS } = require("../game/matchmakingQueue");
 const { listSkillDefinitions } = require("../game/skills/definitions");
 
-function createMatchmakingService({ io, roomManager, gameEngine, logger }) {
+function createMatchmakingService({ io, roomManager, gameEngine, logger, autoStart = true }) {
   const queue = new MatchmakingQueue();
   const acceptedInvites = new Set();
 
@@ -26,7 +26,8 @@ function createMatchmakingService({ io, roomManager, gameEngine, logger }) {
       return;
     }
     acceptedInvites.add(matchKey);
-    setTimeout(() => acceptedInvites.delete(matchKey), 30_000);
+    const acceptedInviteCleanup = setTimeout(() => acceptedInvites.delete(matchKey), 30_000);
+    if (typeof acceptedInviteCleanup.unref === "function") acceptedInviteCleanup.unref();
 
     const sockets = [];
     for (const entry of [entryA, entryB]) {
@@ -176,7 +177,7 @@ function createMatchmakingService({ io, roomManager, gameEngine, logger }) {
     io.to(entry.socketId).emit("match:cancelled", { reason });
   };
 
-  queue.start();
+  if (autoStart) queue.start();
 
   function cancelForSocket(socketId, reason = "cancel") {
     return queue.cancelBySocketId(socketId, { reason });

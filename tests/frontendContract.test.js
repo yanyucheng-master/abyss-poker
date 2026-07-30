@@ -96,6 +96,27 @@ describe("frontend DOM contract", () => {
     expect(style).toContain("--allin-duration: 3200ms");
   });
 
+  test("ALL IN 提供四种可持久化样式且演出文字仅保留 ALL IN", () => {
+    const styles = ["abyss", "verdict", "royal", "singularity"];
+    expect(client).toContain(
+      'const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"])'
+    );
+    expect(client).toContain("ALL_IN_STYLES.includes(stored.allInStyle)");
+    expect(client).toContain("document.documentElement.dataset.allinStyle");
+    expect(client).toContain("el.flash.dataset.allinStyle = state.settings.allInStyle");
+    styles.forEach((styleId) => {
+      expect(html).toContain(`name="allin-style" value="${styleId}"`);
+      expect(style).toContain(`.flash-overlay[data-allin-style="${styleId}"]`);
+    });
+
+    const effectStart = html.lastIndexOf("<div", html.indexOf('id="flash-allin"'));
+    const effectEnd = html.lastIndexOf("<div", html.indexOf('id="river-overload"'));
+    const effectMarkup = html.slice(effectStart, effectEnd);
+    const visibleText = effectMarkup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    expect(visibleText).toBe("ALL IN");
+    expect(effectMarkup).not.toMatch(/[\u3400-\u9fff]/);
+  });
+
   test("手机端 ALL IN 触觉反馈具备兼容降级", () => {
     expect(client).toContain("const ALL_IN_VIBRATION_PATTERN");
     expect(client).toContain("function playAllInHaptics()");
@@ -103,6 +124,7 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("state.settings.reduceMotion");
     expect(client).toContain("navigator.vibrate(ALL_IN_VIBRATION_PATTERN)");
     expect(client).toMatch(/playAllInHaptics\(\);\s+playTone\("allin"\)/);
+    expect(client).toContain("if (!preview) playAllInHaptics()");
   });
 
   test("反制跳过会通知服务端并立即结算", () => {

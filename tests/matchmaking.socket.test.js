@@ -27,7 +27,10 @@ describe("matchmaking socket integration", () => {
   const clients = [];
 
   beforeAll(async () => {
-    const appServer = createAppServer({ reconnectTtlMs: 600 });
+    const appServer = createAppServer({
+      reconnectTtlMs: 600,
+      matchmakingAutoStart: false,
+    });
     httpServer = appServer.httpServer;
     matchmaking = appServer.matchmaking;
     await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -56,6 +59,8 @@ describe("matchmaking socket integration", () => {
     clients.push(c1, c2);
     await Promise.all([waitFor(c1, "connect"), waitFor(c2, "connect")]);
 
+    const queued1 = waitFor(c1, "match:queued");
+    const queued2 = waitFor(c2, "match:queued");
     c1.emit("match:queue", {
       playerName: "A",
       playerId: "MATCH_A",
@@ -70,10 +75,13 @@ describe("matchmaking socket integration", () => {
       skillMode: SKILL_MODE.OFF,
       hasSkillLoadout: false,
     });
-    await Promise.all([waitFor(c1, "match:queued"), waitFor(c2, "match:queued")]);
+    await Promise.all([queued1, queued2]);
 
-    const j1 = await waitFor(c1, "room_joined");
-    await waitFor(c2, "room_joined");
+    const joined1 = waitFor(c1, "room_joined");
+    const joined2 = waitFor(c2, "room_joined");
+    matchmaking.queue.scan();
+    const j1 = await joined1;
+    await joined2;
     expect(j1.matchSource).toBe("quick");
     expect(j1.players.length).toBe(2);
   });
@@ -89,6 +97,8 @@ describe("matchmaking socket integration", () => {
       waitFor(stranger, "connect"),
     ]);
 
+    const queued1 = waitFor(c1, "match:queued");
+    const queued2 = waitFor(c2, "match:queued");
     c1.emit("match:queue", {
       playerName: "A",
       playerId: "BLOCK_A",
@@ -101,7 +111,10 @@ describe("matchmaking socket integration", () => {
       gameMode: GAME_MODE.STANDARD,
       skillMode: SKILL_MODE.OFF,
     });
-    const joined = await waitFor(c1, "room_joined");
+    await Promise.all([queued1, queued2]);
+    const joinedPromise = waitFor(c1, "room_joined");
+    matchmaking.queue.scan();
+    const joined = await joinedPromise;
     stranger.emit("join_room", {
       roomId: joined.roomId,
       playerName: "X",
@@ -118,6 +131,8 @@ describe("matchmaking socket integration", () => {
     clients.push(cA, cB);
     await Promise.all([waitFor(cA, "connect"), waitFor(cB, "connect")]);
 
+    const queuedA = waitFor(cA, "match:queued");
+    const queuedB = waitFor(cB, "match:queued");
     cA.emit("match:queue", {
       playerName: "A",
       playerId: "CROSS_A",
@@ -132,9 +147,11 @@ describe("matchmaking socket integration", () => {
       skillMode: SKILL_MODE.ABYSS,
       hasSkillLoadout: true,
     });
-    await Promise.all([waitFor(cA, "match:queued"), waitFor(cB, "match:queued")]);
-
-    const invite = await waitFor(cB, "match:invite", () => true, CROSS_WAIT_MS + 3000);
+    await Promise.all([queuedA, queuedB]);
+    await new Promise((resolve) => setTimeout(resolve, CROSS_WAIT_MS + 50));
+    const invitePromise = waitFor(cB, "match:invite");
+    matchmaking.queue.scan();
+    const invite = await invitePromise;
     expect(invite.targetSkillMode).toBe(SKILL_MODE.OFF);
   }, 15000);
 });

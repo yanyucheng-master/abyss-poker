@@ -92,7 +92,10 @@ describe("socket integration", () => {
   const clients = [];
 
   beforeAll(async () => {
-    const appServer = createAppServer({ reconnectTtlMs: 600 });
+    const appServer = createAppServer({
+      reconnectTtlMs: 600,
+      matchmakingAutoStart: false,
+    });
     httpServer = appServer.httpServer;
     await new Promise((resolve) => httpServer.listen(0, resolve));
     baseUrl = `http://localhost:${httpServer.address().port}`;

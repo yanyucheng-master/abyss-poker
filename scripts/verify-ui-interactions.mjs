@@ -123,6 +123,42 @@ async function main() {
   await page.click("#btn-settings");
   report.lobby.settingsOpened = await visible(page, "#settings-modal:not(.hidden)");
   report.lobby.settingsLobbyHidden = !(await visible(page, "#btn-settings-lobby"));
+  const allInStyles = ["abyss", "verdict", "royal", "singularity"];
+  report.lobby.allInStyles = {
+    count: await page.locator('input[name="allin-style"]').count(),
+    audits: [],
+  };
+  for (const styleId of allInStyles) {
+    await page.locator(`input[name="allin-style"][value="${styleId}"]`).check({ force: true });
+    await page.click("#btn-preview-allin");
+    await page.waitForTimeout(80);
+    report.lobby.allInStyles.audits.push(
+      await page.evaluate((expectedStyle) => {
+        const flash = document.getElementById("flash-allin");
+        const modal = document.getElementById("settings-modal");
+        const stored = JSON.parse(localStorage.getItem("abyss_ui_settings_v2") || "{}");
+        return {
+          expectedStyle,
+          appliedStyle: flash?.dataset.allinStyle || "",
+          storedStyle: stored.allInStyle || "",
+          checked: Boolean(
+            document.querySelector(`input[name="allin-style"][value="${expectedStyle}"]`)?.checked
+          ),
+          visible: Boolean(flash && !flash.classList.contains("hidden")),
+          previewLayer: Boolean(flash?.classList.contains("is-preview")),
+          aboveSettings:
+            Number.parseInt(getComputedStyle(flash).zIndex, 10) >
+            Number.parseInt(getComputedStyle(modal).zIndex, 10),
+          visibleText: flash?.innerText.replace(/\s+/g, " ").trim() || "",
+        };
+      }, styleId)
+    );
+  }
+  await page.evaluate(() => {
+    const flash = document.getElementById("flash-allin");
+    flash?.classList.add("hidden");
+    flash?.classList.remove("is-preview");
+  });
   await page.click("#btn-close-settings");
   report.lobby.settingsClosed = !(await visible(page, "#settings-modal:not(.hidden)"));
 
@@ -239,7 +275,10 @@ async function main() {
     await page.evaluate(() => window.playAllInEffect("ui-audit-opponent"));
     await page.waitForTimeout(2200);
     report.allin.visibleAfter2200ms = await visible(page, "#flash-allin:not(.hidden)");
-    report.allin.subtitle = await page.locator("#allin-subtitle").innerText();
+    report.allin.visibleText = (await page.locator("#flash-allin").innerText())
+      .replace(/\s+/g, " ")
+      .trim();
+    report.allin.style = await page.locator("#flash-allin").getAttribute("data-allin-style");
     await page.waitForTimeout(1400);
     report.allin.hiddenAfter3600ms = !(await visible(page, "#flash-allin:not(.hidden)"));
   }
@@ -341,6 +380,23 @@ async function main() {
   if (!report.lobby.settingsOpened || !report.lobby.settingsClosed || !report.lobby.settingsLobbyHidden) {
     failures.push("settings button routing failed");
   }
+  if (
+    report.lobby.allInStyles.count !== 4 ||
+    report.lobby.allInStyles.audits.some(
+      (audit) =>
+        audit.appliedStyle !== audit.expectedStyle ||
+        (audit.storedStyle
+          ? audit.storedStyle !== audit.expectedStyle
+          : audit.expectedStyle !== "abyss") ||
+        !audit.checked ||
+        !audit.visible ||
+        !audit.previewLayer ||
+        !audit.aboveSettings ||
+        audit.visibleText !== "ALL IN"
+    )
+  ) {
+    failures.push("ALL IN style picker or preview failed");
+  }
   if (report.lobby.hitAudit.failures.length) failures.push("lobby button hit targets blocked");
   if (report.lab.cards < 12 || report.lab.zoomButtons !== report.lab.cards) failures.push("skill zoom buttons incomplete");
   if (!report.lab.previewOpened || !report.lab.previewClosed || !report.lab.zoomDidNotSelect) {
@@ -380,7 +436,8 @@ async function main() {
     !report.allin.functionAvailable ||
     !report.allin.visibleAfter2200ms ||
     !report.allin.hiddenAfter3600ms ||
-    report.allin.subtitle !== "OPPONENT IS ALL IN"
+    report.allin.visibleText !== "ALL IN" ||
+    !allInStyles.includes(report.allin.style)
   ) {
     failures.push("ALL IN duration failed");
   }

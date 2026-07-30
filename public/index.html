@@ -30,15 +30,24 @@
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
     <div id="chip-fx-layer" class="chip-fx-layer" aria-hidden="true"></div>
 
-    <div id="flash-allin" class="flash-overlay hidden" aria-hidden="true">
+    <div
+      id="flash-allin"
+      class="flash-overlay hidden"
+      data-allin-style="abyss"
+      aria-hidden="true"
+    >
       <div class="allin-vignette"></div>
+      <div class="allin-grid"></div>
       <div class="allin-speedlines"></div>
       <div class="allin-surge surge-outer"></div>
       <div class="allin-surge surge-inner"></div>
+      <div class="allin-frame"></div>
+      <div class="allin-impact"></div>
+      <div class="allin-shards">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
       <div class="allin-lockup">
-        <span class="allin-kicker">NO LIMIT // TOTAL COMMITMENT</span>
-        <div class="allin-text">ALL IN</div>
-        <span id="allin-subtitle" class="allin-subtitle">TOTAL COMMITMENT LOCKED</span>
+        <div class="allin-text" data-text="ALL IN">ALL IN</div>
       </div>
       <div class="allin-scanline"></div>
     </div>
@@ -76,6 +85,16 @@
           <button id="btn-close-settings" class="icon-button" type="button" aria-label="关闭设置">×</button>
         </header>
 
+        <div id="settings-navigation" class="settings-navigation hidden">
+          <span>
+            <strong>牌局导航</strong>
+            <small>离开进行中的牌局前会再次确认</small>
+          </span>
+          <button id="btn-settings-lobby" class="button button-ghost" type="button">
+            返回大厅
+          </button>
+        </div>
+
         <div class="settings-grid">
           <label class="setting-row" for="setting-animation">
             <span><strong>动画强度</strong><small>控制发牌与能量演出</small></span>
@@ -85,6 +104,61 @@
               <option value="low">低</option>
             </select>
           </label>
+
+          <fieldset class="setting-row allin-style-setting">
+            <legend id="allin-style-title">ALL IN 特效</legend>
+            <p>选择牌桌上的决胜演出；预览不会触发手机震动。</p>
+            <div
+              id="allin-style-picker"
+              class="allin-style-picker"
+              role="radiogroup"
+              aria-labelledby="allin-style-title"
+            >
+              <label class="allin-style-option" data-style="abyss">
+                <input type="radio" name="allin-style" value="abyss" />
+                <span class="allin-style-option-body">
+                  <span class="allin-style-swatch" aria-hidden="true"><span>ALL IN</span></span>
+                  <span class="allin-style-copy">
+                    <strong>深渊裂变</strong>
+                    <small>霓虹冲击与深渊光环</small>
+                  </span>
+                </span>
+              </label>
+              <label class="allin-style-option" data-style="verdict">
+                <input type="radio" name="allin-style" value="verdict" />
+                <span class="allin-style-option-body">
+                  <span class="allin-style-swatch" aria-hidden="true"><span>ALL IN</span></span>
+                  <span class="allin-style-copy">
+                    <strong>猩红处刑</strong>
+                    <small>断头光刃与碎片爆发</small>
+                  </span>
+                </span>
+              </label>
+              <label class="allin-style-option" data-style="royal">
+                <input type="radio" name="allin-style" value="royal" />
+                <span class="allin-style-option-body">
+                  <span class="allin-style-swatch" aria-hidden="true"><span>ALL IN</span></span>
+                  <span class="allin-style-copy">
+                    <strong>金曜终局</strong>
+                    <small>黑金赌厅与筹码震荡</small>
+                  </span>
+                </span>
+              </label>
+              <label class="allin-style-option" data-style="singularity">
+                <input type="radio" name="allin-style" value="singularity" />
+                <span class="allin-style-option-body">
+                  <span class="allin-style-swatch" aria-hidden="true"><span>ALL IN</span></span>
+                  <span class="allin-style-copy">
+                    <strong>零点坍缩</strong>
+                    <small>量子网格与色差故障</small>
+                  </span>
+                </span>
+              </label>
+            </div>
+            <button id="btn-preview-allin" class="button button-ghost" type="button">
+              预览所选特效
+            </button>
+          </fieldset>
 
           <label class="setting-row switch-row" for="setting-reduce-motion">
             <span><strong>减少动态效果</strong><small>停用大幅位移与闪烁</small></span>
@@ -113,15 +187,6 @@
         </div>
 
         <p class="settings-note">设置只保存在当前设备，不参与牌局判定。</p>
-        <div id="settings-navigation" class="settings-navigation hidden">
-          <span>
-            <strong>牌局导航</strong>
-            <small>离开进行中的牌局前会再次确认</small>
-          </span>
-          <button id="btn-settings-lobby" class="button button-ghost" type="button">
-            返回大厅
-          </button>
-        </div>
       </section>
     </div>
 

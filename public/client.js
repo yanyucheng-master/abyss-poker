@@ -17,6 +17,7 @@ const REMATCH_TIMEOUT_MS = 10000;
 const ALL_IN_EFFECT_MS = 3200;
 const ALL_IN_BOARD_PULSE_MS = 2900;
 const ALL_IN_VIBRATION_PATTERN = Object.freeze([80, 45, 130, 55, 220]);
+const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"]);
 const STORAGE = Object.freeze({
   playerId: "abyss_player_id",
   reconnectToken: "abyss_reconnect_token",
@@ -78,6 +79,7 @@ safeStorageSet("sessionStorage", STORAGE.playerId, initialPlayerId);
 function loadSettings() {
   const defaults = {
     animation: "high",
+    allInStyle: "abyss",
     reduceMotion: window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     sfx: 55,
     music: 0,
@@ -95,6 +97,9 @@ function loadSettings() {
     animation: ["high", "medium", "low"].includes(stored.animation)
       ? stored.animation
       : defaults.animation,
+    allInStyle: ALL_IN_STYLES.includes(stored.allInStyle)
+      ? stored.allInStyle
+      : defaults.allInStyle,
     reduceMotion:
       typeof stored.reduceMotion === "boolean" ? stored.reduceMotion : defaults.reduceMotion,
     sfx: clampStoredNumber(stored.sfx, 0, 100, defaults.sfx),
@@ -217,7 +222,6 @@ const el = {
   toastRegion: byId("toast-region"),
   chipFx: byId("chip-fx-layer"),
   flash: byId("flash-allin"),
-  allinSubtitle: byId("allin-subtitle"),
   riverOverload: byId("river-overload"),
   protocolBurst: byId("protocol-burst"),
   resultBanner: byId("result-banner"),
@@ -227,6 +231,8 @@ const el = {
   settingsNavigation: byId("settings-navigation"),
   btnSettingsLobby: byId("btn-settings-lobby"),
   settingAnimation: byId("setting-animation"),
+  settingAllInStyles: [...document.querySelectorAll('input[name="allin-style"]')],
+  btnPreviewAllIn: byId("btn-preview-allin"),
   settingReduceMotion: byId("setting-reduce-motion"),
   settingSfx: byId("setting-sfx"),
   settingSfxValue: byId("setting-sfx-value"),
@@ -632,10 +638,15 @@ function saveSettings() {
 
 function applySettings() {
   document.documentElement.dataset.animation = state.settings.animation;
+  document.documentElement.dataset.allinStyle = state.settings.allInStyle;
   document.body.classList.toggle("reduce-motion", Boolean(state.settings.reduceMotion));
   document.body.classList.toggle("low-performance", Boolean(state.settings.lowPerformance));
   document.documentElement.style.setProperty("--ui-scale", String(Number(state.settings.scale) / 100));
   el.settingAnimation.value = state.settings.animation;
+  el.flash.dataset.allinStyle = state.settings.allInStyle;
+  el.settingAllInStyles.forEach((input) => {
+    input.checked = input.value === state.settings.allInStyle;
+  });
   el.settingReduceMotion.checked = Boolean(state.settings.reduceMotion);
   el.settingSfx.value = String(state.settings.sfx);
   el.settingSfxValue.textContent = String(state.settings.sfx) + "%";
@@ -1226,18 +1237,17 @@ function playAllInHaptics() {
   }
 }
 
-function playAllInEffect(actorId) {
+function playAllInEffect(_actorId, { preview = false } = {}) {
+  if (preview && allInEffectEndsAt > Date.now()) return;
   if (allInEffectTimer) clearTimeout(allInEffectTimer);
   el.flash.classList.add("hidden");
+  el.flash.classList.toggle("is-preview", preview);
   document.body.classList.remove("shake");
   void el.flash.offsetWidth;
-  if (el.allinSubtitle) {
-    el.allinSubtitle.textContent =
-      actorId === state.playerId ? "YOU ARE ALL IN" : "OPPONENT IS ALL IN";
-  }
   el.flash.classList.remove("hidden");
-  allInEffectEndsAt = Date.now() + ALL_IN_EFFECT_MS;
+  if (!preview) allInEffectEndsAt = Date.now() + ALL_IN_EFFECT_MS;
   const allowShake =
+    !preview &&
     !state.settings.reduceMotion &&
     !state.settings.lowPerformance &&
     window.matchMedia("(min-width: 641px)").matches;
@@ -1245,14 +1255,15 @@ function playAllInEffect(actorId) {
     void document.body.offsetWidth;
     document.body.classList.add("shake");
   }
-  pulseBoard("allin-overload", ALL_IN_BOARD_PULSE_MS);
+  if (!preview) pulseBoard("allin-overload", ALL_IN_BOARD_PULSE_MS);
   allInEffectTimer = setTimeout(() => {
     el.flash.classList.add("hidden");
+    el.flash.classList.remove("is-preview");
     document.body.classList.remove("shake");
     allInEffectTimer = 0;
-    allInEffectEndsAt = 0;
+    if (!preview) allInEffectEndsAt = 0;
   }, ALL_IN_EFFECT_MS);
-  playAllInHaptics();
+  if (!preview) playAllInHaptics();
   playTone("allin");
 }
 
@@ -1363,6 +1374,7 @@ function resetTransientUi() {
   boardPulseTimers.clear();
   modalLayers.forEach((modal) => modal.classList.add("hidden"));
   el.flash.classList.add("hidden");
+  el.flash.classList.remove("is-preview");
   el.riverOverload.classList.add("hidden");
   el.protocolBurst.classList.add("hidden");
   el.resultBanner.classList.add("hidden");
@@ -2394,6 +2406,17 @@ el.settingAnimation.addEventListener("change", () => {
   state.settings.animation = el.settingAnimation.value;
   saveSettings();
   applySettings();
+});
+el.settingAllInStyles.forEach((input) => {
+  input.addEventListener("change", () => {
+    if (!input.checked || !ALL_IN_STYLES.includes(input.value)) return;
+    state.settings.allInStyle = input.value;
+    saveSettings();
+    applySettings();
+  });
+});
+el.btnPreviewAllIn?.addEventListener("click", () => {
+  playAllInEffect(state.playerId, { preview: true });
 });
 el.settingReduceMotion.addEventListener("change", () => {
   state.settings.reduceMotion = el.settingReduceMotion.checked;

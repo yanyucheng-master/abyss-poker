@@ -40,7 +40,14 @@ function createAppServer(options = {}) {
     reconnectTtlMs: options.reconnectTtlMs,
   });
   const gameEngine = new GameEngine({ io, roomManager, logger, eventBus });
-  const matchmaking = createMatchmakingService({ io, roomManager, gameEngine, logger });
+  const matchmaking = createMatchmakingService({
+    io,
+    roomManager,
+    gameEngine,
+    logger,
+    autoStart: options.matchmakingAutoStart !== false,
+  });
+  httpServer.once("close", () => matchmaking.queue.stop());
 
   registerSocketHandlers({ io, roomManager, gameEngine, logger, matchmaking });
 
