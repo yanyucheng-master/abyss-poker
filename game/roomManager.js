@@ -5,7 +5,7 @@ const {
   getPublicSkillSummary,
   initPlayerForSkillMode,
 } = require("./skills/skillEngine");
-const { createRoomSkillState, clearSkillTimers } = require("./skills/skillState");
+const { createRoomSkillState } = require("./skills/skillState");
 
 const RECONNECT_TTL_MS = 5 * 60 * 1000;
 
@@ -316,13 +316,6 @@ class RoomManager {
         clearTimeout(room[timerKey]);
         room[timerKey] = null;
       }
-    }
-    if (room.skillState) {
-      clearSkillTimers(room);
-      room.skillState.pendingSkill = null;
-      room.skillState.reactionWindow = null;
-      room.skillState.skillChoice = null;
-      room.skillState.preDealWindow = null;
     }
     room.players.forEach((player) => {
       this.clearPlayerDisconnectTimer(player);

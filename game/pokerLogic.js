@@ -16,8 +16,16 @@ function getEffectiveMaxTotal(room, playerIndex) {
   if (!player || !opponent) return player?.streetBet || 0;
   // Raise targets are expressed as this street's total bet. Keep the cap in
   // the same unit so previous-street contributions cannot inflate the slider.
-  const playerMax = player.streetBet + player.chips;
-  const opponentMax = opponent.streetBet + opponent.chips;
+  const rawCap = room.skillState?.contributionCap;
+  const cap = rawCap == null ? Number.NaN : Number(rawCap);
+  const playerCapLeft = Number.isFinite(cap)
+    ? Math.max(0, cap - (Number(player.totalBet) || 0))
+    : player.chips;
+  const opponentCapLeft = Number.isFinite(cap)
+    ? Math.max(0, cap - (Number(opponent.totalBet) || 0))
+    : opponent.chips;
+  const playerMax = player.streetBet + Math.min(player.chips, playerCapLeft);
+  const opponentMax = opponent.streetBet + Math.min(opponent.chips, opponentCapLeft);
   return Math.min(playerMax, opponentMax);
 }
 
@@ -33,15 +41,20 @@ function getValidActions(room, playerIndex) {
     return { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
   }
   const toCall = getToCall(room, player);
-  const validActions = ["fold"];
+  const validActions = room.skillState?.noFoldActive ? [] : ["fold"];
+  const rawCap = room.skillState?.contributionCap;
+  const cap = rawCap == null ? Number.NaN : Number(rawCap);
+  const available = Number.isFinite(cap)
+    ? Math.min(player.chips, Math.max(0, cap - (Number(player.totalBet) || 0)))
+    : player.chips;
   if (toCall === 0) validActions.push("check");
-  if (toCall > 0 && player.chips > 0) validActions.push("call");
+  if (toCall > 0 && available > 0) validActions.push("call");
 
   const maxTotalBet = getEffectiveMaxTotal(room, playerIndex);
   const minRaiseTo = getMinRaiseTo(room);
   const canRaise =
     !opponent.isAllIn &&
-    player.chips > 0 &&
+    available > 0 &&
     maxTotalBet > room.currentBet &&
     maxTotalBet >= minRaiseTo;
   if (canRaise) validActions.push("raise");
@@ -49,7 +62,8 @@ function getValidActions(room, playerIndex) {
   // All-in is always available with chips left, except when facing an opponent
   // all-in with nothing left to call (already matched). Facing all-in with a
   // deficit, all-in = commit remaining chips toward the call.
-  if (player.chips > 0 && (!opponent.isAllIn || toCall > 0)) {
+  const canCommitEntireStack = available === player.chips;
+  if (player.chips > 0 && canCommitEntireStack && (!opponent.isAllIn || toCall > 0)) {
     validActions.push("allin");
   }
 
@@ -63,7 +77,12 @@ function getValidActions(room, playerIndex) {
 }
 
 function collectBet(room, player, amount) {
-  const actual = Math.max(0, Math.min(amount, player.chips));
+  const rawCap = room.skillState?.contributionCap;
+  const cap = rawCap == null ? Number.NaN : Number(rawCap);
+  const capLeft = Number.isFinite(cap)
+    ? Math.max(0, cap - (Number(player.totalBet) || 0))
+    : player.chips;
+  const actual = Math.max(0, Math.min(amount, player.chips, capLeft));
   if (actual <= 0) return 0;
   player.chips -= actual;
   player.streetBet += actual;

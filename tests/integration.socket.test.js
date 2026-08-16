@@ -279,7 +279,7 @@ describe("socket integration", () => {
     expect(verifyDeckCommitment(firstReveal)).toBe(true);
   });
 
-  test("反制跳过事件会通过 Socket 立即结算待定技能", async () => {
+  test("主动技能通过 Socket 单次请求即时结算，不再创建旧式反应窗口", async () => {
     const c1 = new Client(baseUrl, { transports: ["websocket"] });
     const c2 = new Client(baseUrl, { transports: ["websocket"] });
     clients.push(c1, c2);
@@ -305,73 +305,39 @@ describe("socket integration", () => {
     const hostCards = waitFor(c1, "your_cards");
     const guestCards = waitFor(c2, "your_cards");
     const firstTurnPromise = waitFor(c1, "player_turn");
-    const sharedLoadout = ["ECHO_SCAN", "NEURAL_INTERRUPT"];
+    const sharedLoadout = ["DEEP_BREATH", "RECYCLE"];
     c1.emit("skill:loadout:set", { skillIds: sharedLoadout });
     c2.emit("skill:loadout:set", { skillIds: sharedLoadout });
     await Promise.all([hostCards, guestCards]);
     const firstTurn = await firstTurnPromise;
 
     const sockets = { PSKILLA: c1, PSKILLB: c2 };
-    const secondTurnPromise = waitFor(
-      c1,
-      "player_turn",
-      (payload) => payload.handId === firstTurn.handId && payload.turnId !== firstTurn.turnId
-    );
-    emitPlayerAction(
-      sockets[firstTurn.playerId],
-      firstTurn,
-      firstTurn.validActions.includes("call") ? "call" : "check"
-    );
-    const secondTurn = await secondTurnPromise;
-
-    const flopCards = waitFor(c1, "community_cards", (payload) => payload.phase === "flop");
-    const flopTurnPromise = waitFor(
-      c1,
-      "player_turn",
-      (payload) => payload.handId === firstTurn.handId && payload.turnId !== secondTurn.turnId
-    );
-    emitPlayerAction(
-      sockets[secondTurn.playerId],
-      secondTurn,
-      secondTurn.validActions.includes("check") ? "check" : "call"
-    );
-    await flopCards;
-    const flopTurn = await flopTurnPromise;
-
-    const caster = sockets[flopTurn.playerId];
-    const responderId = flopTurn.playerId === "PSKILLA" ? "PSKILLB" : "PSKILLA";
-    const responder = sockets[responderId];
-    const requestId = "integration-counter-skip";
-    const reaction = waitFor(
-      responder,
-      "skill:reaction-window",
-      (payload) => payload.requestId === requestId
-    );
+    const caster = sockets[firstTurn.playerId];
+    const requestId = "integration-deep-breath";
     const resolved = waitFor(
       caster,
       "skill:resolved",
       (payload) => payload.requestId === requestId
     );
+    const noReaction = expectNoEvent(caster, "skill:reaction-window", 400);
+    const startedAt = Date.now();
     caster.emit("skill:use", {
       requestId,
-      skillId: "ECHO_SCAN",
+      skillId: "DEEP_BREATH",
       target: {},
-      handId: flopTurn.handId,
-      turnId: flopTurn.turnId,
-      phase: "flop",
+      handId: firstTurn.handId,
+      turnId: firstTurn.turnId,
+      phase: "pre_flop",
     });
-    await reaction;
-
-    const skippedAt = Date.now();
-    responder.emit("skill:counter:skip", { requestId });
     await expect(resolved).resolves.toEqual(
       expect.objectContaining({
         requestId,
-        skillId: "ECHO_SCAN",
+        skillId: "DEEP_BREATH",
         status: "SUCCESS",
       })
     );
-    expect(Date.now() - skippedAt).toBeLessThan(1000);
+    await noReaction;
+    expect(Date.now() - startedAt).toBeLessThan(1000);
   });
 
   test("断线后可凭 token 重连且不会重开牌局，超时终局可完整恢复", async () => {

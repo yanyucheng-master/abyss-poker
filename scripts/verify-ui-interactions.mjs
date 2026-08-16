@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import playwrightRuntime from "./playwright-runtime.js";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
-const LOADOUT = ["ABYSS_BREATH", "EMBER_RECYCLE", "ADVERSITY_CIRCUIT", "ECHO_SCAN"];
+const LOADOUT = ["DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE"];
 
 async function visible(page, selector) {
   return page.locator(selector).isVisible().catch(() => false);
@@ -273,14 +273,14 @@ async function main() {
   report.allin.functionAvailable = effectFunction;
   if (effectFunction) {
     await page.evaluate(() => window.playAllInEffect("ui-audit-opponent"));
-    await page.waitForTimeout(2200);
-    report.allin.visibleAfter2200ms = await visible(page, "#flash-allin:not(.hidden)");
+    await page.waitForTimeout(1800);
+    report.allin.visibleAfter1800ms = await visible(page, "#flash-allin:not(.hidden)");
     report.allin.visibleText = (await page.locator("#flash-allin").innerText())
       .replace(/\s+/g, " ")
       .trim();
     report.allin.style = await page.locator("#flash-allin").getAttribute("data-allin-style");
-    await page.waitForTimeout(1400);
-    report.allin.hiddenAfter3600ms = !(await visible(page, "#flash-allin:not(.hidden)"));
+    await page.waitForTimeout(800);
+    report.allin.hiddenAfter2600ms = !(await visible(page, "#flash-allin:not(.hidden)"));
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -434,8 +434,8 @@ async function main() {
   }
   if (
     !report.allin.functionAvailable ||
-    !report.allin.visibleAfter2200ms ||
-    !report.allin.hiddenAfter3600ms ||
+    !report.allin.visibleAfter1800ms ||
+    !report.allin.hiddenAfter2600ms ||
     report.allin.visibleText !== "ALL IN" ||
     !allInStyles.includes(report.allin.style)
   ) {

@@ -5,7 +5,7 @@ import playwrightRuntime from "./playwright-runtime.js";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 const OUTPUT = path.resolve(process.env.UI_REVIEW_DIR || "artifacts/ui-review");
-const LOADOUT = ["ABYSS_BREATH", "EMBER_RECYCLE", "ADVERSITY_CIRCUIT", "ECHO_SCAN"];
+const LOADOUT = ["DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE"];
 
 async function primeLoadout(page) {
   await page.goto(BASE, { waitUntil: "domcontentloaded" });

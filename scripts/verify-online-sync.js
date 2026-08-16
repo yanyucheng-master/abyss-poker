@@ -7,8 +7,8 @@ const { io } = require("socket.io-client");
 const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 const activeSockets = new Set();
 
-const LOADOUT_A = ["ABYSS_BREATH", "EMBER_RECYCLE", "ECHO_SCAN", "SILENCE_ZONE"];
-const LOADOUT_B = ["ADVERSITY_CIRCUIT", "PROBABILITY_CLOAK", "OVERLOAD_CORE", "EMBER_RECYCLE"];
+const LOADOUT_A = ["DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE"];
+const LOADOUT_B = ["INTEL_ONE", "TOP_SECRET", "DEEP_BREATH", "RECYCLE"];
 
 function once(socket, event, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {

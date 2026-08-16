@@ -560,61 +560,6 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger, matchmaki
       }
     });
 
-    socket.on("skill:counter", (rawPayload = {}) => {
-      if (!allowRate("skill", "skill:failed")) return;
-      const payload = safePayload(rawPayload);
-      const found = roomManager.getRoomBySocket(socket.id);
-      if (!found) {
-        socket.emit("skill:failed", { message: "当前未加入房间" });
-        return;
-      }
-      const player = found.room.players[found.playerIndex];
-      const result = gameEngine.handleSkillCounter(found.room, player, {
-        requestId: payload.requestId,
-        skillId: payload.skillId || "NEURAL_INTERRUPT",
-      });
-      if (!result.ok) socket.emit("skill:failed", { message: result.error, reason: "counter" });
-    });
-
-    socket.on("skill:counter:skip", (rawPayload = {}) => {
-      if (!allowRate("skill", "skill:failed")) return;
-      const payload = safePayload(rawPayload);
-      const found = roomManager.getRoomBySocket(socket.id);
-      if (!found) {
-        socket.emit("skill:failed", { message: "当前未加入房间" });
-        return;
-      }
-      const requestId = readText(payload.requestId, {
-        label: "请求ID",
-        max: INPUT_LIMITS.requestId,
-        required: true,
-      });
-      if (!requestId.ok) {
-        socket.emit("skill:failed", { message: requestId.error, reason: "counter_skip" });
-        return;
-      }
-      const player = found.room.players[found.playerIndex];
-      const result = gameEngine.handleSkillCounterSkip(found.room, player, {
-        requestId: requestId.value,
-      });
-      if (!result.ok) {
-        socket.emit("skill:failed", { message: result.error, reason: "counter_skip" });
-      }
-    });
-
-    socket.on("skill:choice", (rawPayload = {}) => {
-      if (!allowRate("skill", "skill:failed")) return;
-      const payload = safePayload(rawPayload);
-      const found = roomManager.getRoomBySocket(socket.id);
-      if (!found) {
-        socket.emit("skill:failed", { message: "当前未加入房间" });
-        return;
-      }
-      const player = found.room.players[found.playerIndex];
-      const result = gameEngine.handleSkillChoice(found.room, player, payload);
-      if (!result.ok) socket.emit("skill:failed", { message: result.error, reason: "choice" });
-    });
-
     socket.on("rematch_response", (rawPayload = {}) => {
       if (!allowRate("response")) return;
       const payload = safePayload(rawPayload);

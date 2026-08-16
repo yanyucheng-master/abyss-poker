@@ -561,7 +561,7 @@
 
       <section id="screen-game" class="screen game-screen" aria-labelledby="table-title">
         <header class="game-topbar">
-          <button type="button" id="btn-back-game" class="button button-ghost back-button">
+          <button type="button" id="btn-back-game" class="button button-ghost back-button" aria-label="离开牌桌" title="离开牌桌">
             <span class="game-exit-icon" aria-hidden="true">←</span><span class="game-exit-label">离开</span>
           </button>
           <div class="table-identity">
@@ -685,9 +685,9 @@
           <div id="skill-hud" class="skill-hud hidden">
             <div class="skill-energy-row">
               <span class="skill-hud-label">深渊战术</span>
-              <span>能量 <strong id="self-energy">0</strong>/10</span>
-              <span>对手 <strong id="opponent-energy">0</strong></span>
-              <span id="skill-silence-flag" class="hidden">静默区</span>
+              <span>能量 <strong id="self-energy">0</strong>/8</span>
+              <span>对手公开 <strong id="opponent-energy">0</strong></span>
+              <span id="skill-silence-flag" class="hidden">技能封锁</span>
             </div>
             <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
             <div id="opponent-skill-bar" class="opponent-skill-bar" aria-label="对手技能"></div>
@@ -774,20 +774,6 @@
       </section>
     </div>
 
-    <div id="skill-reaction-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-reaction-title">
-      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
-        <header class="modal-header">
-          <h2 id="skill-reaction-title">反制窗口</h2>
-        </header>
-        <p id="skill-reaction-text">对手发动了可反制技能。</p>
-        <p class="panel-tip">剩余 <strong id="skill-reaction-timer">2.0</strong>s</p>
-        <div class="modal-actions">
-          <button id="btn-skill-counter" class="button button-overdrive" type="button">神经阻断</button>
-          <button id="btn-skill-counter-skip" class="button button-ghost" type="button">放弃</button>
-        </div>
-      </section>
-    </div>
-
     <div id="skill-choice-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-choice-title">
       <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
         <header class="modal-header">
@@ -796,6 +782,7 @@
         <p id="skill-choice-text">请完成技能选择</p>
         <div id="skill-choice-body" class="skill-choice-body"></div>
         <div class="modal-actions">
+          <button id="btn-skill-choice-cancel" class="button button-ghost" type="button">取消</button>
           <button id="btn-skill-choice-confirm" class="button button-primary" type="button">确认</button>
         </div>
       </section>

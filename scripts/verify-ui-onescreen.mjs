@@ -168,8 +168,8 @@ async function main() {
   await page.goto(BASE + "/?verify=1", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
     localStorage.setItem(
-      "abyss_skill_loadout_v1",
-      JSON.stringify(["ABYSS_BREATH", "EMBER_RECYCLE"])
+      "abyss_skill_loadout_v2",
+      JSON.stringify(["DEEP_BREATH", "RECYCLE"])
     );
   });
   await page.reload({ waitUntil: "networkidle" });
@@ -275,13 +275,14 @@ async function main() {
     }
     return "none";
   });
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(1200);
   report.push({
     step: "action",
     acted,
     after: await page.evaluate(() => ({
       phase: document.getElementById("phase-text")?.textContent || "",
       pot: document.getElementById("pot-value")?.textContent || "",
+      skillLog: document.getElementById("skill-log")?.textContent || "",
     })),
   });
 
@@ -304,6 +305,7 @@ async function main() {
   const gameFit = report.find((r) => r.step === "abyss-solo")?.gameFit;
   const mobileLobby = report.find((r) => r.step === "mobile-lobby")?.mobileLobby;
   const setPwd = report.find((r) => r.step === "set-password");
+  const actionAudit = report.find((r) => r.step === "action");
 
   if (lobbyFields.hasCreatePwd || lobbyFields.hasJoinPwd) failures.push("lobby still has password fields");
   if (!lobbyFields.hasName || !lobbyFields.hasRoom || !lobbyFields.hasPwdModal || !lobbyFields.hasWaitPwd) {
@@ -337,6 +339,9 @@ async function main() {
   if (waitFit?.needsScroll) failures.push("wait screen scrolls");
   if (setPwd && setPwd.pwdUpdated !== "已设置") failures.push("password set failed");
   if (!game.active || game.hudHidden || game.skills.length < 2) failures.push("abyss solo skills missing");
+  if (!/深渊AI.*(?:血战|防守|深呼吸)/.test(actionAudit?.after?.skillLog || "")) {
+    failures.push("abyss solo bot did not use an active skill");
+  }
   if (gameFit?.needsScroll || gameFit?.dockVisible === false) failures.push("game screen overflow");
   if (mobileLobby?.active !== "screen-auth") failures.push("mobile lobby assertion ran on the wrong screen");
   if (mobileLobby?.needsScroll) failures.push("mobile lobby scrolls");

@@ -14,10 +14,6 @@ describe("frontend DOM contract", () => {
   const client = fs.readFileSync(path.join(publicDir, "client.js"), "utf8");
   const style = fs.readFileSync(path.join(publicDir, "style.css"), "utf8");
   const salon = fs.readFileSync(path.join(publicDir, "salon.css"), "utf8");
-  const socketHandlers = fs.readFileSync(
-    path.join(__dirname, "..", "socket", "socketHandlers.js"),
-    "utf8"
-  );
 
   test("HTML id 唯一", () => {
     const ids = collectMatches(html, /\bid=["']([^"']+)["']/g);
@@ -52,6 +48,7 @@ describe("frontend DOM contract", () => {
     }
     expect(depth).toBe(0);
     expect(nested).toBe(false);
+    expect(html).toContain('id="btn-back-game" class="button button-ghost back-button" aria-label="离开牌桌"');
   });
 
   test("技能放大、四技能栏与单击加注控件已接入", () => {
@@ -127,9 +124,22 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("if (!preview) playAllInHaptics()");
   });
 
-  test("反制跳过会通知服务端并立即结算", () => {
-    expect(client).toContain('socket.emit("skill:counter:skip"');
-    expect(socketHandlers).toContain('socket.on("skill:counter:skip"');
+  test("V2 精确目标选择已替代旧式反制弹窗", () => {
+    expect(html).not.toContain('id="skill-reaction-modal"');
+    expect(client).not.toContain('socket.emit("skill:counter:skip"');
+    expect(client).toContain("function openSkillTargetOptions");
+    ["INTEL_ONE", "CHEAT", "NULLIFICATION", "DESTINY"].forEach((skillId) => {
+      expect(client).toContain(`skillId === "${skillId}"`);
+    });
+    expect(client).toContain("对手构筑已隐藏");
+    expect(client).toContain('skillLoadout: "abyss_skill_loadout_v2"');
+    expect(html).toContain('<strong id="self-energy">0</strong>/8');
+  });
+
+  test("技能牌堆审计包含最终牌区守恒检查", () => {
+    expect(client).toContain("const finalZoneCodes = [");
+    expect(client).toContain("finalZoneCodes.length === 52");
+    expect(client).toContain("技能审计发现牌张守恒异常");
   });
 
   test("设置面板提供安全返回大厅入口且设置触发器无边框", () => {

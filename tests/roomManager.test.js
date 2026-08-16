@@ -10,23 +10,23 @@ const logger = {
 };
 
 describe("roomManager", () => {
-  test("destroyRoom cancels bot-owned action and skill timers", () => {
+  test("destroyRoom cancels every live room timer", () => {
     jest.useFakeTimers();
     try {
       const rm = new RoomManager({ logger, eventBus: new EventEmitter() });
       const room = rm.createRoom(null, GAME_MODE.STANDARD, SKILL_MODE.ABYSS);
       const fired = jest.fn();
+      room.actionTimer = setTimeout(fired, 1000);
       room.botActionTimer = setTimeout(fired, 1000);
-      room.skillState.botChoiceTimer = setTimeout(fired, 1000);
-      room.skillState.preDealBotTimer = setTimeout(fired, 1000);
+      room.nextHandTimer = setTimeout(fired, 1000);
 
       rm.destroyRoom(room.roomId);
       jest.advanceTimersByTime(1100);
 
       expect(fired).not.toHaveBeenCalled();
+      expect(room.actionTimer).toBeNull();
       expect(room.botActionTimer).toBeNull();
-      expect(room.skillState.botChoiceTimer).toBeNull();
-      expect(room.skillState.preDealBotTimer).toBeNull();
+      expect(room.nextHandTimer).toBeNull();
     } finally {
       jest.useRealTimers();
     }

@@ -10,16 +10,12 @@ const {
   beginHandSkills,
   onStreetPhaseChanged,
   onPlayerFolded,
-  onPlayerPokerAction,
   endHandSkills,
-  isPokerLockedBySkills,
   autoConfirmBotLoadouts,
   allLoadoutsConfirmed,
   setPlayerLoadout,
   getPublicRoomSkillSnapshot,
 } = require("./skills/skillEngine");
-const { SKILL_CONFIG } = require("./skillConfig");
-const { clearSkillTimers } = require("./skills/skillState");
 const {
   otherIndex,
   getActivePlayers,
@@ -107,14 +103,6 @@ class GameEngine {
       clearTimeout(room.rematch.timer);
       room.rematch.timer = null;
     }
-    clearSkillTimers(room);
-    if (room.skillState) {
-      room.skillState.pendingSkill = null;
-      room.skillState.reactionWindow = null;
-      room.skillState.skillChoice = null;
-      room.skillState.preDealWindow = null;
-    }
-    room.skillPausedAction = null;
   }
 
   scheduleActionTimeout(room, playerIndex, turn, timeoutMs = ACTION_TIMEOUT_MS) {
@@ -133,7 +121,11 @@ class GameEngine {
       if (room.players[playerIndex]?.playerId !== playerId) return;
       if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
       const latest = getValidActions(room, playerIndex);
-      const timeoutAction = latest.validActions.includes("check") ? "check" : "fold";
+      const timeoutAction = latest.validActions.includes("check")
+        ? "check"
+        : latest.validActions.includes("call")
+          ? "call"
+          : "fold";
       this.logger.warn("GAME", "行动超时自动处理", {
         roomId: room.roomId,
         playerId,
@@ -142,31 +134,6 @@ class GameEngine {
       this.handlePlayerAction(room, playerIndex, timeoutAction, undefined, { system: true });
     }, timeoutMs);
     if (typeof room.actionTimer.unref === "function") room.actionTimer.unref();
-  }
-
-  pauseActionTimerForSkill(room) {
-    if (!room.actionDeadline || room.skillPausedAction) return;
-    room.skillPausedAction = {
-      handNo: room.handNo,
-      phase: room.phase,
-      playerId: room.players[room.currentPlayerIndex]?.playerId || null,
-      remainingMs: Math.max(1000, room.actionDeadline - Date.now()),
-    };
-    this.clearActionTimer(room);
-    this.broadcastRoomState(room);
-  }
-
-  resumeActionTimerAfterSkill(room) {
-    const paused = room.skillPausedAction;
-    room.skillPausedAction = null;
-    if (!paused || isPokerLockedBySkills(room)) return;
-    const current = room.players[room.currentPlayerIndex];
-    if (
-      room.handNo !== paused.handNo ||
-      room.phase !== paused.phase ||
-      current?.playerId !== paused.playerId
-    ) return;
-    this.emitTurn(room, { timeoutMs: paused.remainingMs });
   }
 
   createHandCommitment(room) {
@@ -370,6 +337,7 @@ class GameEngine {
       isFinalHand: bust,
       communityCards: [...(room.communityCards || [])],
       players: playersDetail,
+      skillSettlement: room.skillState?.settlement || null,
     };
   }
 
@@ -609,11 +577,7 @@ class GameEngine {
     }
     const result = setPlayerLoadout(player, skillIds);
     if (!result.ok) return result;
-    this.emitToRoom(room, "skill:loadout:confirmed", {
-      playerId: player.playerId,
-      equippedSkillIds: result.skillIds,
-      totalLoad: result.totalLoad,
-    });
+    this.emitToRoom(room, "skill:loadout:confirmed", { playerId: player.playerId });
     this.skillEngine.broadcastSkillState(room);
     this.broadcastRoomState(room);
     this.tryStartGame(room);
@@ -622,35 +586,6 @@ class GameEngine {
 
   handleSkillUse(room, player, payload, options = {}) {
     return this.skillEngine.requestUse(room, player, payload || {}, options);
-  }
-
-  handleSkillCounter(room, player, payload) {
-    return this.skillEngine.requestCounter(room, player, payload || {});
-  }
-
-  handleSkillCounterSkip(room, player, payload) {
-    return this.skillEngine.declineCounter(room, player, payload || {});
-  }
-
-  handleSkillChoice(room, player, payload) {
-    return this.skillEngine.resolveSkillChoice(room, player, payload || {});
-  }
-
-  continuePreDeal(room) {
-    const state = room.skillState;
-    if (!state?.preDealWindow) return;
-    if (state.pendingSkill || state.reactionWindow || state.skillChoice) return;
-    if (state.preDealBotTimer) {
-      clearTimeout(state.preDealBotTimer);
-      state.preDealBotTimer = null;
-    }
-    if (state.preDealTimer) {
-      clearTimeout(state.preDealTimer);
-      state.preDealTimer = null;
-    }
-    const nextPhase = state.preDealWindow.nextPhase;
-    state.preDealWindow = null;
-    this.finishStreetDeal(room, nextPhase, { autoRunout: Boolean(state._preDealAutoRunout) });
   }
 
   restorePlayerState(room, player) {
@@ -731,6 +666,14 @@ class GameEngine {
     room.handNo += 1;
     room.gameMode = normalizeGameMode(room.gameMode);
     beginHandSkills(room);
+    room.players.forEach((p) => {
+      p.cards = [];
+      p.totalBet = 0;
+      p.streetBet = 0;
+      p.hasActed = false;
+      p.isAllIn = false;
+      p.status = p.chips > 0 ? "active" : "out";
+    });
     room.privateOverdriveProfile = null;
     room.overdriveMetrics = null;
     if (room.gameMode === GAME_MODE.OVERDRIVE) {
@@ -764,7 +707,11 @@ class GameEngine {
     } else {
       room.deck = this.deckFactory();
     }
+    // Commit the untouched server deck first. Every skill mutation is then
+    // disclosed in the hand audit, so the final zones can be replayed from the
+    // committed source instead of merely committing an already-favoured deck.
     this.createHandCommitment(room);
+    if (isSkillEnabled(room.skillMode)) this.skillEngine.prepareDeckForHand(room);
     room.communityCards = [];
     room.pot = 0;
     room.currentBet = 0;
@@ -777,15 +724,6 @@ class GameEngine {
     room.hadAllInActionThisHand = false;
     room.allInPresentationEndsAt = 0;
     room.history.push({ type: "hand_start", handNo: room.handNo, at: Date.now() });
-
-    room.players.forEach((p) => {
-      p.cards = [];
-      p.totalBet = 0;
-      p.streetBet = 0;
-      p.hasActed = false;
-      p.isAllIn = false;
-      p.status = p.chips > 0 ? "active" : "out";
-    });
 
     for (let i = 0; i < 2; i += 1) {
       room.players.forEach((p) => p.cards.push(room.deck.pop()));
@@ -828,6 +766,15 @@ class GameEngine {
       });
     });
 
+    if (isSkillEnabled(room.skillMode)) {
+      room.players.forEach((player) => this.skillEngine.restorePrivateState(room, player));
+    }
+    if (isSkillEnabled(room.skillMode)) this.skillEngine.onCardsDealt(room, "pre_flop");
+    if (isSkillEnabled(room.skillMode)) {
+      room.players.filter((player) => player.isAllIn).forEach((player) => {
+        this.skillEngine.onPlayerAllIn(room, player);
+      });
+    }
     this.emitPrivateHandHints(room);
     if (isSkillEnabled(room.skillMode)) this.skillEngine.broadcastSkillState(room);
 
@@ -900,6 +847,9 @@ class GameEngine {
     const pot = room.pot;
     winner.chips += room.pot;
     room.pot = 0;
+    if (isSkillEnabled(room.skillMode)) {
+      this.skillEngine.applySettlementModifiers(room, { reason: "fold", winner, tie: false });
+    }
     room.phase = "end";
 
     this.logger.info("GAME", "弃牌结算", { roomId: room.roomId, winner: winner.playerId, pot });
@@ -940,62 +890,6 @@ class GameEngine {
     }[room.phase];
     if (!nextPhase) return;
 
-    // Pre-deal skill window for FORK_OBSERVATION
-    if (
-      isSkillEnabled(room.skillMode) &&
-      (nextPhase === "turn" || nextPhase === "river") &&
-      !room.skillState?.preDealWindow &&
-      !autoRunout
-    ) {
-      const beforePhase = nextPhase === "turn" ? "before_turn" : "before_river";
-      const candidates = room.players.filter((player) =>
-        player.skillRuntime?.equippedSkillIds?.includes("FORK_OBSERVATION")
-      );
-      let eligible = null;
-      let prevPhase = room.phase;
-      if (candidates.length) {
-        // Entering the pre-deal phase must expire phase-scoped silence/cloak
-        // before FORK_OBSERVATION is validated.
-        room.phase = beforePhase;
-        onStreetPhaseChanged(room, beforePhase);
-        eligible = candidates.find((player) =>
-          this.skillEngine.validateUse(room, player, "FORK_OBSERVATION", {}).ok
-        );
-      }
-      if (eligible) {
-        const state = room.skillState;
-        const expiresAt = Date.now() + SKILL_CONFIG.PRE_DEAL_SKILL_WINDOW_MS;
-        state.preDealWindow = { nextPhase, expiresAt, fromPhase: prevPhase };
-        state._preDealAutoRunout = autoRunout;
-        this.emitToRoom(room, "skill:pre-deal-window", {
-          nextPhase,
-          beforePhase,
-          expiresAt,
-          durationMs: SKILL_CONFIG.PRE_DEAL_SKILL_WINDOW_MS,
-        });
-        this.skillEngine.broadcastSkillState(room);
-        this.broadcastRoomState(room);
-        state.preDealTimer = setTimeout(() => this.continuePreDeal(room), SKILL_CONFIG.PRE_DEAL_SKILL_WINDOW_MS);
-        if (typeof state.preDealTimer.unref === "function") state.preDealTimer.unref();
-        if (eligible.isBot) {
-          const handId = room.handId;
-          const botTimer = setTimeout(() => {
-            if (state.preDealBotTimer !== botTimer) return;
-            state.preDealBotTimer = null;
-            if (
-              room.handId !== handId ||
-              room.phase !== beforePhase ||
-              room.skillState?.preDealWindow?.nextPhase !== nextPhase
-            ) return;
-            this.continuePreDeal(room);
-          }, 500);
-          state.preDealBotTimer = botTimer;
-          if (typeof botTimer.unref === "function") botTimer.unref();
-        }
-        return;
-      }
-    }
-
     this.finishStreetDeal(room, nextPhase, { autoRunout });
   }
 
@@ -1005,7 +899,6 @@ class GameEngine {
     room.players.forEach((p) => {
       p.streetBet = 0;
       p.hasActed = false;
-      if (p.skillRuntime) p.skillRuntime.firstStreetActionTaken = false;
     });
     room.currentBet = 0;
     room.lastRaiseSize = room.bigBlind;
@@ -1030,6 +923,7 @@ class GameEngine {
       phase: room.phase,
       nullifiedCommunityCardIds: [...(room.skillState?.nullifiedCommunityCardIds || [])],
     });
+    if (isSkillEnabled(room.skillMode)) this.skillEngine.onCardsDealt(room, nextPhase);
     if (isSkillEnabled(room.skillMode)) this.skillEngine.broadcastSkillState(room);
     this.broadcastRoomState(room);
     if (!autoRunout) this.emitTurn(room);
@@ -1137,6 +1031,13 @@ class GameEngine {
       first.player.chips += room.pot;
     }
     room.pot = 0;
+    if (isSkillEnabled(room.skillMode) && !tie) {
+      this.skillEngine.applySettlementModifiers(room, {
+        reason: "showdown",
+        winner: first.player,
+        tie: false,
+      });
+    }
 
     this.logger.info("GAME", "摊牌结算", {
       roomId: room.roomId,
@@ -1264,6 +1165,7 @@ class GameEngine {
       if (room.currentPlayerIndex !== botIndex) return;
       const bot = room.players[botIndex];
       if (!bot || bot.playerId !== botId || !bot.isBot || bot.status !== "active" || bot.isAllIn) return;
+      if (isSkillEnabled(room.skillMode)) this.skillEngine.tryBotTurnSkill(room, bot);
       const picked = this.chooseBotAction(room, botIndex, turn);
       this.handlePlayerAction(room, botIndex, picked.action, picked.amount);
     }, 800);
@@ -1321,9 +1223,6 @@ class GameEngine {
     if (["waiting", "drafting", "showdown", "end", "game_over", "before_turn", "before_river"].includes(room.phase)) {
       return { ok: false, error: "当前阶段不可行动" };
     }
-    if (isPokerLockedBySkills(room)) {
-      return { ok: false, error: "技能结算中，暂时无法行动" };
-    }
     if (room.currentPlayerIndex !== playerIndex) return { ok: false, error: "未轮到你行动" };
 
     const player = room.players[playerIndex];
@@ -1340,6 +1239,7 @@ class GameEngine {
     let appliedAmount = 0;
 
     if (action === "fold") {
+      if (room.skillState?.noFoldActive) return { ok: false, error: "恐吓生效期间不能弃牌" };
       player.status = "folded";
       player.hasActed = true;
       onPlayerFolded(player);
@@ -1376,6 +1276,9 @@ class GameEngine {
       player.hasActed = true;
       if (player.isAllIn) appliedAction = "allin";
     } else if (action === "allin") {
+      if (!getValidActions(room, playerIndex).validActions.includes("allin")) {
+        return { ok: false, error: "当前投入上限下不可全押" };
+      }
       if (player.chips <= 0) return { ok: false, error: "无可用筹码" };
       if (opponent.isAllIn) {
         // Facing an all-in: commit remaining chips toward the call only.
@@ -1414,6 +1317,13 @@ class GameEngine {
       room.allInPresentationEndsAt = actionAt + ALL_IN_EFFECT_MS;
     }
 
+    if (player.streetBet > oldCurrentBet && ["raise", "allin"].includes(appliedAction)) {
+      this.skillEngine.onAggressiveAction(room, player);
+    }
+    if (player.isAllIn && appliedAction === "allin") {
+      this.skillEngine.onPlayerAllIn(room, player);
+    }
+
     this.clearActionTimer(room);
     room.history.push({
       type: "action",
@@ -1439,8 +1349,6 @@ class GameEngine {
       declaredAction: action,
       amount: appliedAmount,
     });
-
-    onPlayerPokerAction(player);
 
     this.emitToRoom(room, "action_made", {
       playerId: player.playerId,
