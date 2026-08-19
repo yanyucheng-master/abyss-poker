@@ -133,7 +133,12 @@ describe("frontend DOM contract", () => {
     });
     expect(client).toContain("对手构筑已隐藏");
     expect(client).toContain('skillLoadout: "abyss_skill_loadout_v2"');
-    expect(html).toContain('<strong id="self-energy">0</strong>/8');
+    expect(html).toContain('id="self-energy"');
+    expect(html).toContain('id="self-energy-cap"');
+    expect(html).toContain('id="btn-skill-preview-novice"');
+    expect(html).toContain('id="btn-skill-preview-expert"');
+    expect(client).toContain("shortDescription");
+    expect(client).toContain("skillExpertText");
   });
 
   test("技能牌堆审计包含最终牌区守恒检查", () => {

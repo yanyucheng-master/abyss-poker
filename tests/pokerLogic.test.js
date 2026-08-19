@@ -3,6 +3,7 @@ const {
   getValidActions,
   collectBet,
   isStreetComplete,
+  pickAutoAction,
 } = require("../game/pokerLogic");
 
 function mockRoom() {
@@ -97,5 +98,22 @@ describe("pokerLogic", () => {
     room.players[0].hasActed = true;
     room.players[1].hasActed = true;
     expect(isStreetComplete(room)).toBe(true);
+  });
+
+  test("恐吓投入到上限后不再阻塞街结束，超时动作也不会改成非法弃牌", () => {
+    const room = mockRoom();
+    room.skillState = { contributionCap: 500, noFoldActive: true };
+    room.currentBet = 80;
+    room.players[0].totalBet = 500;
+    room.players[0].streetBet = 0;
+    room.players[0].chips = 800;
+    room.players[0].hasActed = false;
+    room.players[1].totalBet = 80;
+    room.players[1].streetBet = 80;
+    room.players[1].hasActed = true;
+    expect(getValidActions(room, 0).validActions).toEqual([]);
+    expect(isStreetComplete(room)).toBe(true);
+    expect(pickAutoAction(["allin"])).toBe("allin");
+    expect(pickAutoAction([])).toBeNull();
   });
 });

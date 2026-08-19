@@ -6,7 +6,6 @@ const { GameEngine } = require("../game/gameEngine");
 const { getValidActions, collectBet } = require("../game/pokerLogic");
 const { createDeck } = require("../utils/deck");
 const {
-  SkillEngine,
   FORTUNE_COMBOS,
   getFutureCommunitySlots,
   validateLoadout,
@@ -18,6 +17,7 @@ const {
   getPublicRoomSkillSnapshot,
 } = require("../game/skills/skillEngine");
 const { listSkillDefinitions } = require("../game/skills/definitions");
+const { FORTUNE_CONFIG } = require("../game/skills/fortuneConfig");
 const logger = require("../utils/logger");
 const eventBus = require("../utils/eventBus");
 
@@ -45,6 +45,7 @@ function setupRoom({
   const b = roomManager.joinRoom({ roomId: room.roomId, playerName: "B", playerId: "PB", socketId: "s2" }).player;
   expect(setPlayerLoadout(a, loadoutA).ok).toBe(true);
   expect(setPlayerLoadout(b, loadoutB).ok).toBe(true);
+  room.__skillEngineForTests = engine.skillEngine;
   if (start) {
     engine.startHand(room);
     engine.clearActionTimer(room);
@@ -60,43 +61,65 @@ function byCode() {
   return Object.fromEntries(createDeck().map((card) => [card.code, card]));
 }
 
-describe("V2 技能目录与隐私边界", () => {
-  test("目录完整替换为 17 个新技能", () => {
+function goToStreet(engine, room, street, actorIndex = 0) {
+  const order = ["pre_flop", "flop", "turn", "river"];
+  const target = order.indexOf(street);
+  while (order.indexOf(room.phase) < target) {
+    const next = order[order.indexOf(room.phase) + 1];
+    engine.finishStreetDeal(room, next);
+    engine.clearActionTimer(room);
+  }
+  room.currentPlayerIndex = actorIndex;
+}
+
+function weakHole() {
+  const cards = byCode();
+  return [cards.C2, cards.D7];
+}
+
+describe("技能目录、构筑与隐私", () => {
+  test("目录包含 17 个基础技能与 9 个协议，并提供新手/专家说明", () => {
     const catalog = listSkillDefinitions();
-    expect(catalog).toHaveLength(17);
-    expect(catalog.map((skill) => skill.id)).toEqual([
+    expect(catalog).toHaveLength(26);
+    expect(catalog.map((skill) => skill.id).slice(0, 17)).toEqual([
       "DEEP_BREATH", "RECYCLE", "INTIMIDATION", "DESPERATION", "BLOOD_BATTLE",
       "DEFENSE", "PERCEPTION", "INTEL_ONE", "TOP_SECRET", "COUNTER", "FAIRNESS",
       "CHEAT", "DEAD_END", "CLAIRVOYANCE", "NULLIFICATION", "FORTUNE", "DESTINY",
     ]);
-    expect(catalog.find((skill) => skill.id === "DESTINY")).toMatchObject({
-      load: 7, energyCost: 8, maxUsesPerHand: null, maxUsesPerGame: null,
-    });
-    expect(catalog.some((skill) => skill.id === "NEURAL_INTERRUPT")).toBe(false);
+    expect(catalog.filter((skill) => skill.id.startsWith("PROTOCOL_"))).toHaveLength(9);
+    const destiny = catalog.find((skill) => skill.id === "DESTINY");
+    expect(destiny).toMatchObject({ load: 5, energyCost: 7, maxUsesPerHand: null });
+    expect(destiny.shortDescription).toBeTruthy();
+    expect(destiny.expertDescription).toContain("能量上限");
+    expect(catalog.find((skill) => skill.id === "FAIRNESS").canBeCountered).toBe(false);
   });
 
-  test("构筑严格执行 2–4 个、负载不超过 8、不可重复", () => {
-    expect(validateLoadout(["DESTINY", "RECYCLE"])).toMatchObject({ ok: true, totalLoad: 8 });
-    expect(validateLoadout(["FORTUNE", "RECYCLE"])).toMatchObject({ ok: true, totalLoad: 7 });
+  test("构筑最多 4 个技能且总负载不超过 8", () => {
+    expect(validateLoadout(["DESTINY", "RECYCLE"])).toMatchObject({ ok: true, totalLoad: 7 });
+    expect(validateLoadout(["FORTUNE", "DESPERATION"])).toMatchObject({ ok: true, totalLoad: 7 });
+    expect(validateLoadout(["PROTOCOL_PAIR", "PROTOCOL_TWO_PAIR", "PROTOCOL_TRIPS", "PROTOCOL_FLUSH"])).toMatchObject({
+      ok: true, totalLoad: 4,
+    });
     expect(validateLoadout(["DESTINY"])).toMatchObject({ ok: false });
-    expect(validateLoadout(["DESTINY", "DEEP_BREATH"])).toMatchObject({ ok: true });
-    expect(validateLoadout(["FORTUNE", "DESPERATION"])).toMatchObject({ ok: true, totalLoad: 8 });
-    expect(validateLoadout(["DESTINY", "DESPERATION"])).toMatchObject({ ok: false });
     expect(validateLoadout(["RECYCLE", "RECYCLE"])).toMatchObject({ ok: false });
     expect(validateLoadout(["RECYCLE", "OLD_SKILL"])).toMatchObject({ ok: false });
+    expect(validateLoadout([
+      "DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE", "PERCEPTION",
+    ]).ok).toBe(false);
+    expect(validateLoadout(["CHEAT", "NULLIFICATION"]).ok).toBe(false);
   });
 
-  test("公开快照隐藏构筑与实时能量，自己的快照保持完整", () => {
-    const { a } = setupRoom({ start: false });
-    a.skillRuntime.abyssEnergy = 1;
-    a.skillRuntime.visibleAbyssEnergy = 4;
+  test("公开快照隐藏构筑与技能数量，不暴露天命 10 点上限", () => {
+    const { a } = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"], start: false });
+    a.skillRuntime.abyssEnergy = 10;
     const publicSummary = getPublicSkillSummary(a);
     const selfSummary = getSelfSkillSummary(a);
-    expect(publicSummary).toMatchObject({ abyssEnergy: 4, buildHidden: true });
+    expect(publicSummary).toMatchObject({ abyssEnergy: 8, buildHidden: true, energyCap: 8 });
     expect(publicSummary).not.toHaveProperty("equippedSkillIds");
-    expect(publicSummary).not.toHaveProperty("skillUsesThisHand");
-    expect(selfSummary.abyssEnergy).toBe(1);
-    expect(selfSummary.equippedSkillIds).toEqual(a.skillRuntime.equippedSkillIds);
+    expect(publicSummary.publicEffects).not.toContain("???");
+    expect(selfSummary.abyssEnergy).toBe(10);
+    expect(selfSummary.energyCap).toBe(10);
+    expect(selfSummary.equippedSkillIds).toEqual(["DESTINY", "RECYCLE"]);
   });
 
   test("无技能房间不会创建技能运行时", () => {
@@ -113,102 +136,124 @@ describe("V2 技能目录与隐私边界", () => {
   });
 });
 
-describe("能量、封锁与主动技能时机", () => {
-  test("初始能量 4、上限 8；摊牌败者获得基础 1 + 败者 1", () => {
-    const { room, a, b } = setupRoom();
+describe("能量、深呼吸、回收与公平", () => {
+  test("胜者 +0、败者 +1、平局双方 +0；Fold 视为败局", () => {
+    const { room, a, b, engine } = setupRoom();
     expect(a.skillRuntime.abyssEnergy).toBe(4);
     a.skillRuntime.abyssEnergy = 8;
     b.skillRuntime.abyssEnergy = 5;
-    endHandSkills(room, { reason: "showdown", winner: a, tie: false });
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
     expect(a.skillRuntime.abyssEnergy).toBe(8);
-    expect(b.skillRuntime.abyssEnergy).toBe(7);
-    expect(b.skillRuntime.visibleAbyssEnergy).toBe(7);
+    expect(b.skillRuntime.abyssEnergy).toBe(6);
+
+    const tied = setupRoom();
+    tied.a.skillRuntime.abyssEnergy = 7;
+    tied.b.skillRuntime.abyssEnergy = 7;
+    tied.engine.skillEngine.endHand(tied.room, { reason: "showdown", winner: null, tie: true });
+    expect(tied.a.skillRuntime.abyssEnergy).toBe(7);
+    expect(tied.b.skillRuntime.abyssEnergy).toBe(7);
   });
 
-  test("深呼吸成功蓄力；之后发生本人技能事件会打断恢复", () => {
-    const first = setupRoom({ loadoutA: ["DEEP_BREATH", "BLOOD_BATTLE"] });
-    expect(use(first.engine, first.room, first.a, "DEEP_BREATH", {}, "breath-only").ok).toBe(true);
-    expect(first.a.skillRuntime.abyssEnergy).toBe(3);
-    endHandSkills(first.room, { reason: "fold", winner: first.a, tie: false });
-    expect(first.a.skillRuntime.abyssEnergy).toBe(6); // 3 + base 1 + breath 2
-
-    const second = setupRoom({ loadoutA: ["DEEP_BREATH", "BLOOD_BATTLE"] });
-    use(second.engine, second.room, second.a, "DEEP_BREATH", {}, "breath-broken");
-    use(second.engine, second.room, second.a, "BLOOD_BATTLE", {}, "blood-after-breath");
-    expect(second.a.skillRuntime.breathBroken).toBe(true);
-    endHandSkills(second.room, { reason: "fold", winner: second.a, tie: false });
-    expect(second.a.skillRuntime.abyssEnergy).toBe(1); // 4 - 1 - 3 + base 1
+  test("深呼吸后无技能再 Fold：恢复 2 + 败局自然 +1", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["DEEP_BREATH", "BLOOD_BATTLE"] });
+    expect(use(engine, room, a, "DEEP_BREATH", {}, "breath-fold").ok).toBe(true);
+    expect(a.skillRuntime.abyssEnergy).toBe(3);
+    a.skillRuntime.foldedThisHand = true;
+    engine.skillEngine.endHand(room, { reason: "fold", winner: b, tie: false });
+    expect(a.skillRuntime.abyssEnergy).toBe(6);
   });
 
-  test("深呼吸在能量高于 4 时不可用", () => {
+  test("深呼吸后发动公平：手牌结束不恢复", () => {
+    const { engine, room, a } = setupRoom({ loadoutA: ["DEEP_BREATH", "FAIRNESS"] });
+    a.skillRuntime.abyssEnergy = 8;
+    expect(use(engine, room, a, "DEEP_BREATH", {}, "breath-then-fair").ok).toBe(true);
+    expect(use(engine, room, a, "FAIRNESS", {}, "fair-after-breath").ok).toBe(true);
+    const energy = a.skillRuntime.abyssEnergy;
+    engine.skillEngine.endHand(room, { reason: "fold", winner: a, tie: false });
+    expect(a.skillRuntime.abyssEnergy).toBe(energy);
+  });
+
+  test("深呼吸不再要求当前能量 ≤ 4", () => {
     const { engine, room, a } = setupRoom();
     a.skillRuntime.abyssEnergy = 5;
-    expect(use(engine, room, a, "DEEP_BREATH")).toMatchObject({ ok: false });
+    expect(use(engine, room, a, "DEEP_BREATH", {}, "breath-high-energy")).toMatchObject({ ok: true });
   });
 
-  test("反制是预埋陷阱：目标支付费用、回收 1、随后整手封锁", () => {
-    const { engine, room, a, b } = setupRoom({
-      loadoutA: ["BLOOD_BATTLE", "RECYCLE"],
-      loadoutB: ["COUNTER", "DEEP_BREATH"],
-    });
-    b.skillRuntime.counterArmed = true;
-    const result = use(engine, room, a, "BLOOD_BATTLE", {}, "countered-blood");
-    expect(result).toMatchObject({ ok: true, status: "COUNTERED" });
-    expect(a.skillRuntime.abyssEnergy).toBe(2); // 4 - 3 + recycle 1
-    expect(a.skillRuntime.lockedThisHand).toBe(true);
-    expect(b.skillRuntime.counterArmed).toBe(false);
-    expect(a.skillRuntime.bloodBattleActive).toBe(false);
+  test("回收利用在手牌结束按最高失败费用的 50% 向下取整返还", () => {
+    const { engine, room, a } = setupRoom({ loadoutA: ["RECYCLE", "CLAIRVOYANCE"] });
+    a.skillRuntime.paidFailuresThisHand = [
+      { skillId: "CLAIRVOYANCE", cost: 2, reason: "FAILED" },
+      { skillId: "DESTINY", cost: 7, reason: "FAILED" },
+    ];
+    const before = a.skillRuntime.abyssEnergy;
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    expect(a.skillRuntime.abyssEnergy).toBe(before + 3);
+    expect(a.skillRuntime.recycleUsedThisHand).toBe(true);
   });
 
-  test("反制可以截断对方正在布置的反制", () => {
-    const { engine, room, a, b } = setupRoom({
-      loadoutA: ["COUNTER", "DEEP_BREATH"],
-      loadoutB: ["COUNTER", "DEEP_BREATH"],
-    });
-    a.skillRuntime.abyssEnergy = 8;
-    b.skillRuntime.counterArmed = true;
-    expect(use(engine, room, a, "COUNTER", {}, "counter-v-counter")).toMatchObject({ status: "COUNTERED" });
-    expect(a.skillRuntime.counterArmed).toBe(false);
-    expect(a.skillRuntime.abyssEnergy).toBe(2);
-  });
-
-  test("非法精确目标不扣能量、不触发回收，也不会消耗对手的反制陷阱", () => {
+  test("非法请求不扣费、不记失败、不消耗反制", () => {
     const { engine, room, a, b } = setupRoom({
       loadoutA: ["INTEL_ONE", "RECYCLE"],
       loadoutB: ["COUNTER", "DEEP_BREATH"],
     });
     b.skillRuntime.counterArmed = true;
-    const result = use(
-      engine,
-      room,
-      a,
-      "INTEL_ONE",
-      { zone: "future", boardIndex: null },
-      "invalid-target-before-counter",
-    );
+    const result = use(engine, room, a, "INTEL_ONE", { zone: "future", boardIndex: null }, "invalid-intel");
     expect(result).toMatchObject({ ok: false });
     expect(a.skillRuntime.abyssEnergy).toBe(4);
-    expect(a.skillRuntime.recycleUsedThisHand).toBe(false);
-    expect(a.skillRuntime.skillUsesThisHand.INTEL_ONE).toBeUndefined();
+    expect(a.skillRuntime.paidFailuresThisHand).toHaveLength(0);
     expect(b.skillRuntime.counterArmed).toBe(true);
   });
 
-  test("公平严格要求本人下注回合且必须是第一个技能事件，并封锁手末能量", () => {
-    const { engine, room, a } = setupRoom({ loadoutA: ["FAIRNESS", "DEEP_BREATH"] });
-    room.currentPlayerIndex = 1;
-    expect(use(engine, room, a, "FAIRNESS", {}, "fair-wrong-turn")).toMatchObject({ ok: false });
-    room.currentPlayerIndex = 0;
-    expect(use(engine, room, a, "FAIRNESS", {}, "fair-first")).toMatchObject({ ok: true });
-    expect(room.skillState.fairnessActive).toBe(true);
-    expect(room.players.every((player) => player.skillRuntime.lockedThisHand)).toBe(true);
-    expect(a.skillRuntime.abyssEnergy).toBe(0);
-    endHandSkills(room, { reason: "showdown", winner: a, tie: false });
-    expect(a.skillRuntime.abyssEnergy).toBe(0);
-
+  test("公平不必是本手第一个技能，且不能被反制", () => {
     const later = setupRoom({ loadoutA: ["FAIRNESS", "DEEP_BREATH"] });
-    use(later.engine, later.room, later.a, "DEEP_BREATH", {}, "first-other-skill");
     later.a.skillRuntime.abyssEnergy = 8;
-    expect(use(later.engine, later.room, later.a, "FAIRNESS", {}, "fair-too-late")).toMatchObject({ ok: false });
+    expect(use(later.engine, later.room, later.a, "DEEP_BREATH", {}, "first-skill").ok).toBe(true);
+    expect(use(later.engine, later.room, later.a, "FAIRNESS", {}, "fair-later")).toMatchObject({ ok: true, status: "SUCCESS" });
+    expect(later.room.skillState.fairnessActive).toBe(true);
+
+    const vsCounter = setupRoom({
+      loadoutA: ["FAIRNESS", "DEEP_BREATH"],
+      loadoutB: ["COUNTER", "RECYCLE"],
+    });
+    vsCounter.b.skillRuntime.counterArmed = true;
+    vsCounter.a.skillRuntime.abyssEnergy = 8;
+    expect(use(vsCounter.engine, vsCounter.room, vsCounter.a, "FAIRNESS", {}, "fair-vs-counter")).toMatchObject({
+      ok: true, status: "SUCCESS",
+    });
+    expect(vsCounter.b.skillRuntime.counterArmed).toBe(false);
+    expect(vsCounter.a.skillRuntime.lockedThisHand).toBe(true);
+  });
+
+  test("公平清除反制、防守、血战、零化，但不回滚已完成的千术与天命", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["FAIRNESS", "CHEAT"],
+      loadoutB: ["COUNTER", "DEFENSE"],
+    });
+    a.skillRuntime.abyssEnergy = 8;
+    b.skillRuntime.counterArmed = false;
+    b.skillRuntime.defenseActive = true;
+    a.skillRuntime.bloodBattleActive = true;
+    a.skillRuntime.confirmedPublicSkills.push("BLOOD_BATTLE");
+    room.skillState.nullifications.push({ type: "board", boardIndex: 0, cardCode: "SA", revealed: false });
+    engine.finishStreetDeal(room, "flop");
+    engine.clearActionTimer(room);
+    room.currentPlayerIndex = 0;
+    const own = a.cards[0];
+    const board = room.communityCards[0];
+    expect(use(engine, room, a, "CHEAT", { ownIndex: 0, zone: "community", index: 0 }, "cheat-then-fair")).toMatchObject({ status: "SUCCESS" });
+    expect(a.cards[0].code).toBe(board.code);
+    b.skillRuntime.counterArmed = true;
+    a.skillRuntime.abyssEnergy = 8;
+    expect(use(engine, room, a, "FAIRNESS", {}, "fair-clear")).toMatchObject({ status: "SUCCESS" });
+    expect(b.skillRuntime.counterArmed).toBe(false);
+    expect(b.skillRuntime.defenseActive).toBe(false);
+    expect(a.skillRuntime.bloodBattleActive).toBe(false);
+    expect(room.skillState.nullifications).toEqual([]);
+    expect(a.cards[0].code).toBe(board.code);
+    expect(room.communityCards[0].code).toBe(own.code);
+    expect(getPublicSkillSummary(a).publicEffects).toContain("FAIRNESS");
+    expect(getPublicSkillSummary(a).publicEffects).not.toContain("BLOOD_BATTLE");
+    expect(getPublicSkillSummary(a).publicEffects).not.toContain("INTIMIDATION");
   });
 
   test("重复请求只结算一次", () => {
@@ -220,62 +265,60 @@ describe("能量、封锁与主动技能时机", () => {
     expect(duplicate).toMatchObject({ ok: true, duplicate: true });
     expect(a.skillRuntime.abyssEnergy).toBe(energy);
   });
-
-  test("单机对手会在自己的下注回合实际使用默认主动技能", () => {
-    const strong = setupRoom({
-      loadoutB: ["DEEP_BREATH", "BLOOD_BATTLE", "DEFENSE", "DESPERATION"],
-    });
-    strong.b.isBot = true;
-    strong.room.currentPlayerIndex = 1;
-    const cards = byCode();
-    strong.b.cards = [cards.SA, cards.HA];
-    expect(strong.engine.skillEngine.tryBotTurnSkill(strong.room, strong.b)).toMatchObject({
-      ok: true,
-      skillId: "BLOOD_BATTLE",
-    });
-    expect(strong.b.skillRuntime.bloodBattleActive).toBe(true);
-
-    const guarded = setupRoom({
-      loadoutB: ["DEEP_BREATH", "BLOOD_BATTLE", "DEFENSE", "DESPERATION"],
-    });
-    guarded.b.isBot = true;
-    guarded.room.currentPlayerIndex = 1;
-    guarded.b.cards = [cards.S2, cards.H7];
-    expect(guarded.engine.skillEngine.tryBotTurnSkill(guarded.room, guarded.b)).toMatchObject({
-      ok: true,
-      skillId: "DEFENSE",
-    });
-    expect(guarded.b.skillRuntime.defenseActive).toBe(true);
-
-    const recovering = setupRoom({
-      loadoutB: ["DEEP_BREATH", "BLOOD_BATTLE", "DEFENSE", "DESPERATION"],
-    });
-    recovering.b.isBot = true;
-    recovering.room.currentPlayerIndex = 1;
-    recovering.b.cards = [cards.S2, cards.H7];
-    recovering.b.skillRuntime.abyssEnergy = 2;
-    expect(recovering.engine.skillEngine.tryBotTurnSkill(recovering.room, recovering.b)).toMatchObject({
-      ok: true,
-      skillId: "DEEP_BREATH",
-    });
-    expect(recovering.b.skillRuntime.breathArmed).toBe(true);
-  });
 });
 
-describe("控制、下注与零和结算", () => {
-  test("技能房间未发动恐吓时不会把空上限误当成 0", () => {
-    const { room, a, b } = setupRoom();
-    expect(room.skillState.contributionCap).toBeNull();
-    expect(room.pot).toBe(75);
-    expect([a.totalBet, b.totalBet]).toEqual([25, 50]);
-    expect(getValidActions(room, 0).validActions).toEqual(expect.arrayContaining(["fold", "call", "allin"]));
+describe("反制、恐吓、血战、绝境、防守、绝路", () => {
+  test("反制抓住主动技能：目标付费失败，后续主动与新被动均锁死", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["BLOOD_BATTLE", "PERCEPTION"],
+      loadoutB: ["COUNTER", "DEEP_BREATH"],
+      random: () => 0,
+    });
+    const beforePerception = a.skillRuntime.perceptionTriggerCount;
+    b.skillRuntime.counterArmed = true;
+    expect(use(engine, room, a, "BLOOD_BATTLE", {}, "countered-blood")).toMatchObject({ status: "COUNTERED" });
+    expect(a.skillRuntime.abyssEnergy).toBe(1);
+    expect(a.skillRuntime.lockedThisHand).toBe(true);
+    expect(a.skillRuntime.bloodBattleActive).toBe(false);
+    expect(use(engine, room, a, "BLOOD_BATTLE", {}, "locked-active").ok).toBe(false);
+    engine.skillEngine.onCardsDealt(room, "flop");
+    expect(a.skillRuntime.perceptionTriggerCount).toBe(beforePerception);
   });
 
-  test("恐吓移除弃牌并把每人累计投入硬封顶为 500", () => {
+  test("被反制后回收利用仍结算已支付失败费用", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["BLOOD_BATTLE", "RECYCLE"],
+      loadoutB: ["COUNTER", "DEEP_BREATH"],
+    });
+    b.skillRuntime.counterArmed = true;
+    expect(use(engine, room, a, "BLOOD_BATTLE", {}, "recycle-after-counter")).toMatchObject({ status: "COUNTERED" });
+    expect(a.skillRuntime.abyssEnergy).toBe(1);
+    expect(a.skillRuntime.lockedThisHand).toBe(true);
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    expect(a.skillRuntime.abyssEnergy).toBe(2);
+    expect(a.skillRuntime.recycleUsedThisHand).toBe(true);
+  });
+
+  test("反制整手未触发则结束返还 1 能量", () => {
+    const { engine, room, b } = setupRoom({
+      loadoutA: ["DEEP_BREATH", "BLOOD_BATTLE"],
+      loadoutB: ["COUNTER", "RECYCLE"],
+    });
+    b.skillRuntime.abyssEnergy = 8;
+    room.currentPlayerIndex = 1;
+    expect(use(engine, room, b, "COUNTER", {}, "arm-counter")).toMatchObject({ status: "SUCCESS" });
+    expect(b.skillRuntime.abyssEnergy).toBe(4);
+    expect(b.skillRuntime.counterArmed).toBe(true);
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: b, tie: false });
+    expect(b.skillRuntime.abyssEnergy).toBe(5);
+    expect(b.skillRuntime.counterArmed).toBe(false);
+  });
+
+  test("恐吓禁止 Fold，ALL IN 只投入到累计 500 但仍记录 ALL IN 事件", () => {
     const { engine, room, a, b } = setupRoom({ loadoutA: ["INTIMIDATION", "DEEP_BREATH"] });
     a.skillRuntime.abyssEnergy = 8;
     expect(use(engine, room, a, "INTIMIDATION", {}, "fear").ok).toBe(true);
-    expect(getValidActions(room, room.currentPlayerIndex).validActions).not.toContain("fold");
+    expect(getValidActions(room, 0).validActions).not.toContain("fold");
     a.totalBet = 490;
     a.streetBet = 0;
     a.chips = 1000;
@@ -283,249 +326,453 @@ describe("控制、下注与零和结算", () => {
     b.streetBet = 0;
     b.chips = 1000;
     room.currentBet = 0;
-    expect(getValidActions(room, 0).maxTotalBet).toBe(0); // remaining 10 is below legal minimum raise
-    expect(getValidActions(room, 0).validActions).not.toContain("allin");
-    expect(collectBet(room, a, 100)).toBe(10);
+    expect(getValidActions(room, 0).validActions).toContain("allin");
+    const paid = collectBet(room, a, 100);
+    expect(paid).toBe(10);
     expect(a.totalBet).toBe(500);
+    a.totalBet = 490;
+    a.streetBet = 0;
+    a.chips = 1000;
+    const allin = engine.handlePlayerAction(room, 0, "allin");
+    expect(allin.ok).toBe(true);
+    expect(a.totalBet).toBe(500);
+    expect(a.skillRuntime.allInAction).toBe(true);
+    expect(a.skillRuntime.stackCommitted).toBe(false);
+    expect(a.isAllIn).toBe(false);
   });
 
-  test("防守必须在首次面对主动加注前发动", () => {
-    const { engine, room, a, b } = setupRoom({ loadoutA: ["DEFENSE", "DEEP_BREATH"] });
-    engine.skillEngine.onAggressiveAction(room, b);
-    expect(a.skillRuntime.facedAggressionThisPhase).toBe(true);
-    expect(use(engine, room, a, "DEFENSE", {}, "late-defense")).toMatchObject({ ok: false });
+  test("恐吓 + 绝路：可以 ALL IN，但禁止 Fold 所以不会触发绝路 Fold×3", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["INTIMIDATION", "DEAD_END"],
+      loadoutB: ["DEEP_BREATH", "RECYCLE"],
+    });
+    a.skillRuntime.abyssEnergy = 9;
+    expect(use(engine, room, a, "INTIMIDATION", {}, "fear-then-dead").ok).toBe(true);
+    expect(use(engine, room, a, "DEAD_END", {}, "dead-under-fear")).toMatchObject({ status: "SUCCESS" });
+    expect(a.skillRuntime.deadEndActive).toBe(true);
+    expect(a.skillRuntime.allInAction).toBe(true);
+    expect(getValidActions(room, 1).validActions).not.toContain("fold");
+    a.chips = 1300;
+    b.chips = 700;
+    const result = engine.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: a, winnerCategory: 2 });
+    expect(result.effects.some((entry) => entry.skillId === "DEAD_END")).toBe(false);
   });
 
-  test("双方血战严格相乘为 4 倍并保持零和", () => {
+  test("双方血战相乘为 ×4", () => {
     const { engine, room, a, b } = setupRoom();
     a.chips = 1100;
     b.chips = 900;
     a.skillRuntime.bloodBattleActive = true;
     b.skillRuntime.bloodBattleActive = true;
-    const total = a.chips + b.chips;
-    const result = engine.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: a });
+    const result = engine.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: a, winnerCategory: 1 });
     expect(result).toMatchObject({ baseTransfer: 100, finalTransfer: 400, multiplier: 4 });
-    expect([a.chips, b.chips]).toEqual([1400, 600]);
-    expect(a.chips + b.chips).toBe(total);
+    expect(result.selfSkillMultiplier).toBe(2);
+    expect(result.opponentSkillMultiplier).toBe(2);
   });
 
-  test("防守与单层血战相抵；已弃牌时防守不生效", () => {
-    const { engine, room, a, b } = setupRoom();
-    a.chips = 1100;
-    b.chips = 900;
-    a.skillRuntime.bloodBattleActive = true;
-    b.skillRuntime.defenseActive = true;
-    expect(engine.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: a }).multiplier).toBe(1);
+  test("绝境只看手牌开始筹码快照：201 不触发，200 触发", () => {
+    const high = setupRoom({ loadoutA: ["DESPERATION", "RECYCLE"], start: false });
+    high.a.chips = 201;
+    beginHandSkills(high.room);
+    expect(high.a.skillRuntime.desperationActive).toBe(false);
+    high.a.chips = 100;
+    expect(high.a.skillRuntime.desperationActive).toBe(false);
 
-    a.chips = 1100;
-    b.chips = 900;
-    b.skillRuntime.foldedThisHand = true;
-    expect(engine.skillEngine.applySettlementModifiers(room, { reason: "fold", winner: a }).multiplier).toBe(2);
+    const low = setupRoom({ loadoutA: ["DESPERATION", "RECYCLE"], start: false });
+    low.a.chips = 200;
+    beginHandSkills(low.room);
+    expect(low.a.skillRuntime.desperationActive).toBe(true);
   });
 
-  test("绝境、双血战与绝路可以叠加，但败者筹码永不为负", () => {
-    const { engine, room, a, b } = setupRoom();
-    a.chips = 1100;
-    b.chips = 900;
-    a.skillRuntime.desperationActive = true;
-    a.skillRuntime.deadEndActive = true;
-    a.skillRuntime.bloodBattleActive = true;
-    b.skillRuntime.bloodBattleActive = true;
-    b.skillRuntime.foldedThisHand = true;
-    const result = engine.skillEngine.applySettlementModifiers(room, { reason: "fold", winner: a });
-    expect(result.multiplier).toBe(18);
-    expect([a.chips, b.chips]).toEqual([2000, 0]);
+  test("防守在河牌发动仍减半整手最终非 Fold 损失", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["DEFENSE", "DEEP_BREATH"] });
+    goToStreet(engine, room, "river", 0);
+    a.skillRuntime.abyssEnergy = 8;
+    expect(use(engine, room, a, "DEFENSE", {}, "river-defense")).toMatchObject({ status: "SUCCESS" });
+    expect(a.skillRuntime.defenseActive).toBe(true);
+    a.chips = 900;
+    b.chips = 1100;
+    const result = engine.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: b, winnerCategory: 2 });
+    expect(result.multiplier).toBe(0.5);
+    expect(a.skillRuntime.defenseRevealed).toBe(true);
   });
 
-  test("绝路只在实际 All In 且能量足够时自动发动，并锁住对手", () => {
-    const { engine, room, a, b } = setupRoom({ loadoutA: ["DEAD_END", "DESPERATION"] });
-    a.skillRuntime.abyssEnergy = 5;
-    a.isAllIn = true;
-    expect(engine.skillEngine.onPlayerAllIn(room, a)).toBe(true);
-    expect(a.skillRuntime.abyssEnergy).toBe(0);
+  test("绝路是主动技能，成功后锁对手；Showdown 即使获胜也不提供 ×3", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["DEAD_END", "DEEP_BREATH"] });
+    a.skillRuntime.abyssEnergy = 8;
+    expect(use(engine, room, a, "DEAD_END", {}, "dead-active")).toMatchObject({ status: "SUCCESS" });
     expect(a.skillRuntime.deadEndActive).toBe(true);
     expect(b.skillRuntime.lockedThisHand).toBe(true);
-    expect(engine.skillEngine.onPlayerAllIn(room, a)).toBe(false);
+    a.chips = 1300;
+    b.chips = 700;
+    const result = engine.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: a, winnerCategory: 5 });
+    expect(result.effects.some((entry) => entry.skillId === "DEAD_END")).toBe(false);
   });
 });
 
-describe("信息、改牌与公共牌零化", () => {
-  test("感知在四个节点独立判定，私有文本不带真假标签", () => {
-    const sequence = [0, 0, 0];
-    const { a, room } = setupRoom({
-      loadoutA: ["PERCEPTION", "RECYCLE"],
-      random: () => sequence.shift() ?? 0.99,
-    });
-    expect(a.skillRuntime.perceptionTriggerCount).toBe(1);
-    expect(a.skillRuntime.privateResults).toHaveLength(1);
-    expect(a.skillRuntime.privateResults[0].message).toMatch(/^感知 · /);
-    expect(a.skillRuntime.privateResults[0].message).not.toMatch(/真实|虚假|75%/);
-    expect(room.skillState.skillActionLog.find((entry) => entry.skillId === "PERCEPTION").secret).toBe(true);
-  });
-
-  test("情报壹可精确指定未来公共牌；绝密会使底牌目标付费失败并触发回收", () => {
-    const first = setupRoom({
-      loadoutA: ["INTEL_ONE", "RECYCLE"],
-      loadoutB: ["TOP_SECRET", "DEEP_BREATH"],
-    });
-    first.a.skillRuntime.abyssEnergy = 8;
-    const future = getFutureCommunitySlots(first.room).find((slot) => slot.boardIndex === 4);
-    expect(use(first.engine, first.room, first.a, "INTEL_ONE", { zone: "future", boardIndex: 4 }, "intel-future")).toMatchObject({ status: "SUCCESS" });
-    expect(first.a.skillRuntime.privateResults.at(-1).message).toContain(future.card.code);
-
+describe("情报、绝密、千术、零化、感知、灵视", () => {
+  test("情报底牌被绝密阻止：4 费支付后失败；未来 River 不受绝密影响", () => {
     const blocked = setupRoom({
       loadoutA: ["INTEL_ONE", "RECYCLE"],
       loadoutB: ["TOP_SECRET", "DEEP_BREATH"],
     });
     blocked.a.skillRuntime.abyssEnergy = 8;
-    blocked.b.skillRuntime.topSecretActive = true;
-    expect(use(blocked.engine, blocked.room, blocked.a, "INTEL_ONE", { zone: "opponent" }, "intel-blocked")).toMatchObject({ status: "FAILED" });
-    expect(blocked.a.skillRuntime.abyssEnergy).toBe(6); // 8 - 3 + recycle 1
+    expect(use(blocked.engine, blocked.room, blocked.a, "INTEL_ONE", { zone: "opponent" }, "intel-hole")).toMatchObject({
+      status: "FAILED",
+    });
+    expect(blocked.a.skillRuntime.abyssEnergy).toBe(4);
+    expect(blocked.b.skillRuntime.topSecretActive).toBe(true);
+    expect(blocked.b.skillRuntime.abyssEnergy).toBe(1);
+
+    const future = setupRoom({
+      loadoutA: ["INTEL_ONE", "RECYCLE"],
+      loadoutB: ["TOP_SECRET", "DEEP_BREATH"],
+    });
+    future.a.skillRuntime.abyssEnergy = 8;
+    const river = getFutureCommunitySlots(future.room).find((slot) => slot.boardIndex === 4);
+    expect(use(future.engine, future.room, future.a, "INTEL_ONE", { zone: "future", boardIndex: 4 }, "intel-river")).toMatchObject({
+      status: "SUCCESS",
+    });
+    expect(future.a.skillRuntime.privateResults.at(-1).message).toContain(river.card.code);
+    expect(future.b.skillRuntime.topSecretActive).toBe(false);
+    expect(future.b.skillRuntime.abyssEnergy).toBe(4);
   });
 
-  test("千术交换明牌时同步牌面且守恒；河牌全部公布后禁止", () => {
-    const { engine, room, a } = setupRoom({ loadoutA: ["CHEAT", "RECYCLE"] });
-    engine.finishStreetDeal(room, "flop");
-    engine.clearActionTimer(room);
-    room.currentPlayerIndex = 0;
-    a.skillRuntime.abyssEnergy = 8;
-    const own = a.cards[0];
-    const board = room.communityCards[1];
-    const beforeCodes = [...a.cards, ...room.communityCards, ...room.deck, ...room.skillState.burnedCards].map((card) => card.code).sort();
-    expect(use(engine, room, a, "CHEAT", { ownIndex: 0, zone: "community", index: 1 }, "cheat-board")).toMatchObject({ status: "SUCCESS" });
-    expect(a.cards[0].code).toBe(board.code);
-    expect(room.communityCards[1].code).toBe(own.code);
-    const afterCodes = [...a.cards, ...room.communityCards, ...room.deck, ...room.skillState.burnedCards].map((card) => card.code).sort();
-    expect(afterCodes).toEqual(beforeCodes);
-
-    room.phase = "river";
-    room.communityCards = createDeck().slice(0, 5);
-    a.skillRuntime.skillUsesThisHand.CHEAT = 0;
-    a.skillRuntime.abyssEnergy = 8;
-    expect(use(engine, room, a, "CHEAT", { ownIndex: 0, zone: "community", index: 0 }, "cheat-after-river")).toMatchObject({ ok: false });
-  });
-
-  test("绝密阻断对手底牌千术，付费失败可由回收返 1", () => {
-    const { engine, room, a, b } = setupRoom({
+  test("千术只在目标为对手底牌时被绝密阻挡；河牌公开后仍可换明牌", () => {
+    const blocked = setupRoom({
       loadoutA: ["CHEAT", "RECYCLE"],
       loadoutB: ["TOP_SECRET", "DEEP_BREATH"],
     });
+    blocked.a.skillRuntime.abyssEnergy = 8;
+    expect(use(blocked.engine, blocked.room, blocked.a, "CHEAT", { ownIndex: 0, zone: "opponent", index: 0 }, "cheat-hole")).toMatchObject({
+      status: "FAILED",
+    });
+    expect(blocked.a.skillRuntime.abyssEnergy).toBe(2);
+
+    const { engine, room, a } = setupRoom({ loadoutA: ["CHEAT", "RECYCLE"] });
+    goToStreet(engine, room, "river", 0);
     a.skillRuntime.abyssEnergy = 8;
-    b.skillRuntime.topSecretActive = true;
-    expect(use(engine, room, a, "CHEAT", { ownIndex: 0, zone: "opponent", index: 0 }, "cheat-secret")).toMatchObject({ status: "FAILED" });
-    expect(a.skillRuntime.abyssEnergy).toBe(3); // 8 - 6 + recycle 1
+    const own = a.cards[0];
+    const board = room.communityCards[0];
+    const before = [...a.cards, ...room.communityCards, ...room.deck, ...room.skillState.burnedCards].map((card) => card.code).sort();
+    expect(use(engine, room, a, "CHEAT", { ownIndex: 0, zone: "community", index: 0 }, "cheat-after-river")).toMatchObject({
+      status: "SUCCESS",
+    });
+    expect(a.cards[0].code).toBe(board.code);
+    expect(room.communityCards[0].code).toBe(own.code);
+    const after = [...a.cards, ...room.communityCards, ...room.deck, ...room.skillState.burnedCards].map((card) => card.code).sort();
+    expect(after).toEqual(before);
   });
 
-  test("零化可指定未来位置且不会提前泄露牌值；亮出后进入公开快照", () => {
-    const { engine, room, a } = setupRoom({ loadoutA: ["NULLIFICATION", "RECYCLE"] });
-    engine.finishStreetDeal(room, "flop");
-    engine.clearActionTimer(room);
-    room.currentPlayerIndex = 0;
-    a.skillRuntime.abyssEnergy = 8;
-    expect(use(engine, room, a, "NULLIFICATION", { boardIndex: 4 }, "null-future")).toMatchObject({ status: "SUCCESS" });
-    expect(getPublicRoomSkillSnapshot(room).nullifiedCommunityCardIds).toEqual([]);
-    engine.finishStreetDeal(room, "turn");
-    engine.finishStreetDeal(room, "river");
-    engine.clearActionTimer(room);
-    expect(getPublicRoomSkillSnapshot(room).nullifiedCommunityCardIds).toContain(room.communityCards[4].code);
-  });
-
-  test("五张公共牌公布后零化仍可发动，并确实影响牌型计算", () => {
-    const { engine, room, a } = setupRoom({ loadoutA: ["NULLIFICATION", "RECYCLE"] });
-    const cards = byCode();
-    a.cards = [cards.SA, cards.SK];
-    room.communityCards = [cards.SQ, cards.SJ, cards.ST, cards.C2, cards.C4];
-    room.phase = "river";
-    room.currentPlayerIndex = 0;
-    a.skillRuntime.abyssEnergy = 8;
-    expect(use(engine, room, a, "NULLIFICATION", { boardIndex: 2 }, "null-river")).toMatchObject({ status: "SUCCESS" });
-    expect(engine.evaluatePlayerHand(a, room).handName).not.toMatch(/同花顺|皇家同花顺/);
-  });
-
-  test("灵视读取真实能量和本手已结算的秘密事件", () => {
-    const { engine, room, a, b } = setupRoom({
-      loadoutA: ["CLAIRVOYANCE", "RECYCLE"],
+  test("零化底牌被绝密阻止支付 7 费失败；双方零化同一公共牌都扣费且只排除一次", () => {
+    const blocked = setupRoom({
+      loadoutA: ["NULLIFICATION", "RECYCLE"],
       loadoutB: ["TOP_SECRET", "DEEP_BREATH"],
     });
-    b.skillRuntime.abyssEnergy = 7;
-    room.skillState.skillActionLog.push({ at: Date.now(), skillId: "TOP_SECRET", casterId: b.playerId, status: "SUCCESS", secret: true });
+    goToStreet(blocked.engine, blocked.room, "flop", 0);
+    blocked.a.skillRuntime.abyssEnergy = 8;
+    expect(use(blocked.engine, blocked.room, blocked.a, "NULLIFICATION", { mode: "hole" }, "null-hole")).toMatchObject({
+      status: "FAILED",
+    });
+    expect(blocked.a.skillRuntime.abyssEnergy).toBe(1);
+
+    const dual = setupRoom({
+      loadoutA: ["NULLIFICATION", "RECYCLE"],
+      loadoutB: ["NULLIFICATION", "DEEP_BREATH"],
+    });
+    goToStreet(dual.engine, dual.room, "flop", 0);
+    dual.a.skillRuntime.abyssEnergy = 8;
+    dual.b.skillRuntime.abyssEnergy = 8;
+    expect(use(dual.engine, dual.room, dual.a, "NULLIFICATION", { mode: "board", boardIndex: 1 }, "null-a")).toMatchObject({
+      status: "SUCCESS",
+    });
+    expect(getPublicRoomSkillSnapshot(dual.room).nullifiedCommunityCardIds).toEqual([]);
+    dual.room.currentPlayerIndex = 1;
+    expect(use(dual.engine, dual.room, dual.b, "NULLIFICATION", { mode: "board", boardIndex: 1 }, "null-b")).toMatchObject({
+      status: "SUCCESS",
+    });
+    expect(dual.a.skillRuntime.abyssEnergy).toBe(2);
+    expect(dual.b.skillRuntime.abyssEnergy).toBe(2);
+    const excluded = dual.engine.skillEngine.getNullifiedSet(dual.room);
+    expect(excluded.size).toBe(1);
+    expect(excluded.has(dual.room.communityCards[1].code)).toBe(true);
+    expect(getPublicRoomSkillSnapshot(dual.room).nullifiedCommunityCardIds).toEqual([]);
+
+    const holeOnly = setupRoom({
+      loadoutA: ["NULLIFICATION", "RECYCLE"],
+      loadoutB: ["DEEP_BREATH", "RECYCLE"],
+      random: () => 0,
+    });
+    goToStreet(holeOnly.engine, holeOnly.room, "flop", 0);
+    holeOnly.a.skillRuntime.abyssEnergy = 8;
+    expect(use(holeOnly.engine, holeOnly.room, holeOnly.a, "NULLIFICATION", { mode: "hole" }, "null-hole-eval")).toMatchObject({
+      status: "SUCCESS",
+    });
+    const nullifiedCode = holeOnly.b.cards[0].code;
+    expect(holeOnly.engine.skillEngine.getNullifiedSet(holeOnly.room, holeOnly.b).has(nullifiedCode)).toBe(true);
+    expect(holeOnly.engine.skillEngine.getNullifiedSet(holeOnly.room, holeOnly.a).has(nullifiedCode)).toBe(false);
+    expect(holeOnly.engine.skillEngine.getNullifiedSet(holeOnly.room).has(nullifiedCode)).toBe(false);
+  });
+
+  test("感知每节点独立判定、每手最多 3 次，且不带真假标签", () => {
+    const sequence = [0, 0, 0, 0, 0, 0, 0, 0];
+    const { a, engine, room } = setupRoom({
+      loadoutA: ["PERCEPTION", "RECYCLE"],
+      random: () => sequence.shift() ?? 0.99,
+    });
+    expect(a.skillRuntime.perceptionTriggerCount).toBe(1);
+    goToStreet(engine, room, "flop");
+    goToStreet(engine, room, "turn");
+    goToStreet(engine, room, "river");
+    expect(a.skillRuntime.perceptionTriggerCount).toBe(3);
+    expect(a.skillRuntime.privateResults[0].message).toMatch(/^感知 · /);
+    expect(a.skillRuntime.privateResults[0].message).not.toMatch(/真实|虚假|75%/);
+  });
+
+  test("感知触及底牌信息时才触发绝密，且绝密生效后不再泄露底牌命题", () => {
+    const { a, b, engine, room } = setupRoom({
+      loadoutA: ["PERCEPTION", "RECYCLE"],
+      loadoutB: ["TOP_SECRET", "DEEP_BREATH"],
+      random: () => 0,
+    });
+    expect(b.skillRuntime.topSecretActive).toBe(true);
+    expect(b.skillRuntime.abyssEnergy).toBe(1);
+    expect(a.skillRuntime.perceptionTriggerCount).toBe(0);
+    goToStreet(engine, room, "flop");
+    expect(a.skillRuntime.perceptionTriggerCount).toBe(0);
+    expect(a.skillRuntime.privateResults.some((entry) => String(entry.message || "").startsWith("感知 · "))).toBe(false);
+  });
+
+  test("灵视读取真实能量和已发生感知事件，但不能读取感知内容", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["CLAIRVOYANCE", "RECYCLE"],
+      loadoutB: ["PERCEPTION", "DEEP_BREATH"],
+    });
+    b.skillRuntime.abyssEnergy = 9;
+    room.skillState.skillActionLog.push({
+      at: Date.now(), skillId: "PERCEPTION", casterId: b.playerId, status: "TRIGGERED", secret: true,
+      audit: { statement: "对手持有口袋对子。", truthful: true },
+    });
     a.skillRuntime.abyssEnergy = 8;
     expect(use(engine, room, a, "CLAIRVOYANCE", {}, "clair")).toMatchObject({ status: "SUCCESS" });
     const result = a.skillRuntime.privateResults.at(-1);
-    expect(result.opponentEnergy).toBe(7);
-    expect(result.events).toEqual(expect.arrayContaining([expect.objectContaining({ skillId: "TOP_SECRET" })]));
+    expect(result.opponentEnergy).toBe(9);
+    expect(result.events).toEqual(expect.arrayContaining([expect.objectContaining({ skillId: "PERCEPTION" })]));
+    expect(JSON.stringify(result.events)).not.toContain("口袋对子");
+    expect(result.message).not.toContain("口袋对子");
   });
 });
 
-describe("天命、强运与可审计牌堆", () => {
-  test("天命精确把指定牌换到未来河牌，手内与整场均无次数冷却", () => {
-    const { engine, room, a } = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });
-    a.skillRuntime.abyssEnergy = 8;
-    expect(room.deck.some((card) => card.code === "S2")).toBe(true);
-    expect(use(engine, room, a, "DESTINY", { cardCode: "S2" }, "destiny-s2")).toMatchObject({ status: "SUCCESS" });
-    expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe("S2");
-    const secondTarget = room.deck.find((card) => card.code !== "S2").code;
-    a.skillRuntime.abyssEnergy = 8; // 验证规则层没有次数冷却；正式牌局仍受能量上限约束。
-    expect(use(engine, room, a, "DESTINY", { cardCode: secondTarget }, "destiny-second")).toMatchObject({ status: "SUCCESS" });
-    expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe(secondTarget);
-  });
-
-  test("天命精确指中对手底牌时支付 8 后失败，回收返 1", () => {
-    const { engine, room, a, b } = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });
-    a.skillRuntime.abyssEnergy = 8;
-    expect(use(engine, room, a, "DESTINY", { cardCode: b.cards[0].code }, "destiny-opponent")).toMatchObject({ status: "FAILED" });
-    expect(a.skillRuntime.abyssEnergy).toBe(1);
-  });
-
-  test("强运池严格为 78 个口袋对子 + 48 个同花连张", () => {
-    expect(FORTUNE_COMBOS).toHaveLength(126);
-    expect(FORTUNE_COMBOS.filter((combo) => combo.type === "POCKET_PAIR")).toHaveLength(78);
-    expect(FORTUNE_COMBOS.filter((combo) => combo.type === "SUITED_CONNECTOR")).toHaveLength(48);
-    expect(new Set(FORTUNE_COMBOS.map((combo) => combo.codes.slice().sort().join("-"))).size).toBe(126);
-  });
-
-  test("强运允许能量降至 -4，但低于可支付边界时不再触发", () => {
-    const sequence = [0, 0];
-    const prepared = setupRoom({
+describe("强运、天命与协议", () => {
+  test("强运 1 能量触发 3 费改牌得到 -2；若会低于 -4 则不发生", () => {
+    const live = setupRoom({
       loadoutA: ["FORTUNE", "RECYCLE"],
       start: false,
-      random: () => sequence.shift() ?? 0,
+      random: () => 0,
     });
-    beginHandSkills(prepared.room);
-    prepared.room.deck = createDeck();
-    prepared.a.skillRuntime.abyssEnergy = 0;
-    const triggered = prepared.engine.skillEngine.prepareDeckForHand(prepared.room);
+    beginHandSkills(live.room);
+    live.a.cards = weakHole();
+    live.b.cards = [byCode().S3, byCode().H8];
+    live.room.deck = createDeck().filter((card) => !["C2", "D7", "S3", "H8"].includes(card.code));
+    live.a.skillRuntime.abyssEnergy = 1;
+    const triggered = live.engine.skillEngine.applyHoleFortune(live.room);
     expect(triggered).toHaveLength(1);
-    expect(prepared.a.skillRuntime.abyssEnergy).toBe(-4);
-    const dealtCodes = [prepared.room.deck.at(-1).code, prepared.room.deck.at(-3).code];
-    expect(FORTUNE_COMBOS.some((combo) => combo.codes.every((code) => dealtCodes.includes(code)))).toBe(true);
+    expect(live.a.skillRuntime.abyssEnergy).toBe(-2);
 
     const blocked = setupRoom({ loadoutA: ["FORTUNE", "RECYCLE"], start: false, random: () => 0 });
     beginHandSkills(blocked.room);
-    blocked.room.deck = createDeck();
-    blocked.a.skillRuntime.abyssEnergy = -1;
-    expect(blocked.engine.skillEngine.prepareDeckForHand(blocked.room)).toHaveLength(0);
-    expect(blocked.a.skillRuntime.abyssEnergy).toBe(-1);
+    blocked.a.cards = weakHole();
+    blocked.b.cards = [byCode().S3, byCode().H8];
+    blocked.room.deck = createDeck().filter((card) => !["C2", "D7", "S3", "H8"].includes(card.code));
+    blocked.a.skillRuntime.abyssEnergy = -2;
+    expect(blocked.engine.skillEngine.applyHoleFortune(blocked.room)).toHaveLength(0);
+    expect(blocked.a.skillRuntime.abyssEnergy).toBe(-2);
   });
 
-  test("强运在原始牌堆承诺之后留下明确变换，最终牌区仍保持 52 张守恒", () => {
-    const { engine, room } = setupRoom({
+  test("强运负能量时其他主动技能与新的被动事件都不能发生", () => {
+    const active = setupRoom({ loadoutA: ["FORTUNE", "BLOOD_BATTLE"] });
+    active.a.skillRuntime.abyssEnergy = -1;
+    expect(use(active.engine, active.room, active.a, "BLOOD_BATTLE", {}, "neg-active").ok).toBe(false);
+
+    const passive = setupRoom({ loadoutA: ["FORTUNE", "PERCEPTION"], random: () => 0 });
+    const beforePerception = passive.a.skillRuntime.perceptionTriggerCount;
+    passive.a.skillRuntime.abyssEnergy = -1;
+    passive.engine.skillEngine.onCardsDealt(passive.room, "flop");
+    expect(passive.a.skillRuntime.perceptionTriggerCount).toBe(beforePerception);
+  });
+
+  test("携带天命能量上限 10，未携带最高 8", () => {
+    const withDestiny = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"], start: false });
+    withDestiny.a.skillRuntime.abyssEnergy = 9;
+    const { gainEnergy } = require("../game/skills/skillState");
+    gainEnergy(withDestiny.a, 2);
+    expect(withDestiny.a.skillRuntime.abyssEnergy).toBe(10);
+
+    const without = setupRoom({ start: false });
+    without.a.skillRuntime.abyssEnergy = 8;
+    gainEnergy(without.a, 2);
+    expect(without.a.skillRuntime.abyssEnergy).toBe(8);
+  });
+
+  test("天命在转牌后立刻把合法牌移到 River 有效发牌位；公平不能回滚；失败仍扣 7", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["DESTINY", "FAIRNESS"] });
+    goToStreet(engine, room, "turn", 0);
+    a.skillRuntime.abyssEnergy = 10;
+    expect(room.deck.some((card) => card.code === "S2")).toBe(true);
+    expect(use(engine, room, a, "DESTINY", { cardCode: "S2" }, "destiny-s2")).toMatchObject({ status: "SUCCESS" });
+    expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe("S2");
+    expect(use(engine, room, a, "FAIRNESS", {}, "fair-after-destiny")).toMatchObject({ status: "SUCCESS" });
+    expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe("S2");
+
+    const miss = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });
+    goToStreet(miss.engine, miss.room, "turn", 0);
+    miss.a.skillRuntime.abyssEnergy = 10;
+    expect(use(miss.engine, miss.room, miss.a, "DESTINY", { cardCode: miss.b.cards[0].code }, "destiny-hole")).toMatchObject({
+      status: "FAILED",
+    });
+    expect(miss.a.skillRuntime.abyssEnergy).toBe(3);
+  });
+
+  test("天命撞反制：支付 7、失败、牌堆不改、后续技能被锁", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["DESTINY", "BLOOD_BATTLE"],
+      loadoutB: ["COUNTER", "DEEP_BREATH"],
+    });
+    goToStreet(engine, room, "turn", 0);
+    a.skillRuntime.abyssEnergy = 10;
+    b.skillRuntime.counterArmed = true;
+    const before = room.deck.map((card) => card.code);
+    expect(use(engine, room, a, "DESTINY", { cardCode: "S2" }, "destiny-counter")).toMatchObject({ status: "COUNTERED" });
+    expect(a.skillRuntime.abyssEnergy).toBe(3);
+    expect(room.deck.map((card) => card.code)).toEqual(before);
+    expect(a.skillRuntime.lockedThisHand).toBe(true);
+    expect(use(engine, room, a, "BLOOD_BATTLE", {}, "after-counter").ok).toBe(false);
+  });
+
+  test("天命成功后对手 Fold，7 能量不返还", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });
+    goToStreet(engine, room, "turn", 0);
+    a.skillRuntime.abyssEnergy = 10;
+    expect(use(engine, room, a, "DESTINY", { cardCode: "S2" }, "destiny-then-fold")).toMatchObject({ status: "SUCCESS" });
+    engine.skillEngine.endHand(room, { reason: "fold", winner: a, tie: false });
+    expect(a.skillRuntime.abyssEnergy).toBe(3);
+    expect(b.skillRuntime.abyssEnergy).toBe(5);
+  });
+
+  test("协议只在 Showdown 精确牌型获胜且自己没有其他倍率时触发", () => {
+    const pair = setupRoom({ loadoutA: ["PROTOCOL_PAIR", "RECYCLE"] });
+    pair.a.chips = 1100;
+    pair.b.chips = 900;
+    expect(pair.engine.skillEngine.applySettlementModifiers(pair.room, {
+      reason: "showdown", winner: pair.a, winnerCategory: 2,
+    }).multiplier).toBe(2);
+
+    const twoPair = setupRoom({ loadoutA: ["PROTOCOL_PAIR", "RECYCLE"] });
+    twoPair.a.chips = 1100;
+    twoPair.b.chips = 900;
+    expect(twoPair.engine.skillEngine.applySettlementModifiers(twoPair.room, {
+      reason: "showdown", winner: twoPair.a, winnerCategory: 3,
+    }).multiplier).toBe(1);
+
+    const selfBlood = setupRoom({ loadoutA: ["PROTOCOL_PAIR", "BLOOD_BATTLE"] });
+    selfBlood.a.chips = 1100;
+    selfBlood.b.chips = 900;
+    selfBlood.a.skillRuntime.bloodBattleActive = true;
+    expect(selfBlood.engine.skillEngine.applySettlementModifiers(selfBlood.room, {
+      reason: "showdown", winner: selfBlood.a, winnerCategory: 2,
+    }).effects.some((entry) => entry.skillId === "PROTOCOL_PAIR")).toBe(false);
+
+    const oppBlood = setupRoom({ loadoutA: ["PROTOCOL_PAIR", "RECYCLE"] });
+    oppBlood.a.chips = 1100;
+    oppBlood.b.chips = 900;
+    oppBlood.b.skillRuntime.bloodBattleActive = true;
+    const stacked = oppBlood.engine.skillEngine.applySettlementModifiers(oppBlood.room, {
+      reason: "showdown", winner: oppBlood.a, winnerCategory: 2,
+    });
+    expect(stacked.multiplier).toBe(4);
+    expect(stacked.selfSkillMultiplier).toBe(2);
+    expect(stacked.opponentSkillMultiplier).toBe(2);
+
+    const both = setupRoom({ loadoutA: ["PROTOCOL_PAIR", "PROTOCOL_TWO_PAIR"] });
+    both.a.chips = 1100;
+    both.b.chips = 900;
+    const result = both.engine.skillEngine.applySettlementModifiers(both.room, {
+      reason: "showdown", winner: both.a, winnerCategory: 3,
+    });
+    expect(result.effects.map((entry) => entry.skillId)).toEqual(["PROTOCOL_TWO_PAIR"]);
+    expect(result.multiplier).toBe(2);
+  });
+
+  test("强运配置保持可替换，且默认事件池仍可审计", () => {
+    expect(FORTUNE_CONFIG.status).toBe("DRAFT_UNCONFIRMED");
+    expect(FORTUNE_COMBOS).toHaveLength(126);
+    expect(new Set(FORTUNE_COMBOS.map((combo) => combo.codes.slice().sort().join("-"))).size).toBe(126);
+  });
+
+  test("强运改写后最终牌区仍保持 52 张唯一", () => {
+    const { engine, room, a, b } = setupRoom({
       loadoutA: ["FORTUNE", "RECYCLE"],
+      start: false,
       random: () => 0,
       deckFactory: createDeck,
     });
-    const committedCodes = room.handReveal.deck.map((card) => card.code);
-    expect(room.skillState.transformations.some((entry) => entry.skillId === "FORTUNE")).toBe(true);
-    expect(room.deck.map((card) => card.code)).not.toEqual(committedCodes.slice(0, room.deck.length));
-    const reveal = engine.completeHandReveal(room);
-    const finalCodes = [
-      ...reveal.finalZones.communityCards,
-      ...reveal.finalZones.playerCards.flatMap((entry) => entry.cards),
-      ...reveal.finalZones.remainingDeck,
-      ...reveal.burnedCards,
-      ...reveal.removedCards,
+    beginHandSkills(room);
+    room.deck = createDeck();
+    a.cards = weakHole();
+    b.cards = [byCode().S3, byCode().H8];
+    room.deck = createDeck().filter((card) => !["C2", "D7", "S3", "H8"].includes(card.code));
+    engine.skillEngine.applyHoleFortune(room);
+    const codes = [
+      ...a.cards, ...b.cards, ...room.communityCards, ...room.deck,
+      ...(room.skillState.burnedCards || []), ...(room.skillState.removedCards || []),
     ].map((card) => card.code);
-    expect(finalCodes).toHaveLength(52);
-    expect(new Set(finalCodes).size).toBe(52);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  test("公共牌强运不会改写即将烧掉或后续发牌槽位", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["FORTUNE", "RECYCLE"],
+      start: false,
+      random: () => 0,
+    });
+    beginHandSkills(room);
+    const cards = byCode();
+    a.cards = [cards.SA, cards.C2];
+    b.cards = [cards.S3, cards.H8];
+    const live = createDeck().filter((card) => !["SA", "C2", "S3", "H8"].includes(card.code));
+    room.communityCards = [];
+    room.deck = live;
+    const burnCode = room.deck[room.deck.length - 1].code;
+    const reservedCodes = getFutureCommunitySlots(room).map((slot) => slot.card.code);
+    a.skillRuntime.abyssEnergy = 8;
+    engine.skillEngine.applyBoardFortune(room, "flop");
+    expect(room.deck[room.deck.length - 1].code).toBe(burnCode);
+    const afterReserved = getFutureCommunitySlots(room).map((slot) => slot.card.code);
+    expect(afterReserved.slice(1)).toEqual(reservedCodes.slice(1));
+  });
+});
+
+describe("机器人与手牌结束辅助", () => {
+  test("单机对手会在自己的下注回合使用默认主动技能", () => {
+    const cards = byCode();
+    const strong = setupRoom({
+      loadoutB: ["DEEP_BREATH", "BLOOD_BATTLE", "DEFENSE", "DESPERATION"],
+    });
+    strong.b.isBot = true;
+    strong.room.currentPlayerIndex = 1;
+    strong.b.cards = [cards.SA, cards.HA];
+    expect(strong.engine.skillEngine.tryBotTurnSkill(strong.room, strong.b)).toMatchObject({
+      ok: true,
+      skillId: "BLOOD_BATTLE",
+    });
+  });
+
+  test("endHandSkills 兼容旧测试入口", () => {
+    const { room, a, b } = setupRoom();
+    a.skillRuntime.abyssEnergy = 4;
+    b.skillRuntime.abyssEnergy = 4;
+    endHandSkills(room, { reason: "fold", winner: a, tie: false });
+    expect(a.skillRuntime.abyssEnergy).toBe(4);
+    expect(b.skillRuntime.abyssEnergy).toBe(5);
   });
 });

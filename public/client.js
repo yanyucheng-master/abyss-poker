@@ -27,6 +27,7 @@ const STORAGE = Object.freeze({
   revealCards: "abyss_reveal_cards",
   settings: "abyss_ui_settings_v2",
   skillLoadout: "abyss_skill_loadout_v2",
+  suspectedSkills: "abyss_suspected_skills_v1",
   commitments: "abyss_hand_commitments_v1",
 });
 
@@ -88,6 +89,7 @@ function loadSettings() {
     music: 0,
     scale: 100,
     lowPerformance: false,
+    skillExpertText: false,
   };
   let stored = {};
   try {
@@ -117,6 +119,8 @@ function loadSettings() {
       typeof stored.lowPerformance === "boolean"
         ? stored.lowPerformance
         : defaults.lowPerformance,
+    skillExpertText:
+      typeof stored.skillExpertText === "boolean" ? stored.skillExpertText : defaults.skillExpertText,
   };
 }
 
@@ -149,6 +153,7 @@ const state = {
   skillCatalogStatus: "idle",
   selectedLoadout: [],
   savedLoadout: [],
+  suspectedSkillIds: loadSuspectedSkillIds(),
   skillConfig: { minEquipped: 2, maxEquipped: 4, maxLoad: 8 },
   pendingRoomAction: null,
   pendingJoinRoomId: null,
@@ -359,6 +364,7 @@ const el = {
   btnConfirmLoadout: byId("btn-confirm-loadout"),
   skillHud: byId("skill-hud"),
   selfEnergy: byId("self-energy"),
+  selfEnergyCap: byId("self-energy-cap"),
   opponentEnergy: byId("opponent-energy"),
   skillSilenceFlag: byId("skill-silence-flag"),
   skillBar: byId("skill-bar"),
@@ -380,6 +386,8 @@ const el = {
   skillPreviewRules: byId("skill-preview-rules"),
   btnCloseSkillPreview: byId("btn-close-skill-preview"),
   btnSkillPreviewDone: byId("btn-skill-preview-done"),
+  btnSkillPreviewNovice: byId("btn-skill-preview-novice"),
+  btnSkillPreviewExpert: byId("btn-skill-preview-expert"),
   selfCards: byId("self-cards"),
   selfArea: byId("self-area"),
   btnToggleCards: byId("btn-toggle-cards"),
@@ -499,6 +507,7 @@ let allInEffectTimer = 0;
 let allInEffectEndsAt = 0;
 let delayedHandResultTimer = 0;
 let skillPreviewReturnFocus = null;
+let previewingSkill = null;
 let skillCatalogPromise = null;
 const uiPendingTimers = new Map();
 const boardPulseTimers = new Map();
@@ -1604,6 +1613,16 @@ function showGameOver(payload) {
       : won
         ? (payload.loserName || opponent?.name || "对手") + " 筹码耗尽"
         : (payload.winnerName || opponent?.name || "对手") + " 赢得整场对局";
+  if (Array.isArray(payload.loadouts) && payload.loadouts.length) {
+    const lines = payload.loadouts.map((entry) => {
+      const owner = state.players.find((player) => player.playerId === entry.playerId);
+      const names = (entry.skillIds || []).map((skillId) =>
+        state.skillCatalog.find((skill) => skill.id === skillId)?.name || skillId
+      );
+      return (owner?.name || entry.name || entry.playerId) + "：" + (names.join(" / ") || "无");
+    });
+    el.gameOverMsg.textContent += "。完整构筑：" + lines.join("；");
+  }
   el.gameOverModal.classList.remove("hidden");
   if (payload.rematch) updateRematch({ rematch: payload.rematch });
   else clearRematch();
@@ -1710,6 +1729,25 @@ function protocolSummaryText(gameMode, skillMode) {
   const deal = gameMode === GAME_MODE.OVERDRIVE ? "高爆局" : "标准局";
   const skill = skillMode === "abyss" ? "深渊技能" : "无技能";
   return deal + " · " + skill;
+}
+
+function loadSuspectedSkillIds() {
+  try {
+    const parsed = JSON.parse(safeStorageGet("localStorage", STORAGE.suspectedSkills, "[]"));
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveSuspectedSkillIds(ids) {
+  state.suspectedSkillIds = [...new Set(ids)];
+  safeStorageSet("localStorage", STORAGE.suspectedSkills, JSON.stringify(state.suspectedSkillIds));
+}
+
+function skillDescriptionText(skill) {
+  if (state.settings.skillExpertText) return skill?.expertDescription || skill?.description || "暂无技能说明。";
+  return skill?.shortDescription || skill?.description || "暂无技能说明。";
 }
 
 function loadSavedLoadout() {
@@ -1865,6 +1903,7 @@ const SKILL_TAG_LABELS = Object.freeze({
   DECK_EDIT: "牌堆编辑",
   BOARD_EDIT: "公共牌编辑",
   ONCE_PER_HAND: "每手限次",
+  PROTOCOL: "协议",
 });
 
 const SKILL_PHASE_LABELS = Object.freeze({
@@ -1882,9 +1921,15 @@ function skillTypeLabel(skill) {
   return "主动技能";
 }
 
+function syncSkillPreviewModeButtons() {
+  el.btnSkillPreviewNovice?.classList.toggle("is-active", !state.settings.skillExpertText);
+  el.btnSkillPreviewExpert?.classList.toggle("is-active", Boolean(state.settings.skillExpertText));
+}
+
 function closeSkillPreview() {
   if (!el.skillPreviewModal || el.skillPreviewModal.classList.contains("hidden")) return;
   el.skillPreviewModal.classList.add("hidden");
+  previewingSkill = null;
   const target = skillPreviewReturnFocus;
   skillPreviewReturnFocus = null;
   if (target?.isConnected) target.focus();
@@ -1892,10 +1937,13 @@ function closeSkillPreview() {
 
 function showSkillPreview(skill, trigger) {
   if (!skill || !el.skillPreviewModal) return;
+  previewingSkill = skill;
   skillPreviewReturnFocus = trigger || document.activeElement;
   el.skillPreviewTitle.textContent = skill.name || skill.id || "技能档案";
-  el.skillPreviewDescription.textContent = skill.description || "暂无技能说明。";
+  el.skillPreviewDescription.textContent = skillDescriptionText(skill);
+  el.skillPreviewDescription.classList.toggle("is-expert", Boolean(state.settings.skillExpertText));
   el.skillPreviewMeta.textContent = "";
+  syncSkillPreviewModeButtons();
 
   const meta = [skillTypeLabel(skill), "负载 " + Number(skill.load || 0)];
   if (!(skill.tags || []).includes("PASSIVE")) meta.push("能量 " + Number(skill.energyCost || 0));
@@ -1916,12 +1964,13 @@ function showSkillPreview(skill, trigger) {
   const conditions = [];
   if (skill.requiresActionTurn) conditions.push("仅在你的行动回合");
   if (skill.requiresFirstSkillEvent) conditions.push("必须是本手第一个技能事件");
+  if (skill.canBeCountered === false) conditions.push("不能被反制");
 
   const rows = [
     ["发动时机", phases.length ? phases.join(" / ") : skillTypeLabel(skill) === "被动技能" ? "满足条件时自动触发" : "专属窗口"],
     ["使用限制", limits.length ? limits.join("；") : "仅受自身触发条件与能量限制"],
     ["前置条件", conditions.length ? conditions.join("；") : "无额外行动条件"],
-    ["信息公开", skill.visibility === "SECRET" ? "发动与结果均为私有，手牌审计时公开" : skill.visibility === "MIXED" ? "按目标所在区域决定公开范围" : "发动状态公开"],
+    ["信息公开", skill.visibility === "SECRET" ? "发动与结果默认私有，仅在出现可观察结果、被侦查或规则要求时确认" : skill.visibility === "MIXED" ? "按目标所在区域决定公开范围" : "发动状态公开"],
   ];
   el.skillPreviewRules.textContent = "";
   rows.forEach(([term, value]) => {
@@ -1972,10 +2021,13 @@ function createSkillCatalogCard(skill, { selected = false, disabled = false, onS
   const description = document.createElement("span");
   name.textContent = skill.name;
   const passive = (skill.tags || []).includes("PASSIVE");
-  cost.textContent = "负载 " + skill.load + (passive
-    ? Number(skill.energyCost || 0) > 0 ? " · 触发消耗 " + skill.energyCost : " · 自动触发"
-    : " · 能量 " + skill.energyCost);
-  description.textContent = skill.description;
+  const energyHint = skill.energyCosts
+    ? " · 能量 " + Object.values(skill.energyCosts).join("/")
+    : Number(skill.energyCost || 0) > 0
+      ? passive ? " · 触发消耗 " + skill.energyCost : " · 能量 " + skill.energyCost
+      : passive ? " · 自动触发" : " · 能量 0";
+  cost.textContent = "负载 " + skill.load + energyHint;
+  description.textContent = skill.shortDescription || skill.description || "";
   select.append(name, cost, description);
   if (typeof onSelect === "function") select.addEventListener("click", onSelect);
 
@@ -2454,6 +2506,16 @@ el.btnSettingsLobby?.addEventListener("click", () => {
 });
 el.btnCloseSkillPreview?.addEventListener("click", closeSkillPreview);
 el.btnSkillPreviewDone?.addEventListener("click", closeSkillPreview);
+el.btnSkillPreviewNovice?.addEventListener("click", () => {
+  state.settings.skillExpertText = false;
+  saveSettings();
+  if (previewingSkill) showSkillPreview(previewingSkill, skillPreviewReturnFocus);
+});
+el.btnSkillPreviewExpert?.addEventListener("click", () => {
+  state.settings.skillExpertText = true;
+  saveSettings();
+  if (previewingSkill) showSkillPreview(previewingSkill, skillPreviewReturnFocus);
+});
 el.skillPreviewModal?.addEventListener("click", (event) => {
   if (event.target === el.skillPreviewModal) closeSkillPreview();
 });
@@ -2478,7 +2540,7 @@ el.settingProMode?.addEventListener("change", () => {
   saveSettings();
   applySettings();
   showToast(
-    state.settings.proPlayerMode ? "牌佬模式已开启 · TOURNAMENT DESK" : "已退出牌佬模式",
+    state.settings.proPlayerMode ? "专家模式已开启 · TOURNAMENT DESK" : "已退出专家模式",
     "success"
   );
 });
@@ -3075,13 +3137,16 @@ function renderSkillDraft() {
 function skillAvailability(def, skills, me) {
   const tags = new Set(def?.tags || []);
   if (tags.has("PASSIVE")) return { ready: false, kind: "passive", reason: "自动触发", cost: 0 };
-  const cost = Number(def?.energyCost || 0);
+  const cost = def?.id === "NULLIFICATION"
+    ? Number(def.energyCosts?.board || def.energyCost || 0)
+    : Number(def?.energyCost || 0);
   const handUsed = Number(skills?.skillUsesThisHand?.[def.id] || 0);
   const gameUsed = Number(skills?.skillUsesThisGame?.[def.id] || 0);
   let reason = "可发动";
   if (!socket.connected) reason = "等待网络恢复";
   else if (state.uiPending.skill) reason = "请求处理中";
   else if (!me || me.status === "folded" || me.status === "out") reason = "当前已退出本手";
+  else if (Number(skills?.abyssEnergy || 0) < 0) reason = "负能量时不能发动";
   else if (skills?.lockedThisHand || state.skillState?.fairnessActive) reason = "本手技能已封锁";
   else if (Array.isArray(def.allowedPhases) && def.allowedPhases.length && !def.allowedPhases.includes(state.phase)) reason = "当前阶段不可用";
   else if (def.requiresActionTurn && state.currentTurnPlayerId !== state.playerId) reason = "等待你的行动回合";
@@ -3089,9 +3154,6 @@ function skillAvailability(def, skills, me) {
   else if (def.requiresFirstSkillEvent && Number(skills?.skillEventsThisHand || 0) > 0) reason = "必须是本手第一个技能事件";
   else if (def.maxUsesPerHand != null && handUsed >= def.maxUsesPerHand) reason = "本手次数已用完";
   else if (def.maxUsesPerGame != null && gameUsed >= def.maxUsesPerGame) reason = "本场次数已用完";
-  else if (def.id === "DEEP_BREATH" && Number(skills?.abyssEnergy || 0) > 4) reason = "能量高于 4 时不可用";
-  else if (def.id === "DEFENSE" && skills?.facedAggressionThisPhase) reason = "已面对本阶段首次主动加注";
-  else if (def.id === "CHEAT" && state.communityCards.length >= 5) reason = "河牌已全部公布";
   else if (Number(skills?.abyssEnergy || 0) < cost) reason = "能量不足";
   return { ready: reason === "可发动", kind: "active", reason, cost };
 }
@@ -3105,6 +3167,7 @@ function renderSkillHud() {
   const opponent = getOpponent();
   const selfSkills = state.skillSelf || me?.skills || {};
   el.selfEnergy.textContent = String(selfSkills.abyssEnergy ?? 0);
+  if (el.selfEnergyCap) el.selfEnergyCap.textContent = String(selfSkills.energyCap || 8);
   el.opponentEnergy.textContent = String(opponent?.skills?.abyssEnergy ?? 0);
   const controlLabel = state.skillState?.fairnessActive
     ? "公平封锁"
@@ -3134,7 +3197,7 @@ function renderSkillHud() {
     btn.classList.toggle("is-ready", availability.ready);
     btn.disabled = !availability.ready;
     btn.dataset.reason = availability.reason;
-    btn.title = (def.description || skillId) + "\n状态：" + availability.reason;
+    btn.title = skillDescriptionText(def) + "\n状态：" + availability.reason;
     btn.setAttribute("aria-label", def.name + "，" + availability.reason);
     btn.innerHTML =
       "<span class=\"skill-use-name\">" +
@@ -3152,10 +3215,16 @@ function renderSkillHud() {
     const effectNames = publicEffects.map((id) =>
       state.skillCatalog.find((skill) => skill.id === id)?.name || id
     );
-    el.opponentSkillBar.textContent = opponent
-      ? "对手构筑已隐藏" + (effectNames.length ? " · 生效：" + effectNames.join(" / ") : "")
+    const suspectedNames = (state.suspectedSkillIds || []).map((id) =>
+      state.skillCatalog.find((skill) => skill.id === id)?.name || id
+    );
+    const parts = ["对手构筑已隐藏"];
+    if (effectNames.length) parts.push("已确认：" + effectNames.join(" / "));
+    if (suspectedNames.length) parts.push("本地怀疑：" + suspectedNames.join(" / "));
+    el.opponentSkillBar.textContent = opponent ? parts.join(" · ") : "";
+    el.opponentSkillBar.title = opponent
+      ? el.opponentSkillBar.textContent + "（点击可标记怀疑技能，仅自己可见）"
       : "";
-    el.opponentSkillBar.title = el.opponentSkillBar.textContent;
   }
 }
 
@@ -3220,14 +3289,12 @@ function useSkill(skillId) {
   if (skillId === "INTEL_ONE") {
     const future = futureBoardIndexes();
     const options = [{ label: "随机读取一张对手底牌", target: { zone: "opponent" }, tone: "intel" }];
-    if (future.length > 1) {
-      future.forEach((boardIndex) => options.push({
-        label: `查看未来公共牌 #${boardIndex + 1}`,
-        target: { zone: "future", boardIndex },
-        tone: "intel",
-      }));
-    }
-    return openSkillTargetOptions({ skillId, title: "情报壹", text: "选择一个精确信息目标", options });
+    future.forEach((boardIndex) => options.push({
+      label: `查看未来公共牌 #${boardIndex + 1}`,
+      target: { zone: "future", boardIndex },
+      tone: "intel",
+    }));
+    return openSkillTargetOptions({ skillId, title: "情报", text: "先选择模式。扣费后不能改目标。", options });
   }
   if (skillId === "CHEAT") {
     const options = [];
@@ -3248,39 +3315,73 @@ function useSkill(skillId) {
         label: `${cardChoiceLabel(ownCard)} ↔ 下一张有效发牌`,
         target: { ownIndex, zone: "next" },
       });
+      options.push({
+        label: `${cardChoiceLabel(ownCard)} ↔ 牌堆暗抽（非顶部）`,
+        target: { ownIndex, zone: "deck_random" },
+      });
     });
     return openSkillTargetOptions({ skillId, title: "千术", text: "选择自己的底牌与精确交换目标", options });
   }
   if (skillId === "NULLIFICATION") {
+    const energy = Number((state.skillSelf || getMe()?.skills || {}).abyssEnergy || 0);
     const options = [];
+    if (energy >= 7) {
+      options.push({
+        label: "零化对手一张随机底牌（7 能量）",
+        target: { mode: "hole" },
+      });
+    }
     state.communityCards.forEach((card, boardIndex) => {
-      if (!state.nullifiedCommunityCardIds.includes(card.code)) options.push({
-        label: `零化公共牌 #${boardIndex + 1} ${cardChoiceLabel(card)}`,
-        target: { boardIndex },
+      options.push({
+        label: `零化公共牌 #${boardIndex + 1} ${cardChoiceLabel(card)}（6 能量）`,
+        target: { mode: "board", boardIndex },
       });
     });
     futureBoardIndexes().forEach((boardIndex) => options.push({
-      label: `零化未来公共牌 #${boardIndex + 1}`,
-      target: { boardIndex },
+      label: `零化未来公共牌 #${boardIndex + 1}（6 能量）`,
+      target: { mode: "board", boardIndex },
     }));
-    return openSkillTargetOptions({ skillId, title: "零化", text: "选择不参与双方牌型计算的公共牌位置", options });
+    return openSkillTargetOptions({ skillId, title: "零化", text: "选择模式与目标。双方可以点同一张公共牌。", options });
   }
   if (skillId === "DESTINY") {
-    const unavailable = new Set([...state.myCards, ...state.communityCards].map((card) => card.code));
     const options = [];
     ["S", "H", "C", "D"].forEach((suit) => {
       ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"].forEach((rank) => {
         const cardCode = suit + rank;
-        if (!unavailable.has(cardCode)) options.push({
+        options.push({
           label: cardCodeLabel(cardCode),
           target: { cardCode },
           tone: ["H", "D"].includes(suit) ? "red" : "black",
         });
       });
     });
-    return openSkillTargetOptions({ skillId, title: "天命", text: "精确指定未来河牌；若目标在对手底牌中，支付后失败", options });
+    return openSkillTargetOptions({ skillId, title: "天命", text: "转牌后指定一张牌立刻成为未来河牌；若不在可操作牌堆中，7 能量照付且失败", options });
   }
   emitSkillUse(skillId);
+}
+
+function openSuspectPicker() {
+  const selected = new Set(state.suspectedSkillIds || []);
+  state.pendingChoice = { type: "SUSPECT_SKILLS", skillIds: [...selected] };
+  el.skillChoiceTitle.textContent = "怀疑技能";
+  el.skillChoiceText.textContent = "仅保存在你本地，不会同步给对手，也不影响结算。";
+  el.skillChoiceBody.textContent = "";
+  el.btnSkillChoiceConfirm.disabled = false;
+  state.skillCatalog.forEach((skill) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "skill-choice-card target-card-choice";
+    btn.textContent = skill.name;
+    btn.classList.toggle("selected", selected.has(skill.id));
+    btn.addEventListener("click", () => {
+      if (selected.has(skill.id)) selected.delete(skill.id);
+      else selected.add(skill.id);
+      btn.classList.toggle("selected", selected.has(skill.id));
+      state.pendingChoice.skillIds = [...selected];
+    });
+    el.skillChoiceBody.appendChild(btn);
+  });
+  el.skillChoiceModal.classList.remove("hidden");
 }
 
 el.skillModeInputs?.forEach((input) =>
@@ -3304,6 +3405,16 @@ el.btnSkillChoiceConfirm?.addEventListener("click", () => {
     state.pendingChoice = null;
     return;
   }
+  if (state.pendingChoice.type === "SUSPECT_SKILLS") {
+    saveSuspectedSkillIds(state.pendingChoice.skillIds || []);
+    el.skillChoiceModal.classList.add("hidden");
+    state.pendingChoice = null;
+    renderSkillHud();
+  }
+});
+el.opponentSkillBar?.addEventListener("click", () => {
+  if (state.skillMode !== "abyss" || !getOpponent()) return;
+  openSuspectPicker();
 });
 el.btnSkillPrivateClose?.addEventListener("click", () => {
   el.skillPrivateModal.classList.add("hidden");

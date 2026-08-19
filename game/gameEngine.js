@@ -10,7 +10,6 @@ const {
   beginHandSkills,
   onStreetPhaseChanged,
   onPlayerFolded,
-  endHandSkills,
   autoConfirmBotLoadouts,
   allLoadoutsConfirmed,
   setPlayerLoadout,
@@ -25,6 +24,8 @@ const {
   getValidActions,
   collectBet,
   isStreetComplete,
+  isActionablePlayer,
+  pickAutoAction,
 } = require("./pokerLogic");
 
 const HAND_SETTLE_MS = 2000;
@@ -121,11 +122,10 @@ class GameEngine {
       if (room.players[playerIndex]?.playerId !== playerId) return;
       if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
       const latest = getValidActions(room, playerIndex);
-      const timeoutAction = latest.validActions.includes("check")
-        ? "check"
-        : latest.validActions.includes("call")
-          ? "call"
-          : "fold";
+      const actor = room.players[playerIndex];
+      const timeoutAction = pickAutoAction(latest.validActions)
+        || (actor?.status === "disconnected" ? "fold" : null);
+      if (!timeoutAction) return;
       this.logger.warn("GAME", "行动超时自动处理", {
         roomId: room.roomId,
         playerId,
@@ -270,7 +270,7 @@ class GameEngine {
       cards,
       ...extra,
     };
-    const excluded = room ? this.getExcludedCodes(room) : new Set();
+    const excluded = room ? this.getExcludedCodes(room, player) : new Set();
     const pool = [...cards, ...(communityCards || [])];
     if (pool.length >= 5) {
       const hand = pickBestFive(pool, { excludedCodes: excluded });
@@ -290,21 +290,29 @@ class GameEngine {
     return detail;
   }
 
-  getExcludedCodes(room) {
-    return this.skillEngine.getNullifiedSet(room);
+  getExcludedCodes(room, player) {
+    return this.skillEngine.getNullifiedSet(room, player);
+  }
+
+  buildLoadoutReveal(room) {
+    if (!isSkillEnabled(room?.skillMode)) return [];
+    return room.players.map((player) => ({
+      playerId: player.playerId,
+      name: player.name,
+      skillIds: [...(player.skillRuntime?.equippedSkillIds || [])],
+    }));
   }
 
   evaluatePlayerHand(player, room) {
     return pickBestFive([...(player.cards || []), ...(room.communityCards || [])], {
-      excludedCodes: this.getExcludedCodes(room),
+      excludedCodes: this.getExcludedCodes(room, player),
     });
   }
 
-  buildHandHint(player, communityCards, room = null) {
-    const excluded = room ? this.getExcludedCodes(room) : new Set();
+  buildHandHint(player, communityCards, _room = null) {
     const pool = [...(player.cards || []), ...(communityCards || [])];
     if (pool.length >= 5) {
-      const hand = pickBestFive(pool, { excludedCodes: excluded });
+      const hand = pickBestFive(pool);
       if (!hand) return { handName: "无效牌型", category: 0, bestFive: [] };
       return {
         handName: hand.handName,
@@ -509,6 +517,7 @@ class GameEngine {
 
     this.emitToRoom(room, "game_over", {
       ...gameOverPayload,
+      loadouts: gameOverPayload.loadouts || this.buildLoadoutReveal(room),
       rematch: this.buildRematchPayload(room),
     });
     this.broadcastRoomState(room);
@@ -728,6 +737,7 @@ class GameEngine {
     for (let i = 0; i < 2; i += 1) {
       room.players.forEach((p) => p.cards.push(room.deck.pop()));
     }
+    if (isSkillEnabled(room.skillMode)) this.skillEngine.applyHoleFortune(room);
     this.logger.info("GAME", "发底牌", { roomId: room.roomId, handNo: room.handNo });
     this.eventBus.emit("game:deal_hole_cards", { roomId: room.roomId, handNo: room.handNo });
 
@@ -786,7 +796,7 @@ class GameEngine {
   emitTurn(room, { timeoutMs = ACTION_TIMEOUT_MS } = {}) {
     if (["waiting", "showdown", "end", "game_over"].includes(room.phase)) return;
     const current = room.players[room.currentPlayerIndex];
-    if (current?.status === "disconnected" && !current.isAllIn) {
+    if (current?.status === "disconnected" && isActionablePlayer(room, current)) {
       room.turnSeq = Number(room.turnSeq || 0) + 1;
       room.turnId = `${room.handId || room.handNo}:${room.turnSeq}`;
       const pausedTurn = { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
@@ -804,10 +814,16 @@ class GameEngine {
       this.broadcastRoomState(room);
       return;
     }
-    if (!current || current.status !== "active" || current.isAllIn) {
+    if (!current || current.status !== "active" || !isActionablePlayer(room, current)) {
       const next = this.findNextActionPlayer(room, room.currentPlayerIndex);
-      if (next < 0) return;
+      if (next < 0) {
+        if (this.runoutToShowdownIfAllIn(room)) return;
+        if (isStreetComplete(room)) this.moveToNextStreet(room);
+        return;
+      }
       room.currentPlayerIndex = next;
+      this.emitTurn(room, { timeoutMs });
+      return;
     }
     const turnPlayer = room.players[room.currentPlayerIndex];
     const turn = getValidActions(room, room.currentPlayerIndex);
@@ -834,7 +850,7 @@ class GameEngine {
     for (let i = 1; i <= room.players.length; i += 1) {
       const idx = (fromIndex + i) % room.players.length;
       const p = room.players[idx];
-      if (["active", "disconnected"].includes(p.status) && !p.isAllIn) return idx;
+      if (isActionablePlayer(room, p)) return idx;
     }
     return -1;
   }
@@ -873,7 +889,7 @@ class GameEngine {
           }, room)
         ),
       });
-    endHandSkills(room, { reason: "fold", winner, tie: false });
+    this.skillEngine.endHand(room, { reason: "fold", winner, tie: false });
     room.lastHandResult = handResult;
     this.emitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
@@ -903,6 +919,10 @@ class GameEngine {
     room.currentBet = 0;
     room.lastRaiseSize = room.bigBlind;
 
+    if (isSkillEnabled(room.skillMode) && ["flop", "turn", "river"].includes(nextPhase)) {
+      this.skillEngine.applyBoardFortune(room, nextPhase);
+    }
+
     if (nextPhase === "flop") {
       const burned = room.deck.pop();
       if (room.skillState && burned) room.skillState.burnedCards.push(burned);
@@ -921,7 +941,7 @@ class GameEngine {
     this.emitToRoom(room, "community_cards", {
       cards: room.communityCards,
       phase: room.phase,
-      nullifiedCommunityCardIds: [...(room.skillState?.nullifiedCommunityCardIds || [])],
+      nullifiedCommunityCardIds: [...(getPublicRoomSkillSnapshot(room).nullifiedCommunityCardIds || [])],
     });
     if (isSkillEnabled(room.skillMode)) this.skillEngine.onCardsDealt(room, nextPhase);
     if (isSkillEnabled(room.skillMode)) this.skillEngine.broadcastSkillState(room);
@@ -931,7 +951,7 @@ class GameEngine {
 
   runoutToShowdownIfAllIn(room) {
     const active = getActivePlayers(room);
-    const actionable = active.filter((p) => !p.isAllIn);
+    const actionable = active.filter((p) => isActionablePlayer(room, p));
     if (actionable.length >= 2) return false;
     if (
       actionable.length === 1 &&
@@ -1003,7 +1023,7 @@ class GameEngine {
           this.buildPlayerHandDetail(player, room.communityCards, {}, room)
         ),
       });
-      endHandSkills(room, { reason: "showdown", winner: null, tie: true });
+      this.skillEngine.endHand(room, { reason: "showdown", winner: null, tie: true });
       room.lastHandResult = handResult;
       this.emitHandResult(room, handResult, { revealAll: true });
       this.revealHandCommitment(room);
@@ -1035,6 +1055,7 @@ class GameEngine {
       this.skillEngine.applySettlementModifiers(room, {
         reason: "showdown",
         winner: first.player,
+        winnerCategory: first.hand?.category ?? null,
         tie: false,
       });
     }
@@ -1069,7 +1090,7 @@ class GameEngine {
           this.buildPlayerHandDetail(x.player, room.communityCards, {}, room)
         ),
       });
-    endHandSkills(room, {
+    this.skillEngine.endHand(room, {
       reason: "showdown",
       winner: tie ? null : first.player,
       tie,
@@ -1149,7 +1170,10 @@ class GameEngine {
     if (pressure > 0.45 && can("allin") && Math.random() < 0.25) return { action: "allin" };
     if (can("call")) return { action: "call" };
     if (can("allin")) return { action: "allin" };
-    return { action: "fold" };
+    if (can("fold")) return { action: "fold" };
+    if (can("check")) return { action: "check" };
+    const fallback = pickAutoAction(turn.validActions);
+    return { action: fallback || "check" };
   }
 
   scheduleBotAction(room, botIndex, turn) {
@@ -1289,8 +1313,8 @@ class GameEngine {
         appliedAction = player.isAllIn ? "allin" : "call";
       } else {
         const targetTotal = Math.min(player.streetBet + player.chips, maxTotal);
-        if (targetTotal <= player.streetBet) return { ok: false, error: "当前不可全押" };
-        const need = targetTotal - player.streetBet;
+        if (targetTotal < player.streetBet) return { ok: false, error: "当前不可全押" };
+        const need = Math.max(0, targetTotal - player.streetBet);
         const paid = collectBet(room, player, need);
         appliedAmount = paid;
 
@@ -1305,7 +1329,16 @@ class GameEngine {
           }
         }
         player.hasActed = true;
-        appliedAction = player.isAllIn ? "allin" : player.streetBet > oldCurrentBet ? "raise" : "call";
+        appliedAction = player.isAllIn
+          ? "allin"
+          : player.streetBet > oldCurrentBet
+            ? "raise"
+            : "call";
+      }
+      if (room.skillState?.contributionCap != null) appliedAction = "allin";
+      if (player.skillRuntime) {
+        player.skillRuntime.allInAction = true;
+        player.skillRuntime.stackCommitted = Boolean(player.isAllIn);
       }
     } else {
       return { ok: false, error: "未知操作" };
@@ -1320,7 +1353,7 @@ class GameEngine {
     if (player.streetBet > oldCurrentBet && ["raise", "allin"].includes(appliedAction)) {
       this.skillEngine.onAggressiveAction(room, player);
     }
-    if (player.isAllIn && appliedAction === "allin") {
+    if (action === "allin" || appliedAction === "allin") {
       this.skillEngine.onPlayerAllIn(room, player);
     }
 

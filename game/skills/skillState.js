@@ -1,5 +1,5 @@
 const { SKILL_CONFIG } = require("../skillConfig");
-const { getSkillDefinition, listSkillDefinitions } = require("./definitions");
+const { getSkillDefinition, listSkillDefinitions, isProtocolSkill } = require("./definitions");
 
 function createEmptySkillRuntime() {
   return {
@@ -15,19 +15,27 @@ function createEmptySkillRuntime() {
     breathArmed: false,
     breathBroken: false,
     recycleUsedThisHand: false,
+    paidFailuresThisHand: [],
     topSecretActive: false,
+    topSecretPaidThisHand: false,
+    topSecretRevealed: false,
     counterArmed: false,
     desperationActive: false,
     bloodBattleActive: false,
     defenseActive: false,
+    defenseRevealed: false,
     facedAggressionThisPhase: false,
     deadEndActive: false,
+    allInAction: false,
+    stackCommitted: false,
     perceptionTriggerCount: 0,
     perceptionCheckedNodes: [],
-    fortuneTriggered: false,
+    fortuneRewriteCount: 0,
+    fortuneResourceUsed: false,
     foldedThisHand: false,
     handStartChips: 0,
     privateResults: [],
+    confirmedPublicSkills: [],
   };
 }
 
@@ -43,7 +51,20 @@ function createRoomSkillState() {
     noFoldActive: false,
     contributionCap: null,
     fairnessActive: false,
+    settlement: null,
   };
+}
+
+function getEnergyCap(player) {
+  const ids = player?.skillRuntime?.equippedSkillIds || [];
+  return ids.includes("DESTINY")
+    ? SKILL_CONFIG.DESTINY_MAX_ABYSS_ENERGY
+    : SKILL_CONFIG.MAX_ABYSS_ENERGY;
+}
+
+function getPublicEnergyDisplay(player) {
+  const real = Number(player?.skillRuntime?.abyssEnergy) || 0;
+  return Math.max(0, Math.min(SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP, real));
 }
 
 function resetPlayerSkillsForGame(player) {
@@ -67,19 +88,27 @@ function resetPlayerSkillsForHand(player) {
   runtime.breathArmed = false;
   runtime.breathBroken = false;
   runtime.recycleUsedThisHand = false;
+  runtime.paidFailuresThisHand = [];
   runtime.topSecretActive = false;
+  runtime.topSecretPaidThisHand = false;
+  runtime.topSecretRevealed = false;
   runtime.counterArmed = false;
   runtime.desperationActive = false;
   runtime.bloodBattleActive = false;
   runtime.defenseActive = false;
+  runtime.defenseRevealed = false;
   runtime.facedAggressionThisPhase = false;
   runtime.deadEndActive = false;
+  runtime.allInAction = false;
+  runtime.stackCommitted = false;
   runtime.perceptionTriggerCount = 0;
   runtime.perceptionCheckedNodes = [];
-  runtime.fortuneTriggered = false;
+  runtime.fortuneRewriteCount = 0;
+  runtime.fortuneResourceUsed = false;
   runtime.foldedThisHand = false;
   runtime.handStartChips = Number(player.chips) || 0;
   runtime.privateResults = [];
+  runtime.confirmedPublicSkills = [];
 }
 
 function resetRoomSkillsForHand(room) {
@@ -88,7 +117,6 @@ function resetRoomSkillsForHand(room) {
     ? room.skillState.processedRequestIds
     : new Set();
   Object.assign(room.skillState, createRoomSkillState(), { processedRequestIds: processed });
-  // Request ids only need replay protection for the current room session.
   if (processed.size > 2048) processed.clear();
 }
 
@@ -132,7 +160,7 @@ function gainEnergy(player, amount) {
   const requested = Math.max(0, Math.floor(Number(amount) || 0));
   if (!runtime || requested <= 0) return 0;
   const before = runtime.abyssEnergy;
-  runtime.abyssEnergy = Math.min(SKILL_CONFIG.MAX_ABYSS_ENERGY, before + requested);
+  runtime.abyssEnergy = Math.min(getEnergyCap(player), before + requested);
   return runtime.abyssEnergy - before;
 }
 
@@ -146,31 +174,45 @@ function spendEnergy(player, amount, { allowDebt = false, minimum = 0 } = {}) {
   return true;
 }
 
-function getEffectiveEnergyCost(_player, skill) {
+function getEffectiveEnergyCost(_player, skill, target = {}) {
+  if (skill?.id === "NULLIFICATION") {
+    return String(target?.mode || "board").toLowerCase() === "hole"
+      ? SKILL_CONFIG.NULLIFY_HOLE_COST
+      : SKILL_CONFIG.NULLIFY_BOARD_COST;
+  }
   return Math.max(0, Number(skill?.energyCost) || 0);
 }
 
 function syncVisibleEnergy(player) {
   if (!player?.skillRuntime) return;
-  player.skillRuntime.visibleAbyssEnergy = player.skillRuntime.abyssEnergy;
+  player.skillRuntime.visibleAbyssEnergy = getPublicEnergyDisplay(player);
 }
 
 function hasEquipped(player, skillId) {
   return Boolean(player?.skillRuntime?.equippedSkillIds?.includes(skillId));
 }
 
+function confirmPublicSkill(player, skillId) {
+  const runtime = player?.skillRuntime;
+  if (!runtime || !skillId) return;
+  if (!runtime.confirmedPublicSkills.includes(skillId)) runtime.confirmedPublicSkills.push(skillId);
+}
+
 function getPublicSkillSummary(player) {
   const runtime = player?.skillRuntime || createEmptySkillRuntime();
   return {
     loadoutConfirmed: Boolean(runtime.loadoutConfirmed),
-    abyssEnergy: Number(runtime.visibleAbyssEnergy) || 0,
+    abyssEnergy: getPublicEnergyDisplay(player),
+    energyCap: SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP,
     buildHidden: true,
     lockedThisHand: Boolean(runtime.lockedThisHand),
     publicEffects: [
+      ...(runtime.confirmedPublicSkills || []),
       runtime.bloodBattleActive ? "BLOOD_BATTLE" : null,
-      runtime.defenseActive ? "DEFENSE" : null,
+      runtime.defenseRevealed ? "DEFENSE" : null,
       runtime.deadEndActive ? "DEAD_END" : null,
-    ].filter(Boolean),
+      runtime.topSecretRevealed ? "TOP_SECRET" : null,
+    ].filter(Boolean).filter((id, index, list) => list.indexOf(id) === index),
   };
 }
 
@@ -181,6 +223,7 @@ function getSelfSkillSummary(player) {
     loadoutConfirmed: Boolean(runtime.loadoutConfirmed),
     abyssEnergy: Number(runtime.abyssEnergy) || 0,
     visibleAbyssEnergy: Number(runtime.visibleAbyssEnergy) || 0,
+    energyCap: getEnergyCap(player),
     skillUsesThisHand: { ...(runtime.skillUsesThisHand || {}) },
     skillUsesThisGame: { ...(runtime.skillUsesThisGame || {}) },
     skillEventsThisHand: Number(runtime.skillEventsThisHand) || 0,
@@ -194,19 +237,21 @@ function getSelfSkillSummary(player) {
     defenseActive: Boolean(runtime.defenseActive),
     facedAggressionThisPhase: Boolean(runtime.facedAggressionThisPhase),
     deadEndActive: Boolean(runtime.deadEndActive),
+    allInAction: Boolean(runtime.allInAction),
   };
 }
 
 function getPublicRoomSkillSnapshot(room) {
   const state = room?.skillState || createRoomSkillState();
-  const visibleCodes = new Set((room?.communityCards || []).map((card) => card?.code));
   return {
     noFoldActive: Boolean(state.noFoldActive),
     contributionCap: state.contributionCap == null ? null : Number(state.contributionCap),
     fairnessActive: Boolean(state.fairnessActive),
     nullifiedCommunityCardIds: (state.nullifications || [])
-      .filter((entry) => entry.revealed || visibleCodes.has(entry.cardCode))
-      .map((entry) => entry.cardCode),
+      .filter((entry) => entry.revealed && entry.type !== "hole")
+      .map((entry) => entry.cardCode)
+      .filter(Boolean)
+      .filter((code, index, list) => list.indexOf(code) === index),
     recentLog: (state.skillActionLog || [])
       .filter((entry) => !entry.secret)
       .slice(-8)
@@ -229,6 +274,17 @@ function markSkillEvent(player, skillId) {
   runtime.skillEventsThisHand += 1;
 }
 
+function recordPaidFailure(player, { skillId, cost, reason } = {}) {
+  const runtime = player?.skillRuntime;
+  if (!runtime) return;
+  runtime.paidFailuresThisHand = runtime.paidFailuresThisHand || [];
+  runtime.paidFailuresThisHand.push({
+    skillId,
+    cost: Math.max(0, Number(cost) || 0),
+    reason: reason || "FAILED",
+  });
+}
+
 function getRemainingUses(player, skill) {
   const runtime = player?.skillRuntime || createEmptySkillRuntime();
   const handUsed = runtime.skillUsesThisHand[skill.id] || 0;
@@ -239,6 +295,21 @@ function getRemainingUses(player, skill) {
   };
 }
 
+function canTriggerNewSkillEvent(player, skillId, room, options = {}) {
+  const runtime = player?.skillRuntime;
+  if (!runtime) return false;
+  if (room?.skillState?.fairnessActive) return false;
+  if (!options.ignoreLock && runtime.lockedThisHand) return false;
+  if (runtime.abyssEnergy < 0 && skillId !== "FORTUNE") return false;
+  return true;
+}
+
+function equippedProtocols(player) {
+  return (player?.skillRuntime?.equippedSkillIds || [])
+    .map((id) => getSkillDefinition(id))
+    .filter((skill) => isProtocolSkill(skill));
+}
+
 module.exports = {
   createEmptySkillRuntime, createRoomSkillState, resetPlayerSkillsForGame,
   resetPlayerSkillsForHand, resetRoomSkillsForHand,
@@ -246,5 +317,6 @@ module.exports = {
   getEffectiveEnergyCost, syncVisibleEnergy, hasEquipped,
   getPublicSkillSummary, getSelfSkillSummary, getPublicRoomSkillSnapshot,
   markSkillUse, markSkillEvent, getRemainingUses, listSkillDefinitions,
-  getSkillDefinition,
+  getSkillDefinition, getEnergyCap, getPublicEnergyDisplay, confirmPublicSkill,
+  recordPaidFailure, canTriggerNewSkillEvent, equippedProtocols,
 };

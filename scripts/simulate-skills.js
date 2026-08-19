@@ -1,7 +1,7 @@
 const { createDeck } = require("../utils/deck");
 const { pickBestFive, compareEvaluatedHands } = require("../game/handEvaluator");
 const { listSkillDefinitions } = require("../game/skills/definitions");
-const { FORTUNE_COMBOS } = require("../game/skills/skillEngine");
+const { FORTUNE_COMBOS, computeFortuneChance } = require("../game/skills/fortuneConfig");
 const { SKILL_CONFIG } = require("../game/skillConfig");
 
 const iterations = Math.max(
@@ -79,8 +79,11 @@ function fortuneTriggerCurve() {
     [0, 100],
   ].map(([self, opponent]) => {
     const severity = Math.max(0, opponent - self) / Math.max(1, opponent);
-    const chance = SKILL_CONFIG.FORTUNE_BASE_CHANCE +
-      (SKILL_CONFIG.FORTUNE_MAX_CHANCE - SKILL_CONFIG.FORTUNE_BASE_CHANCE) * severity;
+    const chance = computeFortuneChance("hole", {
+      disadvantage: severity,
+      energy: SKILL_CONFIG.INITIAL_ABYSS_ENERGY,
+      energyCap: SKILL_CONFIG.MAX_ABYSS_ENERGY,
+    });
     return { selfChipShare: self, opponentChipShare: opponent, triggerChance: Number(chance.toFixed(4)) };
   });
 }
@@ -91,7 +94,7 @@ function settlementMatrix() {
     for (const desperation of [false, true]) {
       for (const deadEndFold of [false, true]) {
         for (const defense of [false, true]) {
-          const multiplier = (2 ** bloodStacks) * (desperation ? 1.5 : 1) *
+          const multiplier = (2 ** bloodStacks) * (desperation ? 3 : 1) *
             (deadEndFold ? 3 : 1) * (defense ? 0.5 : 1);
           rows.push({ bloodStacks, desperation, deadEndFold, defense, multiplier });
         }

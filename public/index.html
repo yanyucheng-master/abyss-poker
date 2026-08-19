@@ -167,12 +167,12 @@
           </fieldset>
 
           <label class="setting-row switch-row" for="setting-pro-mode">
-            <span><strong>牌佬模式</strong><small>国际赛桌手感 · 行动键仅显示英文艺术字</small></span>
+            <span><strong>专家模式</strong><small>国际赛桌手感 · 行动键仅显示英文艺术字</small></span>
             <input id="setting-pro-mode" type="checkbox" role="switch" />
           </label>
 
           <label class="setting-row" for="setting-pro-font" id="setting-pro-font-row">
-            <span><strong>牌佬字型</strong><small>赛场播报体 / 霓虹轨 / 铬质板 / 经典宽字</small></span>
+            <span><strong>专家字型</strong><small>赛场播报体 / 霓虹轨 / 铬质板 / 经典宽字</small></span>
             <select id="setting-pro-font">
               <option value="broadcast">赛场播报</option>
               <option value="neonrail">霓虹轨</option>
@@ -685,7 +685,7 @@
           <div id="skill-hud" class="skill-hud hidden">
             <div class="skill-energy-row">
               <span class="skill-hud-label">深渊战术</span>
-              <span>能量 <strong id="self-energy">0</strong>/8</span>
+              <span>能量 <strong id="self-energy">0</strong>/<span id="self-energy-cap">8</span></span>
               <span>对手公开 <strong id="opponent-energy">0</strong></span>
               <span id="skill-silence-flag" class="hidden">技能封锁</span>
             </div>
@@ -763,7 +763,13 @@
             <p class="eyebrow">ABYSS TACTICAL ARCHIVE</p>
             <h2 id="skill-preview-title">技能档案</h2>
           </div>
-          <button id="btn-close-skill-preview" class="icon-button" type="button" aria-label="关闭技能详情">×</button>
+          <div class="skill-preview-header-actions">
+            <div class="skill-preview-mode" role="group" aria-label="技能说明模式">
+              <button id="btn-skill-preview-novice" class="skill-preview-mode-btn is-active" type="button">新手</button>
+              <button id="btn-skill-preview-expert" class="skill-preview-mode-btn" type="button">专家规则</button>
+            </div>
+            <button id="btn-close-skill-preview" class="icon-button" type="button" aria-label="关闭技能详情">×</button>
+          </div>
         </header>
         <div id="skill-preview-meta" class="skill-preview-meta" aria-label="技能属性"></div>
         <p id="skill-preview-description" class="skill-preview-description"></p>

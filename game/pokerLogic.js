@@ -10,6 +10,26 @@ function getToCall(room, player) {
   return Math.max(0, room.currentBet - player.streetBet);
 }
 
+function isContributionCapped(room, player) {
+  const rawCap = room?.skillState?.contributionCap;
+  const cap = rawCap == null ? Number.NaN : Number(rawCap);
+  if (!Number.isFinite(cap) || !player) return false;
+  return (Number(player.totalBet) || 0) >= cap;
+}
+
+function isActionablePlayer(room, player) {
+  if (!player) return false;
+  if (!["active", "disconnected"].includes(player.status)) return false;
+  if (player.isAllIn) return false;
+  if (isContributionCapped(room, player)) return false;
+  return true;
+}
+
+function pickAutoAction(validActions) {
+  const list = Array.isArray(validActions) ? validActions : [];
+  return ["check", "call", "allin", "fold"].find((action) => list.includes(action)) || null;
+}
+
 function getEffectiveMaxTotal(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
@@ -37,7 +57,7 @@ function getMinRaiseTo(room) {
 function getValidActions(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
-  if (!player || !opponent || player.status !== "active" || player.isAllIn) {
+  if (!player || !opponent || player.status !== "active" || player.isAllIn || isContributionCapped(room, player)) {
     return { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
   }
   const toCall = getToCall(room, player);
@@ -59,11 +79,11 @@ function getValidActions(room, playerIndex) {
     maxTotalBet >= minRaiseTo;
   if (canRaise) validActions.push("raise");
 
-  // All-in is always available with chips left, except when facing an opponent
-  // all-in with nothing left to call (already matched). Facing all-in with a
-  // deficit, all-in = commit remaining chips toward the call.
-  const canCommitEntireStack = available === player.chips;
-  if (player.chips > 0 && canCommitEntireStack && (!opponent.isAllIn || toCall > 0)) {
+  // Under intimidation the contribution cap may leave chips behind. ALL IN is
+  // still a legal declared action; collectBet will only take the capped amount.
+  const intimidationCapActive = Number.isFinite(cap);
+  const canDeclareAllIn = intimidationCapActive || available === player.chips;
+  if (player.chips > 0 && canDeclareAllIn && (!opponent.isAllIn || toCall > 0)) {
     validActions.push("allin");
   }
 
@@ -95,7 +115,7 @@ function collectBet(room, player, amount) {
 function isStreetComplete(room) {
   const active = getActivePlayers(room);
   if (active.length <= 1) return true;
-  const waiting = active.filter((p) => !p.isAllIn);
+  const waiting = active.filter((p) => isActionablePlayer(room, p));
   if (waiting.length === 0) return true;
   const allMatched = waiting.every((p) => p.streetBet === room.currentBet);
   const allActed = waiting.every((p) => p.hasActed);
@@ -111,4 +131,7 @@ module.exports = {
   getValidActions,
   collectBet,
   isStreetComplete,
+  isContributionCapped,
+  isActionablePlayer,
+  pickAutoAction,
 };
