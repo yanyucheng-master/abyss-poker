@@ -40,6 +40,13 @@ const {
   addChipLoanTranche,
   listChipLoans,
   syncChipLoanState,
+  LOAN_CREDIT,
+  getLoanCreditState,
+  setLoanCreditState,
+  getLoanQuota,
+  pendingLoanObligations,
+  ensureLoanCreditMetrics,
+  noteLoanWash,
 } = require("./skillState");
 const {
   FORTUNE_COMBOS,
@@ -226,6 +233,43 @@ function createSkillEvent(room, player, skill, extra = {}) {
   };
 }
 
+const PUBLIC_SKILL_AUDIT_FIELDS = [
+  "at",
+  "stage",
+  "skillId",
+  "casterId",
+  "ownerId",
+  "kind",
+  "paid",
+  "cost",
+  "success",
+  "public",
+  "secret",
+  "completed",
+  "persistent",
+  "pending",
+  "multiplierSource",
+  "energyRecoverySource",
+  "cardMutationCompleted",
+  "status",
+  "publicSummary",
+];
+
+function sanitizeSkillEventForReveal(entry = {}) {
+  return PUBLIC_SKILL_AUDIT_FIELDS.reduce((safe, key) => {
+    if (Object.prototype.hasOwnProperty.call(entry, key)) safe[key] = entry[key];
+    return safe;
+  }, {});
+}
+
+function sanitizeSkillTransformForReveal(entry = {}) {
+  const safe = {};
+  ["at", "skillId", "casterId", "node"].forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(entry, key)) safe[key] = entry[key];
+  });
+  return safe;
+}
+
 function initPlayerForSkillMode(player, skillMode) {
   if (!isSkillEnabled(skillMode)) {
     player.skillRuntime = null;
@@ -242,6 +286,8 @@ function setPlayerLoadout(player, skillIds) {
   if (!player.skillRuntime) player.skillRuntime = createEmptySkillRuntime();
   player.skillRuntime.equippedSkillIds = [...result.skillIds];
   player.skillRuntime.loadoutConfirmed = true;
+  player.skillRuntime.invalidBuild = false;
+  player.skillRuntime.invalidBuildNotified = false;
   return result;
 }
 
@@ -253,7 +299,26 @@ function autoConfirmBotLoadouts(room) {
 }
 
 function allLoadoutsConfirmed(room) {
-  return room.players.length === 2 && room.players.every((player) => player.skillRuntime?.loadoutConfirmed);
+  if (room.players.length !== 2) return false;
+  let allConfirmed = true;
+  room.players.forEach((player) => {
+    const runtime = player.skillRuntime;
+    if (!runtime?.loadoutConfirmed) {
+      allConfirmed = false;
+      return;
+    }
+    const validation = validateLoadout(runtime.equippedSkillIds);
+    if (validation.ok) return;
+
+    // Persisted or externally corrupted builds must never enter a match. Keep
+    // the original IDs for review; only invalidate confirmation and require a
+    // deliberate replacement from the player.
+    runtime.loadoutConfirmed = false;
+    runtime.invalidBuild = true;
+    runtime.invalidBuildNotified = false;
+    allConfirmed = false;
+  });
+  return allConfirmed;
 }
 
 function beginHandSkills(room) {
@@ -324,6 +389,7 @@ function clearPersistentSkillState(room) {
     runtime.retreatActive = false;
     runtime.probeActive = false;
     runtime.disguiseActive = false;
+    runtime.alertPromptPending = false;
     runtime.chipLoan = null;
     runtime.chipLoans = [];
     runtime.energyLoan = null;
@@ -341,11 +407,55 @@ function revealNullifications(room) {
   });
 }
 
+function countPersistentRuntimeFlags(runtime) {
+  if (!runtime) return 0;
+  return [
+    runtime.breathArmed,
+    runtime.counterArmed,
+    runtime.desperationActive,
+    runtime.bloodBattleActive,
+    runtime.defenseActive,
+    runtime.deadEndActive,
+    runtime.topSecretActive,
+    runtime.retreatActive,
+    runtime.probeActive,
+    runtime.disguiseActive,
+  ].filter(Boolean).length;
+}
+
+function snapshotLoanFields(runtime) {
+  if (!runtime) return null;
+  return {
+    chipLoan: runtime.chipLoan ? { ...runtime.chipLoan } : null,
+    chipLoans: listChipLoans(runtime).map((loan) => ({ ...loan })),
+    energyLoan: runtime.energyLoan ? { ...runtime.energyLoan } : null,
+    energyDebt: Number(runtime.energyDebt) || 0,
+    chipDebt: Number(runtime.chipDebt) || 0,
+    chipDebtLenderId: runtime.chipDebtLenderId || null,
+  };
+}
+
+function restoreLoanFields(runtime, snapshot) {
+  if (!runtime || !snapshot) return;
+  runtime.chipLoan = snapshot.chipLoan;
+  runtime.chipLoans = Array.isArray(snapshot.chipLoans) ? snapshot.chipLoans.map((loan) => ({ ...loan })) : [];
+  runtime.energyLoan = snapshot.energyLoan;
+  runtime.energyDebt = snapshot.energyDebt;
+  runtime.chipDebt = snapshot.chipDebt;
+  runtime.chipDebtLenderId = snapshot.chipDebtLenderId || null;
+}
+
 class SkillEngine {
-  constructor({ gameEngine, random = Math.random, perceptionTuning = null } = {}) {
+  constructor({ gameEngine, random = Math.random, perceptionTuning = null, experiment = null } = {}) {
     this.gameEngine = gameEngine;
     this.random = typeof random === "function" ? random : Math.random;
     this.perceptionTuning = perceptionTuning;
+    this.experiment = {
+      fairnessClearsLoanDebt: true,
+      fairnessLocksFuture: true,
+      loanCreditRestrictionV2: true,
+      ...(experiment || {}),
+    };
   }
 
   perceptionChance(room, player) {
@@ -535,6 +645,7 @@ class SkillEngine {
     if (isMatchOverForLoan(room)) this.expireLoanDebts(room);
     else {
       this.applyLoanRepayments(room);
+      this.applyResidualChipDebt(room);
       if (isMatchOverForLoan(room)) this.expireLoanDebts(room);
     }
     room.players.forEach((player) => {
@@ -566,6 +677,7 @@ class SkillEngine {
         if (!debtLock) this.settleRecycle(room, player);
         this.applyResourceFortune(room, player);
       }
+      this.refreshLoanCreditFromResiduals(player, room);
       syncVisibleEnergy(player);
     });
   }
@@ -672,10 +784,30 @@ class SkillEngine {
       }
       const chipUses = Math.max(0, Number(runtimeLoan.loanChipUsesThisHand) || 0);
       const energyUses = Math.max(0, Number(runtimeLoan.loanEnergyUsesThisHand) || 0);
-      if (mode === "chip" && chipUses >= SKILL_CONFIG.LOAN_CHIP_MAX_USES_PER_HAND) {
+      const quota = getLoanQuota(runtimeLoan, {
+        creditRestriction: this.experiment?.loanCreditRestrictionV2 === true,
+      });
+      const totalUses = chipUses + energyUses;
+      if (quota.maxTotal <= 0 || getLoanCreditState(runtimeLoan) === LOAN_CREDIT.DEFAULTED) {
+        ensureLoanCreditMetrics(runtimeLoan).deniedByCredit += 1;
+        return { ok: false, error: "贷款信用已违约" };
+      }
+      if (totalUses >= quota.maxTotal) {
+        if (this.experiment?.loanCreditRestrictionV2 === true) {
+          ensureLoanCreditMetrics(runtimeLoan).deniedByCredit += 1;
+        }
+        return { ok: false, error: quota.maxTotal <= 1 ? "信用受限：本手贷款只能发动 1 次" : "本手贷款次数已用完" };
+      }
+      if (mode === "chip" && chipUses >= quota.maxChip) {
+        if (this.experiment?.loanCreditRestrictionV2 === true && quota.maxChip < SKILL_CONFIG.LOAN_CHIP_MAX_USES_PER_HAND) {
+          ensureLoanCreditMetrics(runtimeLoan).deniedByCredit += 1;
+        }
         return { ok: false, error: "本手筹码贷款已用完" };
       }
-      if (mode === "energy" && energyUses >= SKILL_CONFIG.LOAN_ENERGY_MAX_USES_PER_HAND) {
+      if (mode === "energy" && energyUses >= quota.maxEnergy) {
+        if (this.experiment?.loanCreditRestrictionV2 === true && quota.maxEnergy < SKILL_CONFIG.LOAN_ENERGY_MAX_USES_PER_HAND) {
+          ensureLoanCreditMetrics(runtimeLoan).deniedByCredit += 1;
+        }
         return { ok: false, error: "本手能量贷款已用完" };
       }
       if (mode === "energy" && runtimeLoan.energyLoan) return { ok: false, error: "已有未偿还的能量贷款" };
@@ -847,15 +979,50 @@ class SkillEngine {
       case "COUNTER":
         runtime.counterArmed = true;
         return { secret: true, publicSummary: "秘密技能已结算", persistent: true, pending: true, privateResult: { message: "反制已秘密布置。" } };
-      case "FAIRNESS":
-        clearPersistentSkillState(room);
-        room.skillState.fairnessActive = true;
-        room.players.forEach((candidate) => {
-          candidate.skillRuntime.lockedThisHand = true;
-          candidate.skillRuntime.lockReason = "FAIRNESS";
+      case "FAIRNESS": {
+        const experiment = this.experiment || {};
+        const loanAudit = room.players.map((candidate) => {
+          const runtime = candidate.skillRuntime || {};
+          const obligations = pendingLoanObligations(runtime);
+          return {
+            playerId: candidate.playerId,
+            chipRepay: obligations.chipPending,
+            energyRepay: obligations.energyPending,
+            chipDebt: obligations.chipDebt,
+            energyDebt: obligations.energyDebt,
+            persistents: countPersistentRuntimeFlags(runtime),
+            creditState: getLoanCreditState(runtime),
+          };
         });
+        const savedLoans = experiment.fairnessClearsLoanDebt === false
+          ? room.players.map((candidate) => snapshotLoanFields(candidate.skillRuntime))
+          : null;
+        const persistentsCleared = (room.skillState.nullifications || []).length
+          + loanAudit.reduce((sum, row) => sum + row.persistents, 0);
+        clearPersistentSkillState(room);
+        if (savedLoans) {
+          room.players.forEach((candidate, index) => restoreLoanFields(candidate.skillRuntime, savedLoans[index]));
+        } else if (experiment.loanCreditRestrictionV2 === true) {
+          this.applyFairnessLoanCredit(room, loanAudit);
+        }
+        if (experiment.fairnessLocksFuture !== false) {
+          room.skillState.fairnessActive = true;
+          room.players.forEach((candidate) => {
+            candidate.skillRuntime.lockedThisHand = true;
+            candidate.skillRuntime.lockReason = "FAIRNESS";
+          });
+        }
         confirmPublicSkill(player, "FAIRNESS");
-        return { publicSummary: `${player.name} 宣告「公平」：清除未完成技能状态，并封锁后续技能与结束恢复` };
+        return {
+          publicSummary: `${player.name} 宣告「公平」：清除未完成技能状态，并封锁后续技能与结束恢复`,
+          audit: {
+            clearedLoanDebt: experiment.fairnessClearsLoanDebt !== false,
+            lockedFuture: experiment.fairnessLocksFuture !== false,
+            persistentsCleared,
+            loanAudit,
+          },
+        };
+      }
       case "DEAD_END": {
         runtime.deadEndActive = true;
         if (opponent?.skillRuntime) {
@@ -1153,7 +1320,11 @@ class SkillEngine {
     const runtime = player.skillRuntime;
     if (mode === "energy") {
       const gained = gainEnergy(player, SKILL_CONFIG.LOAN_ENERGY_GAIN);
-      runtime.energyLoan = { repay: SKILL_CONFIG.LOAN_ENERGY_REPAY, skipCurrentEnd: true };
+      runtime.energyLoan = {
+        repay: SKILL_CONFIG.LOAN_ENERGY_REPAY,
+        skipCurrentEnd: true,
+        originCredit: getLoanCreditState(runtime),
+      };
       return {
         secret: true,
         publicSummary: "秘密技能已结算",
@@ -1171,6 +1342,7 @@ class SkillEngine {
       repay: SKILL_CONFIG.LOAN_CHIP_REPAY,
       lenderId: opponent.playerId,
       skipCurrentEnd: true,
+      originCredit: getLoanCreditState(runtime),
     });
     confirmPublicSkill(player, "LOAN");
     const kill = opponent.chips <= 0;
@@ -1270,6 +1442,7 @@ class SkillEngine {
     if (!isActiveSkill(skill)) return;
     if (!isHiddenActiveEvent(skill, target, result)) return;
     const runtime = observer.skillRuntime;
+    if (runtime.alertPromptPending || runtime.alertPromptedThisHand) return;
     const ladder = SKILL_CONFIG.ALERT_CHANCES;
     const index = Math.max(0, Math.min(ladder.length - 1, Number(runtime.alertChanceIndex) || 0));
     const chance = ladder[index];
@@ -1312,7 +1485,75 @@ class SkillEngine {
     expireLoanDebtsForRoom(room);
   }
 
+  creditRestrictionOn() {
+    return this.experiment?.loanCreditRestrictionV2 === true;
+  }
+
+  applyFairnessLoanCredit(room, loanAudit) {
+    const handNo = Number(room?.handNo) || 0;
+    (room.players || []).forEach((player) => {
+      const row = (loanAudit || []).find((item) => item.playerId === player.playerId);
+      if (!row || !player.skillRuntime) return;
+      const pending = (Number(row.chipRepay) || 0) + (Number(row.energyRepay) || 0);
+      const residual = (Number(row.chipDebt) || 0) + (Number(row.energyDebt) || 0);
+      if (pending + residual <= 0) return;
+      const prev = row.creditState || getLoanCreditState(player.skillRuntime);
+      if (pending > 0) noteLoanWash(player.skillRuntime, handNo);
+      if (prev === LOAN_CREDIT.DEFAULTED && residual > 0) {
+        setLoanCreditState(player.skillRuntime, LOAN_CREDIT.RESTRICTED, { handNo });
+        return;
+      }
+      if (prev === LOAN_CREDIT.NORMAL && pending + residual > 0) {
+        setLoanCreditState(player.skillRuntime, LOAN_CREDIT.RESTRICTED, { handNo });
+        return;
+      }
+      if (prev === LOAN_CREDIT.RESTRICTED) {
+        setLoanCreditState(player.skillRuntime, LOAN_CREDIT.RESTRICTED, { handNo });
+      }
+    });
+  }
+
+  refreshLoanCreditFromResiduals(player, room) {
+    if (!this.creditRestrictionOn() || !player?.skillRuntime) return;
+    const runtime = player.skillRuntime;
+    const chipDebt = Math.max(0, Number(runtime.chipDebt) || 0);
+    const energyDebt = Math.max(0, Number(runtime.energyDebt) || 0);
+    const handNo = Number(room?.handNo) || 0;
+    if (chipDebt > 0 || energyDebt > 0) {
+      setLoanCreditState(runtime, LOAN_CREDIT.DEFAULTED, { handNo });
+      return;
+    }
+    if (getLoanCreditState(runtime) === LOAN_CREDIT.DEFAULTED) {
+      setLoanCreditState(runtime, LOAN_CREDIT.NORMAL, { handNo });
+    }
+  }
+
+  applyResidualChipDebt(room) {
+    if (!this.creditRestrictionOn()) return;
+    room.players.forEach((player) => {
+      const runtime = player.skillRuntime;
+      if (!runtime) return;
+      const due = Math.max(0, Number(runtime.chipDebt) || 0);
+      if (due <= 0) return;
+      const paid = Math.min(Math.max(0, Number(player.chips) || 0), due);
+      if (paid <= 0) return;
+      const lender = room.players.find((candidate) => candidate.playerId === runtime.chipDebtLenderId)
+        || opponentOf(room, player);
+      player.chips -= paid;
+      if (lender) {
+        lender.chips += paid;
+        addDirectChipGain(lender, paid);
+      }
+      addDirectChipGain(player, -paid);
+      runtime.chipDebt = due - paid;
+      if (runtime.chipDebt <= 0) runtime.chipDebtLenderId = null;
+      ensureLoanCreditMetrics(runtime).realChipRepaid += paid;
+    });
+  }
+
   applyLoanRepayments(room) {
+    const v2 = this.creditRestrictionOn();
+    const handNo = Number(room?.handNo) || 0;
     room.players.forEach((player) => {
       const runtime = player.skillRuntime;
       if (!runtime) return;
@@ -1321,11 +1562,19 @@ class SkillEngine {
           runtime.energyLoan.skipCurrentEnd = false;
         } else {
           const due = Math.max(0, Number(runtime.energyLoan.repay) || 0);
+          const origin = runtime.energyLoan.originCredit || LOAN_CREDIT.NORMAL;
           const available = Math.max(0, Number(runtime.abyssEnergy) || 0);
           const paid = Math.min(available, due);
           runtime.abyssEnergy -= paid;
           const remain = due - paid;
+          ensureLoanCreditMetrics(runtime).realEnergyRepaid += paid;
           if (remain > 0) runtime.energyDebt = (Number(runtime.energyDebt) || 0) + remain;
+          if (v2) {
+            if (remain > 0) setLoanCreditState(runtime, LOAN_CREDIT.DEFAULTED, { handNo });
+            else if (origin === LOAN_CREDIT.RESTRICTED && paid === due && due > 0) {
+              setLoanCreditState(runtime, LOAN_CREDIT.NORMAL, { handNo });
+            }
+          }
           runtime.energyLoan = null;
         }
       }
@@ -1339,6 +1588,7 @@ class SkillEngine {
         const lender = room.players.find((candidate) => candidate.playerId === loan.lenderId)
           || opponentOf(room, player);
         const due = Math.max(0, Number(loan.repay) || 0);
+        const origin = loan.originCredit || LOAN_CREDIT.NORMAL;
         const paid = Math.min(Math.max(0, Number(player.chips) || 0), due);
         player.chips -= paid;
         if (lender) {
@@ -1347,7 +1597,14 @@ class SkillEngine {
         }
         addDirectChipGain(player, -paid);
         const remain = due - paid;
-        if (remain > 0) runtime.chipDebt = (Number(runtime.chipDebt) || 0) + remain;
+        ensureLoanCreditMetrics(runtime).realChipRepaid += paid;
+        if (remain > 0) {
+          runtime.chipDebt = (Number(runtime.chipDebt) || 0) + remain;
+          runtime.chipDebtLenderId = lender?.playerId || runtime.chipDebtLenderId || null;
+          if (v2) setLoanCreditState(runtime, LOAN_CREDIT.DEFAULTED, { handNo });
+        } else if (v2 && origin === LOAN_CREDIT.RESTRICTED && paid === due && due > 0) {
+          setLoanCreditState(runtime, LOAN_CREDIT.NORMAL, { handNo });
+        }
       });
       runtime.chipLoans = remaining;
       syncChipLoanState(runtime);
@@ -1579,7 +1836,13 @@ class SkillEngine {
     return null;
   }
 
-  applySettlementModifiers(room, { reason, winner, tie = false, winnerCategory = null } = {}) {
+  applySettlementModifiers(room, {
+    reason,
+    winner,
+    tie = false,
+    winnerCategory = null,
+    foldOrigin = "user",
+  } = {}) {
     const details = {
       baseTransfer: 0,
       finalTransfer: 0,
@@ -1587,15 +1850,21 @@ class SkillEngine {
       selfSkillMultiplier: 1,
       opponentSkillMultiplier: 1,
       baseRuleMultiplier: 1,
+      foldOrigin: reason === "fold" ? foldOrigin : null,
       effects: [],
     };
     if (!isSkillEnabled(room.skillMode) || tie || !winner) return details;
     const loser = opponentOf(room, winner);
     if (!loser) return details;
     const directGain = Number(winner.skillRuntime?.directChipGainThisHand) || 0;
-    let baseTransfer = Math.max(0, winner.chips - (winner.skillRuntime?.handStartChips || winner.chips) - directGain);
+    const actualStandardTransfer = Math.max(
+      0,
+      winner.chips - (winner.skillRuntime?.handStartChips || winner.chips) - directGain
+    );
+    let baseTransfer = actualStandardTransfer;
     if (
       reason === "fold"
+      && foldOrigin === "user"
       && winner.skillRuntime?.probeActive
       && !loser.skillRuntime?.retreatTriggered
     ) {
@@ -1629,8 +1898,16 @@ class SkillEngine {
       });
     }
 
+    const lossBeforeDefense = Math.max(
+      0,
+      Math.floor(baseTransfer * selfSkillMultiplier * opponentSkillMultiplier)
+    );
     let multiplier = selfSkillMultiplier * opponentSkillMultiplier;
+    let desiredTransfer = lossBeforeDefense;
     if (loser.skillRuntime?.defenseActive && !loser.skillRuntime.foldedThisHand) {
+      // Chips are indivisible. Defense is resolved at its existing final-loss
+      // node and always protects floor(lossBeforeDefense / 2).
+      desiredTransfer = Math.floor(lossBeforeDefense / 2);
       multiplier *= 0.5;
       details.effects.push({ skillId: "DEFENSE", factor: 0.5, source: "opponent" });
       loser.skillRuntime.defenseRevealed = true;
@@ -1643,13 +1920,12 @@ class SkillEngine {
       });
     }
 
-    const desiredTransfer = Math.max(0, Math.floor(baseTransfer * multiplier));
-    if (desiredTransfer > baseTransfer) {
-      const extra = Math.min(desiredTransfer - baseTransfer, loser.chips);
+    if (desiredTransfer > actualStandardTransfer) {
+      const extra = Math.min(desiredTransfer - actualStandardTransfer, loser.chips);
       loser.chips -= extra;
       winner.chips += extra;
-    } else if (desiredTransfer < baseTransfer) {
-      const refund = Math.min(baseTransfer - desiredTransfer, winner.chips);
+    } else if (desiredTransfer < actualStandardTransfer) {
+      const refund = Math.min(actualStandardTransfer - desiredTransfer, winner.chips);
       winner.chips -= refund;
       loser.chips += refund;
     }
@@ -1666,16 +1942,21 @@ class SkillEngine {
     return evaluationExcludedCodes(room, player);
   }
 
-  buildRevealExtras(room, { includeLoadouts = false } = {}) {
+  buildRevealExtras(room, { includeLoadouts = false, includePrivateAudit = false } = {}) {
     const state = room.skillState || createRoomSkillState();
     updateNullifiedCodes(room);
+    const clone = (entry) => JSON.parse(JSON.stringify(entry));
     return {
       burnedCards: (state.burnedCards || []).map(cloneCard),
       removedCards: (state.removedCards || []).map(cloneCard),
       nullifications: (state.nullifications || []).map((entry) => ({ ...entry })),
       nullifiedCommunityCardIds: [...new Set((state.nullifications || []).map((entry) => entry.cardCode).filter(Boolean))],
-      skillTransforms: (state.transformations || []).map((entry) => JSON.parse(JSON.stringify(entry))),
-      skillActions: (state.skillActionLog || []).map((entry) => JSON.parse(JSON.stringify(entry))),
+      skillTransforms: (state.transformations || []).map((entry) => (
+        includePrivateAudit ? clone(entry) : sanitizeSkillTransformForReveal(entry)
+      )),
+      skillActions: (state.skillActionLog || []).map((entry) => (
+        includePrivateAudit ? clone(entry) : sanitizeSkillEventForReveal(entry)
+      )),
       equippedSkills: includeLoadouts
         ? room.players.map((player) => ({
           playerId: player.playerId,
@@ -1690,7 +1971,7 @@ class SkillEngine {
         })),
         remainingDeck: (room.deck || []).map(cloneCard),
       },
-      skillSettlement: state.settlement ? JSON.parse(JSON.stringify(state.settlement)) : null,
+      skillSettlement: state.settlement ? clone(state.settlement) : null,
     };
   }
 
@@ -1735,4 +2016,7 @@ module.exports = {
   isChipViewHiddenFor,
   expireLoanDebtsForRoom,
   isMatchOverForLoan,
+  LOAN_CREDIT,
+  getLoanCreditState,
+  getLoanQuota,
 };

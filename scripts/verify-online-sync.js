@@ -8,7 +8,7 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
 const activeSockets = new Set();
 
 const LOADOUT_A = ["DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE"];
-const LOADOUT_B = ["INTEL_ONE", "TOP_SECRET", "DEEP_BREATH", "RECYCLE"];
+const LOADOUT_B = ["INTEL_ONE", "TOP_SECRET", "DEEP_BREATH"];
 
 function once(socket, event, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -158,14 +158,27 @@ async function main() {
 
   function onceLoadout(socket, playerId) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`timeout loadout ${playerId}`)), 5000);
-      const handler = (payload) => {
-        if (payload?.playerId !== playerId) return;
+      const cleanup = () => {
         clearTimeout(timer);
         socket.off("skill:loadout:confirmed", handler);
+        socket.off("skill:failed", failedHandler);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`timeout loadout ${playerId}`));
+      }, 5000);
+      const handler = (payload) => {
+        if (payload?.playerId !== playerId) return;
+        cleanup();
         resolve(payload);
       };
+      const failedHandler = (payload) => {
+        if (payload?.reason !== "loadout") return;
+        cleanup();
+        reject(new Error(`loadout rejected for ${playerId}: ${payload.message || "unknown error"}`));
+      };
       socket.on("skill:loadout:confirmed", handler);
+      socket.on("skill:failed", failedHandler);
     });
   }
 

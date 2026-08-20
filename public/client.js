@@ -17,6 +17,10 @@ const REMATCH_TIMEOUT_MS = 10000;
 const ALL_IN_EFFECT_MS = 2200;
 const ALL_IN_BOARD_PULSE_MS = 2000;
 const ALL_IN_VIBRATION_PATTERN = Object.freeze([80, 45, 130, 55, 220]);
+const ENDGAME_DECLARE_MS = 2600;
+const ENDGAME_KILL_MS = 2800;
+const ENDGAME_DECLARE_VIBRATION = Object.freeze([60, 40, 110]);
+const ENDGAME_KILL_VIBRATION = Object.freeze([130, 50, 210, 60, 330]);
 const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"]);
 const PRO_FONT_STYLES = Object.freeze(["broadcast", "neonrail", "chrome", "classic"]);
 const STORAGE = Object.freeze({
@@ -234,7 +238,8 @@ const el = {
   toastRegion: byId("toast-region"),
   chipFx: byId("chip-fx-layer"),
   flash: byId("flash-allin"),
-  flashEndgame: byId("flash-endgame"),
+  flashEndgameDeclare: byId("flash-endgame-declare"),
+  flashEndgameKill: byId("flash-endgame-kill"),
   riverOverload: byId("river-overload"),
   protocolBurst: byId("protocol-burst"),
   resultBanner: byId("result-banner"),
@@ -507,6 +512,8 @@ let ambientGain = null;
 let connectionBannerTimer = 0;
 let allInEffectTimer = 0;
 let allInEffectEndsAt = 0;
+let endgameDeclareTimer = 0;
+let endgameKillTimer = 0;
 let delayedHandResultTimer = 0;
 let skillPreviewReturnFocus = null;
 let previewingSkill = null;
@@ -1295,7 +1302,7 @@ function pulseBoard(className, duration) {
   boardPulseTimers.set(className, timer);
 }
 
-function playAllInHaptics() {
+function playFxHaptics(pattern) {
   const canQueryViewport = typeof window.matchMedia === "function";
   const isTouchDevice =
     Number(navigator.maxTouchPoints || 0) > 0 ||
@@ -1311,10 +1318,14 @@ function playAllInHaptics() {
     return;
   }
   try {
-    navigator.vibrate(ALL_IN_VIBRATION_PATTERN);
+    navigator.vibrate(pattern);
   } catch (_error) {
     // Unsupported or restricted vibration APIs should not interrupt the game.
   }
+}
+
+function playAllInHaptics() {
+  playFxHaptics(ALL_IN_VIBRATION_PATTERN);
 }
 
 function playAllInEffect(_actorId, { preview = false } = {}) {
@@ -1347,12 +1358,91 @@ function playAllInEffect(_actorId, { preview = false } = {}) {
   playTone("allin");
 }
 
+function playEndgameSfx(kind) {
+  if (Number(state.settings.sfx) <= 0) return;
+  const context = ensureAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  const peak = Math.max(0.002, Number(state.settings.sfx) / 2500);
+  const voice = ({ type, from, to, start, dur, level }) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(Math.max(1, from), now + start);
+    if (to !== from) {
+      oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, to), now + start + dur);
+    }
+    gain.gain.setValueAtTime(0.0001, now + start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * level), now + start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(now + start);
+    oscillator.stop(now + start + dur + 0.03);
+  };
+  if (kind === "declare") {
+    voice({ type: "sawtooth", from: 68, to: 30, start: 0, dur: 1.5, level: 1 });
+    voice({ type: "sine", from: 220, to: 150, start: 0.05, dur: 1.1, level: 0.4 });
+    voice({ type: "square", from: 960, to: 300, start: 0.34, dur: 0.16, level: 0.6 });
+    voice({ type: "square", from: 1120, to: 320, start: 0.56, dur: 0.18, level: 0.72 });
+    voice({ type: "triangle", from: 1350, to: 2300, start: 0.92, dur: 0.65, level: 0.22 });
+  } else {
+    voice({ type: "triangle", from: 2700, to: 380, start: 0.16, dur: 0.5, level: 0.6 });
+    voice({ type: "sawtooth", from: 118, to: 26, start: 0.32, dur: 1.15, level: 1 });
+    voice({ type: "square", from: 240, to: 58, start: 0.7, dur: 0.22, level: 0.8 });
+    voice({ type: "square", from: 268, to: 62, start: 0.93, dur: 0.24, level: 0.9 });
+    voice({ type: "sine", from: 54, to: 30, start: 1.15, dur: 1.15, level: 0.5 });
+  }
+}
+
+function allowFxShake() {
+  return (
+    !state.settings.reduceMotion &&
+    !state.settings.lowPerformance &&
+    window.matchMedia("(min-width: 641px)").matches
+  );
+}
+
+function playEndgameDeclare({ execution = false } = {}) {
+  if (!el.flashEndgameDeclare) return;
+  if (endgameDeclareTimer) clearTimeout(endgameDeclareTimer);
+  el.flashEndgameDeclare.classList.add("hidden");
+  el.flashEndgameDeclare.dataset.mode = execution ? "execution" : "declare";
+  void el.flashEndgameDeclare.offsetWidth;
+  el.flashEndgameDeclare.classList.remove("hidden");
+  if (allowFxShake()) {
+    document.body.classList.remove("shake");
+    void document.body.offsetWidth;
+    document.body.classList.add("shake");
+  }
+  pulseBoard("endgame-declare-pulse", 1800);
+  playFxHaptics(ENDGAME_DECLARE_VIBRATION);
+  playEndgameSfx("declare");
+  endgameDeclareTimer = setTimeout(() => {
+    el.flashEndgameDeclare.classList.add("hidden");
+    document.body.classList.remove("shake");
+    endgameDeclareTimer = 0;
+  }, ENDGAME_DECLARE_MS);
+}
+
 function playEndgameExecution() {
-  if (!el.flashEndgame) return;
-  el.flashEndgame.classList.remove("hidden");
-  window.setTimeout(() => {
-    el.flashEndgame.classList.add("hidden");
-  }, 1800);
+  if (!el.flashEndgameKill) return;
+  if (endgameKillTimer) clearTimeout(endgameKillTimer);
+  el.flashEndgameKill.classList.add("hidden");
+  document.body.classList.remove("shake-hard");
+  void el.flashEndgameKill.offsetWidth;
+  el.flashEndgameKill.classList.remove("hidden");
+  if (allowFxShake()) {
+    void document.body.offsetWidth;
+    document.body.classList.add("shake-hard");
+  }
+  pulseBoard("endgame-kill-pulse", 2000);
+  playFxHaptics(ENDGAME_KILL_VIBRATION);
+  playEndgameSfx("kill");
+  endgameKillTimer = setTimeout(() => {
+    el.flashEndgameKill.classList.add("hidden");
+    document.body.classList.remove("shake-hard");
+    endgameKillTimer = 0;
+  }, ENDGAME_KILL_MS);
 }
 
 function triggerProtocolBurst() {
@@ -1451,6 +1541,10 @@ function resetTransientUi() {
   if (allInEffectTimer) clearTimeout(allInEffectTimer);
   allInEffectTimer = 0;
   allInEffectEndsAt = 0;
+  if (endgameDeclareTimer) clearTimeout(endgameDeclareTimer);
+  endgameDeclareTimer = 0;
+  if (endgameKillTimer) clearTimeout(endgameKillTimer);
+  endgameKillTimer = 0;
   if (delayedHandResultTimer) clearTimeout(delayedHandResultTimer);
   delayedHandResultTimer = 0;
   if (state.actionCountdownRaf) cancelAnimationFrame(state.actionCountdownRaf);
@@ -1463,11 +1557,13 @@ function resetTransientUi() {
   modalLayers.forEach((modal) => modal.classList.add("hidden"));
   el.flash.classList.add("hidden");
   el.flash.classList.remove("is-preview");
+  el.flashEndgameDeclare?.classList.add("hidden");
+  el.flashEndgameKill?.classList.add("hidden");
   el.riverOverload.classList.add("hidden");
   el.protocolBurst.classList.add("hidden");
   el.resultBanner.classList.add("hidden");
   el.chipFx.textContent = "";
-  document.body.classList.remove("shake", "river-phase");
+  document.body.classList.remove("shake", "shake-hard", "river-phase");
   setRaiseExpanded(false);
   try {
     navigator.vibrate?.(0);
@@ -1533,7 +1629,10 @@ function clearHandSettlement() {
   state.handSettleTimer = 0;
   el.handSettleModal.classList.add("hidden");
   el.handSettleModal.classList.remove("is-endgame-execution");
-  el.flashEndgame?.classList.add("hidden");
+  if (endgameKillTimer) clearTimeout(endgameKillTimer);
+  endgameKillTimer = 0;
+  el.flashEndgameKill?.classList.add("hidden");
+  document.body.classList.remove("shake-hard");
   el.board.classList.remove("settle-dim");
   el.chipFx.classList.remove("settlement-flow");
 }
@@ -1859,12 +1958,16 @@ function syncProtocolUi() {
 }
 
 function updateSkillPrepUi() {
-  const ready = isLoadoutConfigured();
-  const load = validateLoadoutIds(state.savedLoadout).load || 0;
+  const validation = validateLoadoutIds(state.savedLoadout);
+  const ready = validation.ok;
+  const load = validation.load || 0;
+  const invalidSavedBuild = state.savedLoadout.length > 0 && state.skillCatalogStatus === "ready" && !ready;
   if (el.skillPrepStatus) {
     el.skillPrepStatus.classList.toggle("ready", ready);
     el.skillPrepStatus.textContent = ready
       ? `已配置 ${state.savedLoadout.length} 技能 · 负载 ${load}/8`
+      : invalidSavedBuild
+        ? "构筑失效 · 请重新配置"
       : state.skillCatalogStatus === "error"
         ? "目录加载失败 · 请进入构筑重试"
         : state.skillCatalogStatus !== "ready"
@@ -1884,7 +1987,11 @@ function setProtocol(gameMode, skillMode) {
 
 function openSkillLab(pendingAction = null) {
   if (pendingAction !== null || !state.pendingRoomAction) state.pendingRoomAction = pendingAction;
-  state.selectedLoadout = [...state.savedLoadout];
+  const validation = validateLoadoutIds(state.savedLoadout);
+  state.selectedLoadout = validation.ok ? [...state.savedLoadout] : [];
+  if (state.savedLoadout.length && !validation.ok && state.skillCatalogStatus === "ready") {
+    showToast("当前技能构筑包含重复或无效技能，请重新配置。", "error");
+  }
   showScreen("skillLab");
   renderSkillLab();
 }
@@ -3135,9 +3242,8 @@ updateSkillPrepUi();
 ensureSkillCatalog().then(() => {
   const validation = validateLoadoutIds(state.savedLoadout);
   if (state.skillCatalogStatus === "ready" && state.savedLoadout.length && !validation.ok) {
-    state.savedLoadout = [];
     state.selectedLoadout = [];
-    safeStorageRemove("localStorage", STORAGE.skillLoadout);
+    showToast("检测到失效技能构筑，请重新配置。", "error");
   } else {
     state.selectedLoadout = [...state.savedLoadout];
   }
@@ -3177,6 +3283,7 @@ function renderSkillDraft() {
   const me = getMe();
   const ownSkills = state.skillSelf || me?.skills || {};
   const confirmed = Boolean(ownSkills.loadoutConfirmed);
+  const invalidBuild = ownSkills.buildStatus === "INVALID_BUILD";
   const equippedIds = Array.isArray(ownSkills.equippedSkillIds)
     ? ownSkills.equippedSkillIds
     : [];
@@ -3184,7 +3291,9 @@ function renderSkillDraft() {
   const load = loadoutLoad(draftIds);
   el.skillDraftPanel.classList.toggle("is-confirmed", confirmed);
   el.draftLoadMeter.textContent = load + " / 8 · " + draftIds.length + " / 4";
-  el.draftStatus.textContent = confirmed
+  el.draftStatus.textContent = invalidBuild
+    ? "当前技能构筑包含重复或无效技能，请重新配置。"
+    : confirmed
     ? "构筑已确认，等待对手…"
     : `选择 ${state.skillConfig.minEquipped ?? 1}–${state.skillConfig.maxEquipped || 4} 个技能，总负载不超过 8。`;
   el.btnConfirmLoadout.disabled =
@@ -3433,8 +3542,16 @@ function useSkill(skillId) {
     const self = state.skillSelf || getMe()?.skills || {};
     const chipUses = Number(self.loanChipUsesThisHand || 0);
     const energyUses = Number(self.loanEnergyUsesThisHand || 0);
-    const chipLeft = Math.max(0, 2 - chipUses);
-    const energyLeft = Math.max(0, 1 - energyUses);
+    const quota = self.loanQuota || { maxChip: 2, maxEnergy: 1, maxTotal: 3 };
+    const credit = self.loanCreditState || "NORMAL_CREDIT";
+    const totalUses = chipUses + energyUses;
+    const totalLeft = Math.max(0, Number(quota.maxTotal) - totalUses);
+    const chipLeft = Math.min(Math.max(0, Number(quota.maxChip) - chipUses), totalLeft);
+    const energyLeft = Math.min(Math.max(0, Number(quota.maxEnergy) - energyUses), totalLeft);
+    if (credit === "DEFAULTED" || Number(quota.maxTotal) <= 0) {
+      showToast("贷款信用已违约，需先清偿剩余债务", "error");
+      return;
+    }
     const options = [];
     if (chipLeft > 0) {
       options.push({
@@ -3445,18 +3562,21 @@ function useSkill(skillId) {
     }
     if (energyLeft > 0) {
       options.push({
-        label: "能量贷款：立即 +5 能量，下一手结束偿还 6（秘密，本手 1 次）",
+        label: "能量贷款：立即 +5 能量，下一手结束偿还 6（秘密）",
         target: { mode: "energy" },
       });
     }
     if (!options.length) {
-      showToast("本手贷款次数已用完", "error");
+      showToast(credit === "RESTRICTED_CREDIT" ? "信用受限：本手贷款只能发动 1 次" : "本手贷款次数已用完", "error");
       return;
     }
+    const hint = credit === "RESTRICTED_CREDIT"
+      ? "信用受限：本手所有贷款模式合计只能发动 1 次。"
+      : "支付前锁定分支。正常信用：筹码最多 2 次，能量最多 1 次，合计最多 3 次。";
     return openSkillTargetOptions({
       skillId,
       title: "贷款",
-      text: "支付前锁定分支。同一手：筹码最多 2 次，能量最多 1 次。",
+      text: hint,
       options,
     });
   }
@@ -3599,6 +3719,9 @@ socket.on("skill:resolved", (payload) => {
   if (payload.publicData?.nullifiedCommunityCardIds) {
     state.nullifiedCommunityCardIds = payload.publicData.nullifiedCommunityCardIds;
   }
+  if (payload.skillId === "ENDGAME" && payload.publicData?.endgame) {
+    playEndgameDeclare({ execution: Boolean(payload.publicData.execution) });
+  }
   renderState();
 });
 
@@ -3607,6 +3730,10 @@ socket.on("skill:failed", (payload) => {
   endUiRequest("skill");
   endUiRequest("choice");
   endUiRequest("loadout");
+  if (payload.reason === "INVALID_BUILD") {
+    state.autoLoadoutSubmitted = false;
+    renderSkillDraft();
+  }
   showToast(payload.message || "技能失败", "error");
 });
 

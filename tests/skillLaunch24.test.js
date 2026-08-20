@@ -159,17 +159,33 @@ describe("警觉", () => {
     expect(persist.b.skillRuntime.alertChanceIndex).toBe(3);
 
     const hit = setupRoom({
-      loadoutA: ["DEFENSE", "RECYCLE"],
+      loadoutA: ["DEFENSE", "COUNTER"],
       loadoutB: ["ALERT", "RECYCLE"],
       random: () => 0,
     });
     expect(use(hit.engine, hit.room, hit.a, "DEFENSE", {}, "hid-hit")).toMatchObject({ status: "SUCCESS" });
     expect(hit.b.skillRuntime.alertChanceIndex).toBe(0);
     expect(hit.b.skillRuntime.alertPromptPending).toBe(true);
+    const alertLogCount = hit.room.skillState.skillActionLog.filter((entry) => entry.skillId === "ALERT").length;
+    hit.a.skillRuntime.abyssEnergy = 8;
+    expect(use(hit.engine, hit.room, hit.a, "COUNTER", {}, "hid-second")).toMatchObject({ status: "SUCCESS" });
+    expect(hit.room.skillState.skillActionLog.filter((entry) => entry.skillId === "ALERT")).toHaveLength(alertLogCount);
+    expect(hit.b.skillRuntime.alertPromptPending).toBe(true);
     hit.engine.skillEngine.onBettingDecisionStart(hit.room, hit.b);
     const privateMsg = hit.b.skillRuntime.privateResults.at(-1).message;
     expect(privateMsg).toBe(SKILL_CONFIG.ALERT_MESSAGE);
     expect(privateMsg).not.toContain("一次");
+
+    const cleared = setupRoom({
+      loadoutA: ["DEFENSE", "FAIRNESS"],
+      loadoutB: ["ALERT", "RECYCLE"],
+      random: () => 0,
+    });
+    cleared.a.skillRuntime.abyssEnergy = 8;
+    expect(use(cleared.engine, cleared.room, cleared.a, "DEFENSE", {}, "alert-pending")).toMatchObject({ status: "SUCCESS" });
+    expect(cleared.b.skillRuntime.alertPromptPending).toBe(true);
+    expect(use(cleared.engine, cleared.room, cleared.a, "FAIRNESS", {}, "alert-fair")).toMatchObject({ status: "SUCCESS" });
+    expect(cleared.b.skillRuntime.alertPromptPending).toBe(false);
   });
 });
 
@@ -255,6 +271,8 @@ describe("试探", () => {
     expect(details.effects.some((entry) => entry.skillId === "PROBE")).toBe(true);
     expect(details.baseTransfer).toBe(150);
     expect(details.multiplier).toBe(2);
+    expect(a.chips).toBe(1300);
+    expect(b.chips).toBe(700);
 
     const selfFold = setupRoom({ loadoutA: ["PROBE", "RECYCLE"], loadoutB: ["DEFENSE", "RECYCLE"] });
     expect(use(selfFold.engine, selfFold.room, selfFold.a, "PROBE", {}, "self")).toMatchObject({ status: "SUCCESS" });
@@ -262,6 +280,21 @@ describe("试探", () => {
       reason: "fold", winner: selfFold.b, tie: false,
     });
     expect(no.effects.some((entry) => entry.skillId === "PROBE")).toBe(false);
+
+    const timeout = setupRoom({ loadoutA: ["PROBE", "RECYCLE"], loadoutB: ["DEFENSE", "RECYCLE"] });
+    timeout.a.skillRuntime.probeActive = true;
+    timeout.a.chips = 1100;
+    timeout.b.chips = 900;
+    timeout.a.skillRuntime.handStartChips = 1000;
+    const timeoutDetails = timeout.engine.skillEngine.applySettlementModifiers(timeout.room, {
+      reason: "fold",
+      winner: timeout.a,
+      tie: false,
+      foldOrigin: "timeout",
+    });
+    expect(timeoutDetails.effects.some((entry) => entry.skillId === "PROBE")).toBe(false);
+    expect(timeout.a.chips).toBe(1100);
+    expect(timeout.b.chips).toBe(900);
 
     const fair = setupRoom({ loadoutA: ["PROBE", "FAIRNESS"], loadoutB: ["DEFENSE", "RECYCLE"] });
     fair.a.skillRuntime.abyssEnergy = 8;

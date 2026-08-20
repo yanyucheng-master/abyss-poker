@@ -1,10 +1,125 @@
 const { SKILL_CONFIG } = require("../skillConfig");
 const { getSkillDefinition, listSkillDefinitions, isProtocolSkill } = require("./definitions");
 
+const LOAN_CREDIT = Object.freeze({
+  NORMAL: "NORMAL_CREDIT",
+  RESTRICTED: "RESTRICTED_CREDIT",
+  DEFAULTED: "DEFAULTED",
+});
+
+function createLoanCreditMetrics() {
+  return {
+    restrictedEntries: 0,
+    defaultedEntries: 0,
+    restores: 0,
+    washDebts: 0,
+    defaultEscapes: 0,
+    deniedByCredit: 0,
+    realChipRepaid: 0,
+    realEnergyRepaid: 0,
+    restoreHandGaps: [],
+    washHandNos: [],
+    restoreHandNos: [],
+    lastWashHandNo: null,
+    lastRestoreHandNo: null,
+    washRepayWashCycles: 0,
+    cycleHandGaps: [],
+    restrictedSinceHandNo: null,
+  };
+}
+
+function ensureLoanCreditMetrics(runtime) {
+  if (!runtime) return createLoanCreditMetrics();
+  if (!runtime.loanCreditMetrics) runtime.loanCreditMetrics = createLoanCreditMetrics();
+  return runtime.loanCreditMetrics;
+}
+
+function getLoanCreditState(runtime) {
+  const value = runtime?.loanCreditState;
+  if (value === LOAN_CREDIT.RESTRICTED || value === LOAN_CREDIT.DEFAULTED) return value;
+  return LOAN_CREDIT.NORMAL;
+}
+
+function setLoanCreditState(runtime, next, { handNo = null } = {}) {
+  if (!runtime || !next) return getLoanCreditState(runtime);
+  const prev = getLoanCreditState(runtime);
+  if (prev === next) return prev;
+  runtime.loanCreditState = next;
+  const metrics = ensureLoanCreditMetrics(runtime);
+  if (next === LOAN_CREDIT.RESTRICTED) {
+    metrics.restrictedEntries += 1;
+    metrics.restrictedSinceHandNo = handNo;
+    if (prev === LOAN_CREDIT.DEFAULTED) metrics.defaultEscapes += 1;
+  }
+  if (next === LOAN_CREDIT.DEFAULTED) {
+    metrics.defaultedEntries += 1;
+  }
+  if (next === LOAN_CREDIT.NORMAL) {
+    metrics.restores += 1;
+    metrics.lastRestoreHandNo = handNo;
+    metrics.restoreHandNos.push(handNo);
+    if (metrics.restrictedSinceHandNo != null && handNo != null) {
+      metrics.restoreHandGaps.push(Math.max(0, handNo - metrics.restrictedSinceHandNo));
+    }
+    metrics.restrictedSinceHandNo = null;
+  }
+  return next;
+}
+
+function noteLoanWash(runtime, handNo) {
+  if (!runtime) return;
+  const metrics = ensureLoanCreditMetrics(runtime);
+  metrics.washDebts += 1;
+  if (
+    metrics.lastRestoreHandNo != null
+    && metrics.lastWashHandNo != null
+    && metrics.lastRestoreHandNo >= metrics.lastWashHandNo
+    && (handNo == null || handNo >= metrics.lastRestoreHandNo)
+  ) {
+    metrics.washRepayWashCycles += 1;
+    if (handNo != null && metrics.lastWashHandNo != null) {
+      metrics.cycleHandGaps.push(Math.max(0, handNo - metrics.lastWashHandNo));
+    }
+  }
+  metrics.lastWashHandNo = handNo;
+  metrics.washHandNos.push(handNo);
+}
+
+function getLoanQuota(runtime, { creditRestriction = false } = {}) {
+  const normal = {
+    maxChip: SKILL_CONFIG.LOAN_CHIP_MAX_USES_PER_HAND,
+    maxEnergy: SKILL_CONFIG.LOAN_ENERGY_MAX_USES_PER_HAND,
+    maxTotal: SKILL_CONFIG.LOAN_CHIP_MAX_USES_PER_HAND + SKILL_CONFIG.LOAN_ENERGY_MAX_USES_PER_HAND,
+  };
+  if (!creditRestriction) return normal;
+  const state = getLoanCreditState(runtime);
+  if (state === LOAN_CREDIT.DEFAULTED) return { maxChip: 0, maxEnergy: 0, maxTotal: 0 };
+  if (state === LOAN_CREDIT.RESTRICTED) return { maxChip: 1, maxEnergy: 1, maxTotal: 1 };
+  return normal;
+}
+
+function pendingLoanObligations(runtime) {
+  const chipPending = listChipLoans(runtime).reduce((sum, loan) => sum + Math.max(0, Number(loan.repay) || 0), 0);
+  const energyPending = Math.max(0, Number(runtime?.energyLoan?.repay) || 0);
+  const chipDebt = Math.max(0, Number(runtime?.chipDebt) || 0);
+  const energyDebt = Math.max(0, Number(runtime?.energyDebt) || 0);
+  return {
+    chipPending,
+    energyPending,
+    chipDebt,
+    energyDebt,
+    pending: chipPending + energyPending,
+    residual: chipDebt + energyDebt,
+    total: chipPending + energyPending + chipDebt + energyDebt,
+  };
+}
+
 function createEmptySkillRuntime() {
   return {
     equippedSkillIds: [],
     loadoutConfirmed: false,
+    invalidBuild: false,
+    invalidBuildNotified: false,
     abyssEnergy: 0,
     visibleAbyssEnergy: 0,
     skillUsesThisHand: {},
@@ -43,6 +158,9 @@ function createEmptySkillRuntime() {
     energyLoan: null,
     energyDebt: 0,
     chipDebt: 0,
+    chipDebtLenderId: null,
+    loanCreditState: LOAN_CREDIT.NORMAL,
+    loanCreditMetrics: createLoanCreditMetrics(),
     loanChipUsesThisHand: 0,
     loanEnergyUsesThisHand: 0,
     alertChanceIndex: 0,
@@ -94,6 +212,8 @@ function resetPlayerSkillsForGame(player) {
     ...createEmptySkillRuntime(),
     equippedSkillIds: [...(previous.equippedSkillIds || [])],
     loadoutConfirmed: Boolean(previous.loadoutConfirmed),
+    invalidBuild: Boolean(previous.invalidBuild),
+    invalidBuildNotified: Boolean(previous.invalidBuildNotified),
     abyssEnergy: SKILL_CONFIG.INITIAL_ABYSS_ENERGY,
     visibleAbyssEnergy: SKILL_CONFIG.INITIAL_ABYSS_ENERGY,
   };
@@ -105,6 +225,8 @@ function resetPlayerSkillsForHand(player) {
   const persist = {
     equippedSkillIds: runtime.equippedSkillIds,
     loadoutConfirmed: runtime.loadoutConfirmed,
+    invalidBuild: Boolean(runtime.invalidBuild),
+    invalidBuildNotified: Boolean(runtime.invalidBuildNotified),
     abyssEnergy: runtime.abyssEnergy,
     visibleAbyssEnergy: runtime.visibleAbyssEnergy,
     skillUsesThisGame: runtime.skillUsesThisGame,
@@ -113,6 +235,9 @@ function resetPlayerSkillsForHand(player) {
     energyLoan: runtime.energyLoan || null,
     energyDebt: Math.max(0, Number(runtime.energyDebt) || 0),
     chipDebt: Math.max(0, Number(runtime.chipDebt) || 0),
+    chipDebtLenderId: runtime.chipDebtLenderId || null,
+    loanCreditState: getLoanCreditState(runtime),
+    loanCreditMetrics: runtime.loanCreditMetrics || createLoanCreditMetrics(),
     alertChanceIndex: Math.max(0, Number(runtime.alertChanceIndex) || 0),
     alertPromptPending: Boolean(runtime.alertPromptPending),
   };
@@ -130,28 +255,51 @@ function resetRoomSkillsForHand(room) {
 }
 
 function validateLoadout(skillIds) {
-  if (!Array.isArray(skillIds)) return { ok: false, error: "技能构筑格式错误" };
+  if (!Array.isArray(skillIds)) {
+    return { ok: false, reason: "INVALID_BUILD_FORMAT", error: "技能构筑格式错误" };
+  }
   if (skillIds.length < SKILL_CONFIG.MIN_EQUIPPED_SKILLS) {
-    return { ok: false, error: `至少装备 ${SKILL_CONFIG.MIN_EQUIPPED_SKILLS} 个技能` };
+    return {
+      ok: false,
+      reason: "TOO_FEW_SKILLS",
+      error: `至少装备 ${SKILL_CONFIG.MIN_EQUIPPED_SKILLS} 个技能`,
+    };
   }
   if (skillIds.length > SKILL_CONFIG.MAX_EQUIPPED_SKILLS) {
-    return { ok: false, error: `最多装备 ${SKILL_CONFIG.MAX_EQUIPPED_SKILLS} 个技能` };
+    return {
+      ok: false,
+      reason: "TOO_MANY_SKILLS",
+      error: `最多装备 ${SKILL_CONFIG.MAX_EQUIPPED_SKILLS} 个技能`,
+    };
   }
-  const unique = new Set();
   const normalized = [];
-  let totalLoad = 0;
   for (const rawId of skillIds) {
-    if (typeof rawId !== "string") return { ok: false, error: "技能 ID 格式错误" };
-    const skillId = rawId.trim().toUpperCase();
-    const skill = getSkillDefinition(skillId);
-    if (!skill) return { ok: false, error: `未知技能：${rawId}` };
-    if (unique.has(skillId)) return { ok: false, error: "不能重复装备同名技能" };
-    unique.add(skillId);
-    normalized.push(skillId);
-    totalLoad += skill.load;
+    if (typeof rawId !== "string") {
+      return { ok: false, reason: "INVALID_SKILL_ID_FORMAT", error: "技能 ID 格式错误" };
+    }
+    normalized.push(rawId.trim().toUpperCase());
   }
+
+  const skills = normalized.map((skillId, index) => {
+    const skill = getSkillDefinition(skillId);
+    return { skill, rawId: skillIds[index] };
+  });
+  const unknown = skills.find((entry) => !entry.skill);
+  if (unknown) {
+    return { ok: false, reason: "UNKNOWN_SKILL_ID", error: `未知技能：${unknown.rawId}` };
+  }
+
+  if (new Set(normalized).size !== normalized.length) {
+    return { ok: false, reason: "DUPLICATE_SKILL_ID", error: "不能重复装备同名技能" };
+  }
+
+  const totalLoad = skills.reduce((sum, entry) => sum + entry.skill.load, 0);
   if (totalLoad > SKILL_CONFIG.MAX_SKILL_LOAD) {
-    return { ok: false, error: `技能负载不能超过 ${SKILL_CONFIG.MAX_SKILL_LOAD}` };
+    return {
+      ok: false,
+      reason: "LOAD_LIMIT_EXCEEDED",
+      error: `技能负载不能超过 ${SKILL_CONFIG.MAX_SKILL_LOAD}`,
+    };
   }
   return { ok: true, skillIds: normalized, totalLoad };
 }
@@ -174,6 +322,7 @@ function gainEnergy(player, amount) {
     const paid = Math.min(debt, remaining);
     runtime.energyDebt = debt - paid;
     remaining -= paid;
+    ensureLoanCreditMetrics(runtime).realEnergyRepaid += paid;
   }
   if (remaining <= 0) return 0;
   const before = runtime.abyssEnergy;
@@ -239,6 +388,11 @@ function getSelfSkillSummary(player) {
   return {
     equippedSkillIds: [...(runtime.equippedSkillIds || [])],
     loadoutConfirmed: Boolean(runtime.loadoutConfirmed),
+    buildStatus: runtime.invalidBuild
+      ? "INVALID_BUILD"
+      : runtime.loadoutConfirmed
+        ? "CONFIRMED"
+        : "UNCONFIRMED",
     abyssEnergy: Number(runtime.abyssEnergy) || 0,
     visibleAbyssEnergy: Number(runtime.visibleAbyssEnergy) || 0,
     energyCap: getEnergyCap(player),
@@ -261,10 +415,12 @@ function getSelfSkillSummary(player) {
     disguiseActive: Boolean(runtime.disguiseActive),
     energyDebt: Math.max(0, Number(runtime.energyDebt) || 0),
     chipDebt: Math.max(0, Number(runtime.chipDebt) || 0),
+    loanCreditState: getLoanCreditState(runtime),
     chipLoanPending: Boolean(listChipLoans(runtime).length),
     energyLoanPending: Boolean(runtime.energyLoan),
     loanChipUsesThisHand: Math.max(0, Number(runtime.loanChipUsesThisHand) || 0),
     loanEnergyUsesThisHand: Math.max(0, Number(runtime.loanEnergyUsesThisHand) || 0),
+    loanQuota: getLoanQuota(runtime, { creditRestriction: true }),
   };
 }
 
@@ -407,6 +563,8 @@ function expireLoanDebts(player) {
   runtime.energyLoan = null;
   runtime.energyDebt = 0;
   runtime.chipDebt = 0;
+  runtime.chipDebtLenderId = null;
+  runtime.loanCreditState = LOAN_CREDIT.NORMAL;
 }
 
 function expireLoanDebtsForRoom(room) {
@@ -431,4 +589,7 @@ module.exports = {
   isChipViewHiddenFor, addDirectChipGain, loanReuseBlocked,
   expireLoanDebts, expireLoanDebtsForRoom, isMatchOverForLoan,
   maskLoanPublicSummary, addChipLoanTranche, listChipLoans, syncChipLoanState,
+  LOAN_CREDIT, getLoanCreditState, setLoanCreditState, getLoanQuota,
+  pendingLoanObligations, ensureLoanCreditMetrics, noteLoanWash,
+  createLoanCreditMetrics,
 };

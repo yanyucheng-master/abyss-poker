@@ -321,6 +321,25 @@ describe("gameEngine", () => {
     expect(room.phase).toBe("end");
   });
 
+  test("在线玩家面对下注超时会弃牌而不会被系统自动跟注", () => {
+    const { engine } = createHarness();
+    const room = makeRoom();
+    engine.startHand(room);
+    const actorId = room.players[room.currentPlayerIndex].playerId;
+
+    jest.advanceTimersByTime(30000);
+
+    expect(room.phase).toBe("end");
+    expect(room.history).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "action",
+        playerId: actorId,
+        declaredAction: "fold",
+        origin: "timeout",
+      }),
+    ]));
+  });
+
   test("handlePlayerAction 会拒绝非法阶段、非当前玩家和错误加注", () => {
     const { engine } = createHarness();
     const room = makeRoom();

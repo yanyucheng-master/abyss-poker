@@ -102,6 +102,7 @@ class RoomManager {
       skillState: null,
       deferredHandReveals: [],
       revealedHandHistory: [],
+      privateHandAuditHistory: [],
       hadAllInActionThisHand: false,
       allInPresentationEndsAt: 0,
     };

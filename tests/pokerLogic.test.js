@@ -4,6 +4,7 @@ const {
   collectBet,
   isStreetComplete,
   pickAutoAction,
+  pickTimeoutAction,
 } = require("../game/pokerLogic");
 
 function mockRoom() {
@@ -115,5 +116,13 @@ describe("pokerLogic", () => {
     expect(isStreetComplete(room)).toBe(true);
     expect(pickAutoAction(["allin"])).toBe("allin");
     expect(pickAutoAction([])).toBeNull();
+  });
+
+  test("玩家超时优先 Check，否则 Fold；禁弃牌时才使用剩余被动行动", () => {
+    expect(pickTimeoutAction(["fold", "call", "raise", "allin"])).toBe("fold");
+    expect(pickTimeoutAction(["check", "raise", "allin"])).toBe("check");
+    expect(pickTimeoutAction(["call", "allin"])).toBe("call");
+    expect(pickTimeoutAction(["allin"])).toBe("allin");
+    expect(pickTimeoutAction([])).toBeNull();
   });
 });

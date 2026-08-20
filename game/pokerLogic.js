@@ -32,6 +32,14 @@ function pickAutoAction(validActions) {
   return ["check", "call", "allin", "fold"].find((action) => list.includes(action)) || null;
 }
 
+function pickTimeoutAction(validActions) {
+  const list = Array.isArray(validActions) ? validActions : [];
+  // A timeout must never turn an ordinary faced bet into an involuntary call.
+  // If another rule (for example Intimidation) removes Fold, fall back to the
+  // remaining passive legal action so the hand cannot deadlock.
+  return ["check", "fold", "call", "allin"].find((action) => list.includes(action)) || null;
+}
+
 function getEffectiveMaxTotal(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
@@ -136,4 +144,5 @@ module.exports = {
   isContributionCapped,
   isActionablePlayer,
   pickAutoAction,
+  pickTimeoutAction,
 };

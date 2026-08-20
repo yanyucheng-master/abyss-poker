@@ -27,6 +27,7 @@ const {
   isStreetComplete,
   isActionablePlayer,
   pickAutoAction,
+  pickTimeoutAction,
 } = require("./pokerLogic");
 
 const HAND_SETTLE_MS = 2000;
@@ -128,7 +129,7 @@ class GameEngine {
       }
       const latest = getValidActions(room, playerIndex);
       const actor = room.players[playerIndex];
-      const timeoutAction = pickAutoAction(latest.validActions)
+      const timeoutAction = pickTimeoutAction(latest.validActions)
         || (actor?.status === "disconnected" ? "fold" : null);
       if (!timeoutAction) return;
       this.logger.warn("GAME", "行动超时自动处理", {
@@ -136,7 +137,10 @@ class GameEngine {
         playerId,
         action: timeoutAction,
       });
-      this.handlePlayerAction(room, playerIndex, timeoutAction, undefined, { system: true });
+      this.handlePlayerAction(room, playerIndex, timeoutAction, undefined, {
+        system: true,
+        foldOrigin: actor?.status === "disconnected" ? "disconnect" : "timeout",
+      });
     }, timeoutMs);
     if (typeof room.actionTimer.unref === "function") room.actionTimer.unref();
   }
@@ -168,8 +172,26 @@ class GameEngine {
 
   completeHandReveal(room) {
     if (!room.handReveal) return null;
+    this.rememberPrivateHandAudit(room, {
+      handId: room.handReveal.handId,
+      handNo: room.handNo,
+      ...this.skillEngine.buildRevealExtras(room, { includePrivateAudit: true }),
+    });
     Object.assign(room.handReveal, this.skillEngine.buildRevealExtras(room));
     return room.handReveal;
+  }
+
+  rememberPrivateHandAudit(room, audit) {
+    if (!audit?.handId) return;
+    room.privateHandAuditHistory = room.privateHandAuditHistory || [];
+    if (room.privateHandAuditHistory.some((entry) => entry.handId === audit.handId)) return;
+    room.privateHandAuditHistory.push({
+      handId: audit.handId,
+      handNo: audit.handNo,
+      skillActions: (audit.skillActions || []).map((entry) => JSON.parse(JSON.stringify(entry))),
+      skillTransforms: (audit.skillTransforms || []).map((entry) => JSON.parse(JSON.stringify(entry))),
+      nullifications: (audit.nullifications || []).map((entry) => JSON.parse(JSON.stringify(entry))),
+    });
   }
 
   rememberRevealedHand(room, reveal) {
@@ -366,6 +388,15 @@ class GameEngine {
     };
   }
 
+  syncHandResultAfterEndHand(room, handResult) {
+    if (!handResult) return handResult;
+    // Loan repayment is resolved by SkillEngine.endHand and may bankrupt a
+    // player after the initial result payload was constructed.
+    handResult.isFinalHand = room.players.some((player) => player.chips <= 0);
+    handResult.skillSettlement = room.skillState?.settlement || handResult.skillSettlement || null;
+    return handResult;
+  }
+
   getHandFinalizeDelay(room, settleMs) {
     const visibleSettleMs = Math.max(0, Number(settleMs) || HAND_SETTLE_MS);
     const remainingAllInEffectMs = Math.max(
@@ -448,6 +479,7 @@ class GameEngine {
     if (!viewer || !isChipViewHiddenFor(room, viewer)) return turn;
     return {
       ...turn,
+      validActions: turn.playerId === viewer.playerId ? [...(turn.validActions || [])] : [],
       minRaise: null,
       maxBet: null,
       toCall: null,
@@ -471,7 +503,7 @@ class GameEngine {
         viewAction = toCallBefore > 0 ? "call" : "raise";
         viewDeclared = viewAction;
       }
-      this.emitToPlayer(viewer, "action_made", {
+      const payload = {
         playerId,
         action: viewAction,
         declaredAction: viewDeclared,
@@ -479,8 +511,13 @@ class GameEngine {
         pot: hide ? null : room.pot,
         playerChips: this.getViewPlayers(room, viewer),
         forcePublicAllIn,
-        ownAllInStatus: actorIsViewer ? Boolean(room.players.find((player) => player.playerId === playerId)?.isAllIn) : undefined,
-      });
+      };
+      if (actorIsViewer) {
+        payload.ownAllInStatus = Boolean(
+          room.players.find((player) => player.playerId === playerId)?.isAllIn
+        );
+      }
+      this.emitToPlayer(viewer, "action_made", payload);
     });
   }
 
@@ -517,6 +554,7 @@ class GameEngine {
     room.handRevealDeferred = false;
     room.deferredHandReveals = [];
     room.revealedHandHistory = [];
+    room.privateHandAuditHistory = [];
     room.hadAllInActionThisHand = false;
     room.allInPresentationEndsAt = 0;
     room.privateOverdriveProfile = null;
@@ -648,15 +686,29 @@ class GameEngine {
 
     if (isSkillEnabled(room.skillMode)) {
       autoConfirmBotLoadouts(room);
-      if (!allLoadoutsConfirmed(room)) {
-        room.phase = "drafting";
-        this.broadcastRoomState(room);
-        this.skillEngine.broadcastSkillState(room);
-        return;
-      }
+      if (!this.ensureValidMatchLoadouts(room)) return;
     }
 
     this.startHand(room);
+  }
+
+  ensureValidMatchLoadouts(room) {
+    const ready = allLoadoutsConfirmed(room);
+    room.players.forEach((player) => {
+      const runtime = player.skillRuntime;
+      if (!runtime?.invalidBuild || runtime.invalidBuildNotified) return;
+      runtime.invalidBuildNotified = true;
+      this.emitToPlayer(player, "skill:failed", {
+        reason: "INVALID_BUILD",
+        message: "当前技能构筑包含重复或无效技能，请重新配置。",
+      });
+    });
+    if (ready) return true;
+
+    room.phase = "drafting";
+    this.broadcastRoomState(room);
+    this.skillEngine.broadcastSkillState(room);
+    return false;
   }
 
   handleSkillLoadout(room, player, skillIds) {
@@ -746,6 +798,7 @@ class GameEngine {
   }
 
   startHand(room) {
+    if (isSkillEnabled(room.skillMode) && !this.ensureValidMatchLoadouts(room)) return false;
     this.clearActionTimer(room);
     if (room.nextHandTimer) {
       clearTimeout(room.nextHandTimer);
@@ -871,6 +924,7 @@ class GameEngine {
     this.emitToRoom(room, "community_cards", { cards: room.communityCards, phase: room.phase });
     this.broadcastRoomState(room);
     if (!this.runoutToShowdownIfAllIn(room)) this.emitTurn(room);
+    return true;
   }
 
   emitTurn(room, { timeoutMs = ACTION_TIMEOUT_MS } = {}) {
@@ -950,6 +1004,26 @@ class GameEngine {
     }
     if (room.skillState.endgameWindowResolved) return false;
     const aggressorId = room.skillState.callToZeroAggressorId || null;
+    if (aggressorId) {
+      const aggressor = room.players.find((player) => player.playerId === aggressorId);
+      const caller = room.players.find((player) => player.playerId !== aggressorId);
+      const deadEndMadeAllInPublic = Boolean(
+        caller?.skillRuntime?.deadEndActive && caller.isAllIn
+      );
+      if (
+        aggressor
+        && caller
+        && Number(caller.chips) <= 0
+        && isChipViewHiddenFor(room, aggressor)
+        && !deadEndMadeAllInPublic
+      ) {
+        // The existence of this extra response window would reveal that the
+        // disguised caller reached zero. Suppress it at the authoritative
+        // rules layer; never create a payload for the client to hide.
+        room.skillState.endgameWindowResolved = true;
+        return false;
+      }
+    }
     const holders = room.players.filter((player) => {
       const opponent = room.players.find((candidate) => candidate.playerId !== player.playerId);
       if (!opponent || Number(opponent.chips) > 0) return false;
@@ -1128,13 +1202,14 @@ class GameEngine {
       ),
     });
     this.skillEngine.endHand(room, { reason: "retreat", winner: null, tie: true });
+    this.syncHandResultAfterEndHand(room, handResult);
     room.lastHandResult = handResult;
     this.emitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
     this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
   }
 
-  settleByFold(room) {
+  settleByFold(room, { foldOrigin = "user" } = {}) {
     const active = getActivePlayers(room);
     if (active.length !== 1) return;
     this.clearActionTimer(room);
@@ -1143,7 +1218,12 @@ class GameEngine {
     winner.chips += room.pot;
     room.pot = 0;
     if (isSkillEnabled(room.skillMode)) {
-      this.skillEngine.applySettlementModifiers(room, { reason: "fold", winner, tie: false });
+      this.skillEngine.applySettlementModifiers(room, {
+        reason: "fold",
+        winner,
+        tie: false,
+        foldOrigin,
+      });
     }
     room.phase = "end";
 
@@ -1166,8 +1246,9 @@ class GameEngine {
             folded: p.status === "folded",
           }, room)
         ),
-      });
+    });
     this.skillEngine.endHand(room, { reason: "fold", winner, tie: false });
+    this.syncHandResultAfterEndHand(room, handResult);
     room.lastHandResult = handResult;
     this.emitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
@@ -1304,6 +1385,7 @@ class GameEngine {
         ),
       });
       this.skillEngine.endHand(room, { reason: "showdown", winner: null, tie: true });
+      this.syncHandResultAfterEndHand(room, handResult);
       room.lastHandResult = handResult;
       this.emitHandResult(room, handResult, { revealAll: true });
       this.revealHandCommitment(room);
@@ -1410,6 +1492,7 @@ class GameEngine {
       winner: tie ? null : winnerPlayer,
       tie,
     });
+    this.syncHandResultAfterEndHand(room, handResult);
     room.lastHandResult = handResult;
     this.emitHandResult(room, handResult, { revealAll: true });
     this.revealHandCommitment(room);
@@ -1587,6 +1670,8 @@ class GameEngine {
     const toCall = getToCall(room, player);
     const maxTotal = getEffectiveMaxTotal(room, playerIndex);
     const oldCurrentBet = room.currentBet;
+    const foldOrigin = options.foldOrigin || (options.system ? "system" : "user");
+    const hideChipView = isChipViewHiddenFor(room, player);
     let appliedAction = action;
     let appliedAmount = 0;
 
@@ -1596,7 +1681,11 @@ class GameEngine {
       player.status = "folded";
       player.hasActed = true;
       onPlayerFolded(player);
-      if (player.skillRuntime?.retreatActive && !room.skillState?.fairnessActive) {
+      if (
+        foldOrigin === "user"
+        && player.skillRuntime?.retreatActive
+        && !room.skillState?.fairnessActive
+      ) {
         this.settleByRetreat(room, player);
         return { ok: true };
       }
@@ -1614,38 +1703,72 @@ class GameEngine {
         player.hasActed = true;
       }
     } else if (action === "raise") {
-      if (opponent.isAllIn) return { ok: false, error: "对手已All In，不能再加注" };
-      const targetTotalRaw = Number(amount);
-      const minRaiseTo = getMinRaiseTo(room);
-      if (!Number.isInteger(targetTotalRaw)) return { ok: false, error: "加注金额必须是整数" };
-      const hide = isChipViewHiddenFor(room, player);
-      let targetTotal = targetTotalRaw;
-      if (targetTotal > maxTotal) {
-        if (hide) targetTotal = maxTotal;
-        else return { ok: false, error: "超过有效筹码上限" };
-      }
-      if (targetTotal < minRaiseTo) {
-        if (hide && targetTotal === maxTotal && player.chips > 0) {
-          const paid = collectBet(room, player, player.chips);
+      if (opponent.isAllIn && hideChipView) {
+        // A rejected Raise would itself reveal the disguised opponent's All In.
+        // Treat every submitted amount as a committed decision and collapse it
+        // to the remaining legal passive action instead of returning an oracle.
+        if (toCall > 0) {
+          const paid = collectBet(room, player, toCall);
           appliedAmount = paid;
-          appliedAction = player.isAllIn ? "allin" : (paid > 0 ? "call" : "check");
-          player.hasActed = true;
+          appliedAction = player.isAllIn || paid < toCall ? "allin" : "call";
         } else {
-          return { ok: false, error: hide ? "当前操作无效" : `最小加注到 ${minRaiseTo}` };
+          appliedAction = "check";
         }
-      } else if (targetTotal <= room.currentBet) {
-        return { ok: false, error: hide ? "当前操作无效" : "加注必须高于当前注" };
+        player.hasActed = true;
       } else {
-        const need = targetTotal - player.streetBet;
+        if (opponent.isAllIn) {
+          return { ok: false, error: "对手已All In，不能再加注" };
+        }
+        const targetTotalRaw = Number(amount);
+        const minRaiseTo = getMinRaiseTo(room);
+        if (!Number.isFinite(targetTotalRaw)) {
+          return { ok: false, error: hideChipView ? "下注金额格式错误" : "加注金额必须是整数" };
+        }
+        if (!hideChipView && !Number.isInteger(targetTotalRaw)) {
+          return { ok: false, error: "加注金额必须是整数" };
+        }
+
+        let targetTotal = hideChipView ? Math.round(targetTotalRaw) : targetTotalRaw;
+        if (hideChipView) {
+          if (player.chips <= 0 || maxTotal <= player.streetBet) {
+            return { ok: false, error: "当前操作无效" };
+          }
+          if (targetTotal > maxTotal) {
+            targetTotal = maxTotal;
+          } else if (targetTotal < minRaiseTo) {
+            targetTotal = maxTotal >= minRaiseTo ? minRaiseTo : maxTotal;
+          }
+        } else {
+          if (targetTotal > maxTotal) return { ok: false, error: "超过有效筹码上限" };
+          if (targetTotal < minRaiseTo) return { ok: false, error: `最小加注到 ${minRaiseTo}` };
+          if (targetTotal <= room.currentBet) return { ok: false, error: "加注必须高于当前注" };
+        }
+
+        const need = Math.max(0, targetTotal - player.streetBet);
+        if (need <= 0) return { ok: false, error: hideChipView ? "当前操作无效" : "加注必须高于当前注" };
         const paid = collectBet(room, player, need);
         appliedAmount = paid;
-        room.currentBet = player.streetBet;
-        room.lastRaiseSize = room.currentBet - oldCurrentBet;
-        room.players.forEach((p) => {
-          if (p.playerId !== player.playerId && p.status === "active" && !p.isAllIn) p.hasActed = false;
-        });
+
+        if (player.streetBet > room.currentBet) {
+          const raiseSize = player.streetBet - room.currentBet;
+          room.currentBet = player.streetBet;
+          if (raiseSize >= room.lastRaiseSize) {
+            room.lastRaiseSize = raiseSize;
+            room.players.forEach((p) => {
+              if (p.playerId !== player.playerId && p.status === "active" && !p.isAllIn) {
+                p.hasActed = false;
+              }
+            });
+          }
+        }
         player.hasActed = true;
-        if (player.isAllIn) appliedAction = "allin";
+        appliedAction = player.isAllIn
+          ? "allin"
+          : player.streetBet > oldCurrentBet
+            ? "raise"
+            : toCall > 0
+              ? "call"
+              : "check";
       }
     } else if (action === "allin") {
       if (!getValidActions(room, playerIndex).validActions.includes("allin")) {
@@ -1654,7 +1777,9 @@ class GameEngine {
       if (player.chips <= 0) return { ok: false, error: "无可用筹码" };
       if (opponent.isAllIn) {
         // Facing an all-in: commit remaining chips toward the call only.
-        if (toCall <= 0) return { ok: false, error: "对手已All In，只能过牌或等待" };
+        if (toCall <= 0) {
+          return { ok: false, error: hideChipView ? "当前操作无效" : "对手已All In，只能过牌或等待" };
+        }
         const paid = collectBet(room, player, toCall);
         appliedAmount = paid;
         player.hasActed = true;
@@ -1707,7 +1832,7 @@ class GameEngine {
     if (room.skillState && Number(player.chips) <= 0) {
       const wasCall = action === "call"
         || appliedAction === "call"
-        || (action === "allin" && toCall > 0 && appliedAction !== "raise");
+        || (appliedAction === "allin" && toCall > 0 && player.streetBet <= oldCurrentBet);
       if (wasCall) room.skillState.callToZeroAggressorId = opponent.playerId;
     }
 
@@ -1718,6 +1843,7 @@ class GameEngine {
       declaredAction: action,
       amount: appliedAmount,
       playerId: player.playerId,
+      origin: foldOrigin,
       at: actionAt,
     });
     room.lastActionAt = actionAt;
@@ -1747,7 +1873,7 @@ class GameEngine {
     });
 
     if (getActivePlayers(room).length === 1) {
-      this.settleByFold(room);
+      this.settleByFold(room, { foldOrigin });
       return { ok: true };
     }
 

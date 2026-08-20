@@ -45,6 +45,7 @@ async function buttonHitAudit(page, scopeSelector) {
     const scope = document.querySelector(scopeSelector) || document;
     const failures = [];
     let checked = 0;
+    const clipsAxis = (value) => /^(?:auto|scroll|hidden|clip|overlay)$/.test(value);
     [...scope.querySelectorAll("button")].forEach((button) => {
       const rect = button.getBoundingClientRect();
       const style = getComputedStyle(button);
@@ -61,9 +62,30 @@ async function buttonHitAudit(page, scopeSelector) {
       ) {
         return;
       }
+      let left = Math.max(0, rect.left);
+      let right = Math.min(innerWidth, rect.right);
+      let top = Math.max(0, rect.top);
+      let bottom = Math.min(innerHeight, rect.bottom);
+      let ancestor = button.parentElement;
+      while (ancestor) {
+        const ancestorStyle = getComputedStyle(ancestor);
+        const ancestorRect = ancestor.getBoundingClientRect();
+        if (clipsAxis(ancestorStyle.overflowX)) {
+          left = Math.max(left, ancestorRect.left);
+          right = Math.min(right, ancestorRect.right);
+        }
+        if (clipsAxis(ancestorStyle.overflowY)) {
+          top = Math.max(top, ancestorRect.top);
+          bottom = Math.min(bottom, ancestorRect.bottom);
+        }
+        ancestor = ancestor.parentElement;
+      }
+      // A button outside a scroll/clip viewport is not currently interactive;
+      // auditing its unclipped center creates false obstruction reports.
+      if (right - left < 1 || bottom - top < 1) return;
       checked += 1;
-      const x = Math.max(0, Math.min(innerWidth - 1, rect.left + rect.width / 2));
-      const y = Math.max(0, Math.min(innerHeight - 1, rect.top + rect.height / 2));
+      const x = Math.max(0, Math.min(innerWidth - 1, left + (right - left) / 2));
+      const y = Math.max(0, Math.min(innerHeight - 1, top + (bottom - top) / 2));
       const hit = document.elementFromPoint(x, y);
       if (!hit || hit.closest("button") !== button) {
         failures.push({

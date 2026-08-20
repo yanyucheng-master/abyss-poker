@@ -190,6 +190,29 @@ describe("Loan 比赛结束债务失效", () => {
     expect(a.chips).toBe(0);
     expect(a.skillRuntime.chipLoan).toBeNull();
   });
+
+  test("到期还款导致归零时，手牌结果会立即标记为最终手", () => {
+    const { engine, room, a, b, io } = setupRoom({
+      loadoutA: ["LOAN", "RECYCLE"],
+      loadoutB: ["DEFENSE", "RECYCLE"],
+    });
+    expect(use(engine, room, a, "LOAN", { mode: "chip" }, "loan-final-marker")).toMatchObject({ status: "SUCCESS" });
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    a.chips = 120;
+    a.status = "active";
+    b.status = "folded";
+    room.pot = 0;
+    io.emits.length = 0;
+
+    engine.settleByFold(room);
+
+    expect(a.chips).toBe(0);
+    expect(room.lastHandResult.isFinalHand).toBe(true);
+    expect(io.emits.filter((entry) => entry.event === "hand_result")).toHaveLength(2);
+    io.emits.filter((entry) => entry.event === "hand_result").forEach((entry) => {
+      expect(entry.payload.isFinalHand).toBe(true);
+    });
+  });
 });
 
 describe("Retreat 同窗后悔按钮", () => {
@@ -216,6 +239,31 @@ describe("Retreat 同窗后悔按钮", () => {
     expect(use(unused.engine, unused.room, unused.a, "RETREAT", {}, "r06")).toMatchObject({ status: "SUCCESS" });
     unused.engine.skillEngine.endHand(unused.room, { reason: "showdown", winner: unused.b, tie: false });
     expect(unused.a.skillRuntime.abyssEnergy).toBe(4);
+  });
+
+  test("系统超时弃牌不会代玩家触发撤退，也不会给对手结算试探", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["RETREAT", "RECYCLE"],
+      loadoutB: ["PROBE", "RECYCLE"],
+    });
+    a.skillRuntime.abyssEnergy = 8;
+    b.skillRuntime.abyssEnergy = 8;
+    room.currentPlayerIndex = 1;
+    expect(use(engine, room, b, "PROBE", {}, "system-probe")).toMatchObject({ status: "SUCCESS" });
+    room.currentPlayerIndex = 0;
+    expect(use(engine, room, a, "RETREAT", {}, "system-retreat")).toMatchObject({ status: "SUCCESS" });
+
+    expect(engine.handlePlayerAction(room, 0, "fold", 0, {
+      system: true,
+      foldOrigin: "timeout",
+    })).toMatchObject({ ok: true });
+
+    expect(room.lastHandResult.reason).toBe("fold");
+    expect(room.skillState.settlement.foldOrigin).toBe("timeout");
+    expect(room.skillState.settlement.effects.some((entry) => entry.skillId === "PROBE")).toBe(false);
+    expect(room.history).toEqual(expect.arrayContaining([
+      expect.objectContaining({ declaredAction: "fold", origin: "timeout" }),
+    ]));
   });
 
   test("R07 不回滚贷款直接筹码；R08-R09 反制后不自动 Fold", () => {
@@ -391,6 +439,97 @@ describe("Disguise 筹码信息裁剪", () => {
     expect(restored.chipViewHidden).toBe(false);
     expect(typeof restored.pot).toBe("number");
     expect(hiddenLog.payload.amount).toBeNull();
+  });
+
+  test("D18 隐藏视角的伪造加注会提交为合法跟注，不能探测对手 All In", () => {
+    const { engine, room, a, b, io } = setupRoom({
+      loadoutA: ["DEFENSE", "RECYCLE"],
+      loadoutB: ["DISGUISE", "RECYCLE"],
+    });
+    room.currentPlayerIndex = 1;
+    expect(use(engine, room, b, "DISGUISE", {}, "d18-disguise")).toMatchObject({ status: "SUCCESS" });
+    room.currentPlayerIndex = 0;
+    b.isAllIn = true;
+    engine.runoutToShowdownIfAllIn = jest.fn(() => true);
+
+    const result = engine.handlePlayerAction(room, 0, "raise", 200);
+    const hiddenLog = lastEmit(io, "action_made", a.socketId);
+
+    expect(isChipViewHiddenFor(room, a)).toBe(true);
+    expect(result).toEqual({ ok: true });
+    expect(room.history.at(-1)).toMatchObject({ action: "call", declaredAction: "raise" });
+    expect(hiddenLog.payload).toMatchObject({ action: "call", amount: null, pot: null });
+  });
+});
+
+describe("服务端私有技能审计", () => {
+  test("网络 hand_reveal 只发送摘要，精确目标与换牌映射仅保留在服务端", () => {
+    const { engine, room, a, io } = setupRoom();
+    room.skillState.skillActionLog.push({
+      at: 123,
+      stage: "turn",
+      skillId: "DESTINY",
+      casterId: a.playerId,
+      ownerId: a.playerId,
+      kind: "active",
+      paid: true,
+      cost: 8,
+      success: false,
+      failureReason: "OPPONENT_HOLE",
+      public: false,
+      secret: true,
+      completed: true,
+      persistent: false,
+      pending: false,
+      cardMutationCompleted: false,
+      status: "FAILED",
+      publicSummary: "秘密技能已结算",
+      target: { cardCode: "SA", boardIndex: 4 },
+      audit: { targetCardCode: "SA", reason: "OPPONENT_HOLE" },
+    });
+    room.skillState.transformations.push({
+      at: 124,
+      skillId: "DESTINY",
+      casterId: a.playerId,
+      node: "RIVER_DEAL",
+      targetCardCode: "SA",
+      displacedCardCode: "H2",
+      from: "H2",
+      to: "SA",
+    });
+
+    const publicExtras = engine.skillEngine.buildRevealExtras(room);
+    const privateExtras = engine.skillEngine.buildRevealExtras(room, { includePrivateAudit: true });
+    const publicAction = publicExtras.skillActions.find((entry) => entry.skillId === "DESTINY");
+    const publicTransform = publicExtras.skillTransforms.find((entry) => entry.skillId === "DESTINY");
+    const privateAction = privateExtras.skillActions.find((entry) => entry.skillId === "DESTINY");
+    const privateTransform = privateExtras.skillTransforms.find((entry) => entry.skillId === "DESTINY");
+
+    expect(publicAction).toMatchObject({ skillId: "DESTINY", casterId: a.playerId, status: "FAILED" });
+    expect(publicAction).not.toHaveProperty("target");
+    expect(publicAction).not.toHaveProperty("audit");
+    expect(publicAction).not.toHaveProperty("failureReason");
+    expect(publicTransform).toEqual({
+      at: 124,
+      skillId: "DESTINY",
+      casterId: a.playerId,
+      node: "RIVER_DEAL",
+    });
+    expect(privateAction.target).toEqual({ cardCode: "SA", boardIndex: 4 });
+    expect(privateAction.audit).toMatchObject({ targetCardCode: "SA" });
+    expect(privateTransform).toMatchObject({ targetCardCode: "SA", displacedCardCode: "H2" });
+
+    engine.revealHandCommitment(room);
+    const networkReveal = lastEmit(io, "hand_reveal").payload;
+    const networkAction = networkReveal.skillActions.find((entry) => entry.skillId === "DESTINY");
+    const networkTransform = networkReveal.skillTransforms.find((entry) => entry.skillId === "DESTINY");
+    expect(networkAction).not.toHaveProperty("target");
+    expect(networkAction).not.toHaveProperty("audit");
+    expect(networkTransform).not.toHaveProperty("targetCardCode");
+    expect(networkTransform).not.toHaveProperty("from");
+    expect(room.privateHandAuditHistory).toHaveLength(1);
+    expect(room.privateHandAuditHistory[0].skillActions.find((entry) => entry.skillId === "DESTINY").target)
+      .toEqual({ cardCode: "SA", boardIndex: 4 });
   });
 });
 
