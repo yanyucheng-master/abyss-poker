@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot -Parent
 $OutDir = Join-Path $Root "render-upload"
-$ZipName = "abyss-poker-render-upload.zip"
+$ZipName = "overlimit-holdem-render-upload.zip"
 $ZipPath = Join-Path $Root $ZipName
 $DesktopZip = Join-Path ([Environment]::GetFolderPath("Desktop")) $ZipName
 
@@ -42,13 +42,13 @@ foreach ($file in $includeFiles) {
 $uploadReadme = Join-Path $OutDir "上传说明.txt"
 $lines = @(
     "========================================",
-    "  Render deploy bundle - Abyss Poker",
+    "  Render deploy bundle - OVERLIMIT: HOLD'EM",
     "========================================",
     "",
     "Clean source without node_modules.",
     "",
     "Option A (recommended): GitHub + Render",
-    "  1. Push this folder to GitHub repo abyss-poker",
+    "  1. Push this folder to GitHub repo overlimit-holdem",
     "  2. Render -> New Web Service -> connect repo",
     "  3. Build Command : npm ci",
     "  4. Start Command  : npm start",

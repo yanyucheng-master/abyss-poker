@@ -1,5 +1,5 @@
 {
-  "name": "abyss-poker",
+  "name": "overlimit-holdem",
   "version": "1.0.0",
   "description": "超限德州 / OVERLIMIT: HOLD'EM — realtime heads-up Texas Hold'em web game",
   "main": "server.js",

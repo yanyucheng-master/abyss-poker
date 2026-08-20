@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: abyss-poker
+    name: overlimit-holdem
     env: node
     plan: free
     buildCommand: npm ci

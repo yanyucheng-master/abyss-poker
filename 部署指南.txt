@@ -6,7 +6,7 @@
 公网联机只需部署 **一个 Render Web Service** 即可。
 
 当前 GitHub 仓库：
-  https://github.com/yanyucheng-master/abyss-poker
+  https://github.com/yanyucheng-master/overlimit-holdem
 
 部署成功后，玩家访问同一个网址即可创建/加入房间对战。
 
@@ -22,9 +22,9 @@
 ========================================
 
 1. 登录 https://render.com ，用 GitHub 授权
-2. New + → Web Service → 连接仓库 abyss-poker
+2. New + → Web Service → 连接仓库 overlimit-holdem
 3. 填写：
-     Name          : abyss-poker（任意）
+     Name          : overlimit-holdem（任意）
      Branch        : master
      Runtime       : Node
      Build Command : npm ci
@@ -33,7 +33,7 @@
      Root Directory: （留空，使用仓库根目录）
 4. Create Web Service，等待 Deploy 成功
 5. 打开 Render 给的地址，例如：
-     https://abyss-poker-xxxx.onrender.com
+     https://overlimit-holdem-xxxx.onrender.com
 
 Render 会自动注入 PORT，代码已支持 process.env.PORT。
 
@@ -44,7 +44,7 @@ Render 会自动注入 PORT，代码已支持 process.env.PORT。
 若暂时不用 GitHub，可使用本目录下的打包结果：
 
   render-upload/          ← 可直接推送到新 Git 仓库再连 Render
-  深渊德州_Render上传包.zip  ← 同上，解压后使用
+  overlimit-holdem-render-upload.zip  ← 同上，解压后使用
 
 详细步骤见：render-upload/上传说明.txt
 

@@ -2,6 +2,8 @@
 
 网页端双人实时联机 Texas Hold'em 游戏。项目采用服务端权威架构，支持标准局、高爆局、人机测试、断线重连、行动倒计时、再来一局和牌堆承诺验证。
 
+仓库：https://github.com/yanyucheng-master/overlimit-holdem
+
 本项目定位为电子游戏与策略对战 Demo，不涉及真实货币或博彩业务。
 
 ## 本地运行

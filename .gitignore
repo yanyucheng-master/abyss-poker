@@ -9,9 +9,18 @@ Thumbs.db
 .vscode/
 render-upload/
 abyss-poker-render-upload.zip
+overlimit-holdem-render-upload.zip
 深渊德州_Render上传包.zip
 
 # Local source assets (do not publish)
 *.source.jpg
 public/assets/*.source.jpg
+
+# Local review dumps and generated simulation reports
+.codex-doc-qa/
+.codex-doc-qa*/
+scripts/*-report.json
+scripts/*-report-*.json
+scripts/*.out.json
+scripts/experiments/*.out.json
 
