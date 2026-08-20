@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const { isSkillEnabled } = require("../skillModes");
-const { SKILL_CONFIG } = require("../skillConfig");
+const { SKILL_CONFIG, PERCEPTION_CONFIG } = require("../skillConfig");
 const {
   getSkillDefinition,
   listSkillDefinitions,
@@ -313,9 +313,24 @@ function revealNullifications(room) {
 }
 
 class SkillEngine {
-  constructor({ gameEngine, random = Math.random } = {}) {
+  constructor({ gameEngine, random = Math.random, perceptionTuning = null } = {}) {
     this.gameEngine = gameEngine;
     this.random = typeof random === "function" ? random : Math.random;
+    this.perceptionTuning = perceptionTuning;
+  }
+
+  perceptionChance(room, player) {
+    const base = this.perceptionTuning?.base ?? PERCEPTION_CONFIG.baseChance;
+    const max = this.perceptionTuning?.max ?? PERCEPTION_CONFIG.maxChance;
+    return base + (max - base) * getDisadvantageSeverity(room, player);
+  }
+
+  perceptionTruthChance() {
+    return this.perceptionTuning?.truth ?? PERCEPTION_CONFIG.truthChance;
+  }
+
+  perceptionMaxTriggers() {
+    return this.perceptionTuning?.maxTriggers ?? PERCEPTION_CONFIG.maxTriggersPerHand;
   }
 
   emitToPlayer(player, event, payload) {
@@ -1153,10 +1168,8 @@ class SkillEngine {
       if (!hasEquipped(player, "PERCEPTION") || !canTriggerNewSkillEvent(player, "PERCEPTION", room)) return;
       if (runtime.perceptionCheckedNodes.includes(node)) return;
       runtime.perceptionCheckedNodes.push(node);
-      if (runtime.perceptionTriggerCount >= SKILL_CONFIG.PERCEPTION_MAX_TRIGGERS_PER_HAND) return;
-      const chance = SKILL_CONFIG.PERCEPTION_BASE_CHANCE
-        + (SKILL_CONFIG.PERCEPTION_MAX_CHANCE - SKILL_CONFIG.PERCEPTION_BASE_CHANCE)
-        * getDisadvantageSeverity(room, player);
+      if (runtime.perceptionTriggerCount >= this.perceptionMaxTriggers()) return;
+      const chance = this.perceptionChance(room, player);
       if (this.random() >= chance) return;
       const opponent = opponentOf(room, player);
       if (!opponent?.cards?.length) return;
@@ -1169,16 +1182,27 @@ class SkillEngine {
       const facts = holeProtected
         ? candidateFacts.filter((fact) => fact.domain !== "hole" && !fact.requiresHole)
         : candidateFacts;
+      runtime.perceptionHistory = runtime.perceptionHistory || [];
       const picked = pickPerceptionStatement(facts, {
-        truthChance: SKILL_CONFIG.PERCEPTION_TRUTH_CHANCE,
+        truthChance: this.perceptionTruthChance(),
         random: () => this.random(),
+        history: runtime.perceptionHistory,
       });
       if (!picked) return;
+      runtime.perceptionHistory.push(picked);
       runtime.perceptionTriggerCount += 1;
       markSkillEvent(player, "PERCEPTION");
       this.recordSkill(room, player, getSkillDefinition("PERCEPTION"), {
         status: "TRIGGERED", secret: true, publicSummary: "秘密技能已结算",
-        audit: { node, chance, truthful: picked.truthful, factId: picked.factId, statement: picked.message },
+        audit: {
+          node,
+          chance,
+          truthful: picked.truthful,
+          factId: picked.factId,
+          category: picked.category,
+          axis: picked.axis,
+          statement: picked.message,
+        },
       });
       this.notifyPrivate(player, { skillId: "PERCEPTION", message: `感知 · ${picked.message}`, node });
     });
@@ -1351,6 +1375,7 @@ module.exports = {
   FORTUNE_CONFIG,
   getFutureCommunitySlots,
   updateNullifiedCodes,
+  getDisadvantageSeverity,
   initPlayerForSkillMode,
   setPlayerLoadout,
   autoConfirmBotLoadouts,

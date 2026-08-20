@@ -1,32 +1,32 @@
-const { SKILL_CONFIG } = require("../skillConfig");
+const { SKILL_CONFIG, FORTUNE_RULE } = require("../skillConfig");
 
 /**
- * 强运数值与事件池仍未最终定稿。
- * 本模块只提供可替换策略：概率函数、底牌改善算法、幸运节点列表。
- * 下面的默认值全部标记为 DRAFT，禁止当成正式平衡结论。
+ * 当前推荐版本：soft-v1，状态以 skillConfig.FORTUNE_RULE / SKILL_RULE_FREEZE 为准。
+ * 公式：mix = 筹码劣势 * chipWeight + 能量比例 * energyWeight，再在 min~max 线性插值。
+ * draft / clutch / conservative 只存在于 scripts/experiments，生产路径不可选。
  */
 const FORTUNE_CONFIG = Object.freeze({
-  status: "DRAFT_UNCONFIRMED",
+  ...FORTUNE_RULE,
   rewriteCost: SKILL_CONFIG.FORTUNE_REWRITE_COST,
   minEnergy: SKILL_CONFIG.MIN_FORTUNE_ENERGY,
   nodes: Object.freeze(["HOLE_DEAL", "FLOP_DEAL", "TURN_DEAL", "RIVER_DEAL", "HAND_END_RESOURCE"]),
   holeChance: Object.freeze({
-    min: 0.1,
-    max: 0.3,
-    chipWeight: 0.65,
-    energyWeight: 0.35,
+    min: 0.06,
+    max: 0.20,
+    chipWeight: 0.78,
+    energyWeight: 0.22,
   }),
   boardChance: Object.freeze({
-    min: 0.08,
-    max: 0.25,
-    chipWeight: 0.6,
-    energyWeight: 0.4,
+    min: 0.04,
+    max: 0.12,
+    chipWeight: 0.74,
+    energyWeight: 0.26,
   }),
   resourceChance: Object.freeze({
-    min: 0.08,
-    max: 0.2,
-    chipWeight: 0.55,
-    energyWeight: 0.45,
+    min: 0.12,
+    max: 0.22,
+    chipWeight: 0.40,
+    energyWeight: 0.60,
   }),
   strongHole: Object.freeze({
     pocketPair: true,
@@ -73,8 +73,28 @@ function energyRatio(energy, cap = SKILL_CONFIG.MAX_ABYSS_ENERGY) {
   return clamp((Number(energy) - floor) / (ceiling - floor), 0, 1);
 }
 
+let chanceOverride = null;
+
+function setFortuneChanceOverride(next) {
+  if (!next) {
+    chanceOverride = null;
+    return null;
+  }
+  chanceOverride = {
+    holeChance: { ...FORTUNE_CONFIG.holeChance, ...(next.holeChance || {}) },
+    boardChance: { ...FORTUNE_CONFIG.boardChance, ...(next.boardChance || {}) },
+    resourceChance: { ...FORTUNE_CONFIG.resourceChance, ...(next.resourceChance || {}) },
+  };
+  return chanceOverride;
+}
+
+function chanceSpec(kind) {
+  const key = `${kind}Chance`;
+  return (chanceOverride && chanceOverride[key]) || FORTUNE_CONFIG[key];
+}
+
 function computeFortuneChance(kind, { disadvantage = 0, energy = 0, energyCap = SKILL_CONFIG.MAX_ABYSS_ENERGY } = {}) {
-  const spec = FORTUNE_CONFIG[`${kind}Chance`];
+  const spec = chanceSpec(kind);
   if (!spec) return 0;
   const mix = clamp(disadvantage, 0, 1) * spec.chipWeight + energyRatio(energy, energyCap) * spec.energyWeight;
   return clamp(spec.min + (spec.max - spec.min) * mix, spec.min, spec.max);
@@ -111,6 +131,7 @@ module.exports = {
   FORTUNE_CONFIG,
   FORTUNE_COMBOS,
   computeFortuneChance,
+  setFortuneChanceOverride,
   isStrongHole,
   scoreHeroBoard,
   energyRatio,

@@ -12,6 +12,8 @@
     "test:watch": "jest --watch",
     "simulate:overdrive": "node scripts/simulate-overdrive.js 1000",
     "simulate:skills": "node scripts/simulate-skills.js 1000",
+    "validate:fortune-perception": "node scripts/validate-fortune-perception-v1.js",
+    "validate:fortune-debt": "node scripts/validate-fortune-debt.js",
     "verify:ui": "node scripts/verify-mobile-onescreen.js && node scripts/verify-ui-onescreen.mjs",
     "verify:interactions": "node scripts/verify-ui-interactions.mjs",
     "capture:ui": "node scripts/capture-ui-review.mjs",

@@ -30,6 +30,7 @@ function createEmptySkillRuntime() {
     stackCommitted: false,
     perceptionTriggerCount: 0,
     perceptionCheckedNodes: [],
+    perceptionHistory: [],
     fortuneRewriteCount: 0,
     fortuneResourceUsed: false,
     foldedThisHand: false,
@@ -103,6 +104,7 @@ function resetPlayerSkillsForHand(player) {
   runtime.stackCommitted = false;
   runtime.perceptionTriggerCount = 0;
   runtime.perceptionCheckedNodes = [];
+  runtime.perceptionHistory = [];
   runtime.fortuneRewriteCount = 0;
   runtime.fortuneResourceUsed = false;
   runtime.foldedThisHand = false;

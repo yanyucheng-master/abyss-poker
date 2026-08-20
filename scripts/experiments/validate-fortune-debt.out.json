@@ -1,0 +1,4831 @@
+{
+  "seed": 20260820,
+  "extraSeeds": [
+    20260821,
+    20260822,
+    20260823
+  ],
+  "sampleSizes": {
+    "MATCHES": 1500,
+    "EXTRA_MATCHES": 400,
+    "SELF_MATCHES": 1500,
+    "SEQ_HANDS": 12000,
+    "COMPARE_MATCHES": 400,
+    "MAX_HANDS_PER_MATCH": 250
+  },
+  "production": {
+    "fortune": {
+      "status": "PROVISIONAL_V1",
+      "variant": "soft-v1"
+    },
+    "perception": {
+      "status": "FROZEN_V1",
+      "variant": "spec-25-50"
+    }
+  },
+  "implementation": {
+    "chipsPersist": true,
+    "fortuneUsesLiveDisadvantage": true,
+    "foldPolicy": "public-only chen + vs-random MC"
+  },
+  "fixedSequential": {
+    "even": {
+      "stack": "even",
+      "matches": 1,
+      "hands": 12000,
+      "aWinRate": {
+        "n": 1,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.7935
+      },
+      "bWinRate": {
+        "n": 1,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.7935
+      },
+      "ties": 0,
+      "avgHands": 0,
+      "medianHands": null,
+      "p90Hands": null,
+      "foldRate": {
+        "n": 12000,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0003
+      },
+      "showdownRate": {
+        "n": 12000,
+        "count": 12000,
+        "percentage": 1,
+        "low": 0.9997,
+        "high": 1
+      },
+      "avgPot": {
+        "n": 12000,
+        "mean": 0,
+        "median": 0,
+        "std": 0,
+        "p50": 0,
+        "p75": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "min": 0,
+        "max": 0,
+        "se": 0,
+        "meanLow": 0,
+        "meanHigh": 0
+      },
+      "avgRaisesPerHand": 0,
+      "avgFinalSpread": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "avgRewritesPerHand": 0.1782,
+      "avgRewritesPerMatch": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "debtHandStartRate": {
+        "n": 12000,
+        "count": 2727,
+        "percentage": 0.2273,
+        "low": 0.2198,
+        "high": 0.2348
+      },
+      "debtHandAnyRate": {
+        "n": 12000,
+        "count": 3337,
+        "percentage": 0.2781,
+        "low": 0.2701,
+        "high": 0.2862
+      },
+      "debtHandEndRate": {
+        "n": 12000,
+        "count": 2727,
+        "percentage": 0.2273,
+        "low": 0.2198,
+        "high": 0.2348
+      },
+      "legalHandRate": {
+        "n": 12000,
+        "count": 12000,
+        "percentage": 1,
+        "low": 0.9997,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 12000,
+        "count": 3337,
+        "percentage": 0.2781,
+        "low": 0.2701,
+        "high": 0.2862
+      },
+      "blockedGivenLegal": {
+        "n": 12000,
+        "count": 3337,
+        "percentage": 0.2781,
+        "low": 0.2701,
+        "high": 0.2862
+      },
+      "depth": {
+        "0+": {
+          "n": 12000,
+          "count": 9273,
+          "percentage": 0.7728,
+          "low": 0.7652,
+          "high": 0.7802
+        },
+        "-1": {
+          "n": 12000,
+          "count": 1057,
+          "percentage": 0.0881,
+          "low": 0.0831,
+          "high": 0.0933
+        },
+        "-2": {
+          "n": 12000,
+          "count": 870,
+          "percentage": 0.0725,
+          "low": 0.068,
+          "high": 0.0773
+        },
+        "-3": {
+          "n": 12000,
+          "count": 552,
+          "percentage": 0.046,
+          "low": 0.0424,
+          "high": 0.0499
+        },
+        "-4": {
+          "n": 12000,
+          "count": 248,
+          "percentage": 0.0207,
+          "low": 0.0183,
+          "high": 0.0234
+        }
+      },
+      "enterNeg4Per100Hands": 1.1583,
+      "neg4Recovery": {
+        "n": 113,
+        "mean": 6.97345,
+        "median": 6,
+        "std": 3.37126,
+        "p50": 6,
+        "p75": 8,
+        "p90": 10,
+        "p95": 13,
+        "p99": 21.16,
+        "min": 2,
+        "max": 23
+      },
+      "episodes": {
+        "n": 537,
+        "mean": 5.07821,
+        "median": 4,
+        "std": 4.48811,
+        "p50": 4,
+        "p75": 7,
+        "p90": 11,
+        "p95": 14,
+        "p99": 21.64,
+        "min": 1,
+        "max": 29,
+        "pGe3": {
+          "n": 537,
+          "count": 352,
+          "percentage": 0.6555,
+          "low": 0.6143,
+          "high": 0.6945
+        },
+        "pGe5": {
+          "n": 537,
+          "count": 227,
+          "percentage": 0.4227,
+          "low": 0.3816,
+          "high": 0.4649
+        },
+        "pGe10": {
+          "n": 537,
+          "count": 73,
+          "percentage": 0.1359,
+          "low": 0.1095,
+          "high": 0.1675
+        },
+        "pGe20": {
+          "n": 537,
+          "count": 8,
+          "percentage": 0.0149,
+          "low": 0.0076,
+          "high": 0.0291
+        },
+        "pGe30": {
+          "n": 537,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0071
+        },
+        "histogram": {
+          "1": 112,
+          "2": 73,
+          "3-4": 125,
+          "5-9": 154,
+          "10-19": 65,
+          "20-29": 8,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 1812,
+        "lossRecovery": 0.7953,
+        "fortuneResource": 0.2047,
+        "other": 0,
+        "lossUnits": 1441,
+        "resourceUnits": 371
+      },
+      "fortuneWhileDebt": 209,
+      "skill": {
+        "legal": 48000,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 12494,
+        "debtLockOnly": 12494,
+        "debtBlockedRate": {
+          "n": 48000,
+          "count": 12494,
+          "percentage": 0.2603,
+          "low": 0.2564,
+          "high": 0.2642
+        },
+        "debtBlockedWantedRate": {
+          "n": 48000,
+          "count": 12494,
+          "percentage": 0.2603,
+          "low": 0.2564,
+          "high": 0.2642
+        },
+        "debtLockOnlyRate": {
+          "n": 12494,
+          "count": 12494,
+          "percentage": 1,
+          "low": 0.9997,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.7403,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0.9581,
+        "skipPer100Hands": {
+          "pre_flop": 24.2417,
+          "flop": 25.425,
+          "turn": 26.6417,
+          "river": 27.8083
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 12000,
+            "count": 2909,
+            "percentage": 0.2424,
+            "low": 0.2348,
+            "high": 0.2502
+          },
+          "flop": {
+            "n": 12000,
+            "count": 3051,
+            "percentage": 0.2542,
+            "low": 0.2465,
+            "high": 0.2621
+          },
+          "turn": {
+            "n": 12000,
+            "count": 3197,
+            "percentage": 0.2664,
+            "low": 0.2586,
+            "high": 0.2744
+          },
+          "river": {
+            "n": 12000,
+            "count": 3337,
+            "percentage": 0.2781,
+            "low": 0.2701,
+            "high": 0.2862
+          }
+        },
+        "nodes": {
+          "pre_flop": 12000,
+          "flop": 12000,
+          "turn": 12000,
+          "river": 12000
+        },
+        "skip": {
+          "pre_flop": 2909,
+          "flop": 3051,
+          "turn": 3197,
+          "river": 3337
+        },
+        "facts": 8884
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 12000,
+        "mean": 0.07703,
+        "median": 0.07797,
+        "std": 0.00891,
+        "p50": 0.07797,
+        "p75": 0.0831,
+        "p90": 0.0908,
+        "p95": 0.0908,
+        "p99": 0.0908,
+        "min": 0.06,
+        "max": 0.0908,
+        "se": 0.00008,
+        "meanLow": 0.07687,
+        "meanHigh": 0.07719
+      },
+      "chipResetBugs": 0
+    },
+    "behind": {
+      "stack": "behind",
+      "matches": 1,
+      "hands": 12000,
+      "aWinRate": {
+        "n": 1,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.7935
+      },
+      "bWinRate": {
+        "n": 1,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.7935
+      },
+      "ties": 0,
+      "avgHands": 0,
+      "medianHands": null,
+      "p90Hands": null,
+      "foldRate": {
+        "n": 12000,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0003
+      },
+      "showdownRate": {
+        "n": 12000,
+        "count": 12000,
+        "percentage": 1,
+        "low": 0.9997,
+        "high": 1
+      },
+      "avgPot": {
+        "n": 12000,
+        "mean": 0,
+        "median": 0,
+        "std": 0,
+        "p50": 0,
+        "p75": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "min": 0,
+        "max": 0,
+        "se": 0,
+        "meanLow": 0,
+        "meanHigh": 0
+      },
+      "avgRaisesPerHand": 0,
+      "avgFinalSpread": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "avgRewritesPerHand": 0.1973,
+      "avgRewritesPerMatch": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "debtHandStartRate": {
+        "n": 12000,
+        "count": 7714,
+        "percentage": 0.6428,
+        "low": 0.6342,
+        "high": 0.6514
+      },
+      "debtHandAnyRate": {
+        "n": 12000,
+        "count": 8812,
+        "percentage": 0.7343,
+        "low": 0.7264,
+        "high": 0.7422
+      },
+      "debtHandEndRate": {
+        "n": 12000,
+        "count": 7714,
+        "percentage": 0.6428,
+        "low": 0.6342,
+        "high": 0.6514
+      },
+      "legalHandRate": {
+        "n": 12000,
+        "count": 12000,
+        "percentage": 1,
+        "low": 0.9997,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 12000,
+        "count": 8812,
+        "percentage": 0.7343,
+        "low": 0.7264,
+        "high": 0.7422
+      },
+      "blockedGivenLegal": {
+        "n": 12000,
+        "count": 8812,
+        "percentage": 0.7343,
+        "low": 0.7264,
+        "high": 0.7422
+      },
+      "depth": {
+        "0+": {
+          "n": 12000,
+          "count": 4286,
+          "percentage": 0.3572,
+          "low": 0.3486,
+          "high": 0.3658
+        },
+        "-1": {
+          "n": 12000,
+          "count": 2305,
+          "percentage": 0.1921,
+          "low": 0.1851,
+          "high": 0.1992
+        },
+        "-2": {
+          "n": 12000,
+          "count": 2496,
+          "percentage": 0.208,
+          "low": 0.2008,
+          "high": 0.2154
+        },
+        "-3": {
+          "n": 12000,
+          "count": 1930,
+          "percentage": 0.1608,
+          "low": 0.1544,
+          "high": 0.1675
+        },
+        "-4": {
+          "n": 12000,
+          "count": 983,
+          "percentage": 0.0819,
+          "low": 0.0771,
+          "high": 0.087
+        }
+      },
+      "enterNeg4Per100Hands": 4.4,
+      "neg4Recovery": {
+        "n": 345,
+        "mean": 7.24058,
+        "median": 6,
+        "std": 3.71946,
+        "p50": 6,
+        "p75": 9,
+        "p90": 12,
+        "p95": 14,
+        "p99": 21.8,
+        "min": 2,
+        "max": 30
+      },
+      "episodes": {
+        "n": 1014,
+        "mean": 7.6075,
+        "median": 5,
+        "std": 7.9969,
+        "p50": 5,
+        "p75": 10,
+        "p90": 17,
+        "p95": 24,
+        "p99": 34.87,
+        "min": 1,
+        "max": 97,
+        "pGe3": {
+          "n": 1014,
+          "count": 741,
+          "percentage": 0.7308,
+          "low": 0.7026,
+          "high": 0.7572
+        },
+        "pGe5": {
+          "n": 1014,
+          "count": 528,
+          "percentage": 0.5207,
+          "low": 0.4899,
+          "high": 0.5513
+        },
+        "pGe10": {
+          "n": 1014,
+          "count": 277,
+          "percentage": 0.2732,
+          "low": 0.2466,
+          "high": 0.3014
+        },
+        "pGe20": {
+          "n": 1014,
+          "count": 77,
+          "percentage": 0.0759,
+          "low": 0.0612,
+          "high": 0.0939
+        },
+        "pGe30": {
+          "n": 1014,
+          "count": 25,
+          "percentage": 0.0247,
+          "low": 0.0168,
+          "high": 0.0361
+        },
+        "histogram": {
+          "1": 132,
+          "2": 141,
+          "3-4": 213,
+          "5-9": 251,
+          "10-19": 200,
+          "20-29": 52,
+          "30+": 25
+        }
+      },
+      "repayment": {
+        "units": 5035,
+        "lossRecovery": 0.7523,
+        "fortuneResource": 0.2477,
+        "other": 0,
+        "lossUnits": 3788,
+        "resourceUnits": 1247
+      },
+      "fortuneWhileDebt": 845,
+      "skill": {
+        "legal": 48000,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 33849,
+        "debtLockOnly": 33849,
+        "debtBlockedRate": {
+          "n": 48000,
+          "count": 33849,
+          "percentage": 0.7052,
+          "low": 0.7011,
+          "high": 0.7093
+        },
+        "debtBlockedWantedRate": {
+          "n": 48000,
+          "count": 33849,
+          "percentage": 0.7052,
+          "low": 0.7011,
+          "high": 0.7093
+        },
+        "debtLockOnlyRate": {
+          "n": 33849,
+          "count": 33849,
+          "percentage": 1,
+          "low": 0.9999,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.5099,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 1.4277,
+        "skipPer100Hands": {
+          "pre_flop": 67.3583,
+          "flop": 69.7667,
+          "turn": 71.5167,
+          "river": 73.4333
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 12000,
+            "count": 8083,
+            "percentage": 0.6736,
+            "low": 0.6651,
+            "high": 0.6819
+          },
+          "flop": {
+            "n": 12000,
+            "count": 8372,
+            "percentage": 0.6977,
+            "low": 0.6894,
+            "high": 0.7058
+          },
+          "turn": {
+            "n": 12000,
+            "count": 8582,
+            "percentage": 0.7152,
+            "low": 0.707,
+            "high": 0.7232
+          },
+          "river": {
+            "n": 12000,
+            "count": 8812,
+            "percentage": 0.7343,
+            "low": 0.7264,
+            "high": 0.7422
+          }
+        },
+        "nodes": {
+          "pre_flop": 12000,
+          "flop": 12000,
+          "turn": 12000,
+          "river": 12000
+        },
+        "skip": {
+          "pre_flop": 8083,
+          "flop": 8372,
+          "turn": 8582,
+          "river": 8812
+        },
+        "facts": 6119
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 12000,
+        "mean": 0.15006,
+        "median": 0.1496,
+        "std": 0.00596,
+        "p50": 0.1496,
+        "p75": 0.15217,
+        "p90": 0.1573,
+        "p95": 0.16243,
+        "p99": 0.17013,
+        "min": 0.1419,
+        "max": 0.1727,
+        "se": 0.00005,
+        "meanLow": 0.14995,
+        "meanHigh": 0.15017
+      },
+      "chipResetBugs": 0
+    }
+  },
+  "selfCheck": {
+    "recycleBreath": {
+      "label": "深呼吸+回收 vs 同构筑",
+      "matches": 1500,
+      "hands": 26291,
+      "aWinRate": {
+        "n": 1500,
+        "count": 735,
+        "percentage": 0.49,
+        "low": 0.4648,
+        "high": 0.5153
+      },
+      "bWinRate": {
+        "n": 1500,
+        "count": 765,
+        "percentage": 0.51,
+        "low": 0.4847,
+        "high": 0.5352
+      },
+      "ties": 0,
+      "avgHands": 17.527,
+      "medianHands": 11.5,
+      "p90Hands": 41.1,
+      "foldRate": {
+        "n": 26291,
+        "count": 18097,
+        "percentage": 0.6883,
+        "low": 0.6827,
+        "high": 0.6939
+      },
+      "showdownRate": {
+        "n": 26291,
+        "count": 8194,
+        "percentage": 0.3117,
+        "low": 0.3061,
+        "high": 0.3173
+      },
+      "avgPot": {
+        "n": 26291,
+        "mean": 264.14427,
+        "median": 75,
+        "std": 430.40436,
+        "p50": 75,
+        "p75": 200,
+        "p90": 672,
+        "p95": 1530,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 2.65444,
+        "meanLow": 258.94157,
+        "meanHigh": 269.34697
+      },
+      "avgRaisesPerHand": 0.8562,
+      "avgFinalSpread": {
+        "n": 1500,
+        "mean": -40,
+        "median": -2000,
+        "std": 2000.26683,
+        "p50": -2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 51.64667,
+        "meanLow": -141.22747,
+        "meanHigh": 61.22747
+      },
+      "avgRewritesPerHand": 0,
+      "avgRewritesPerMatch": {
+        "n": 1500,
+        "mean": 0,
+        "median": 0,
+        "std": 0,
+        "p50": 0,
+        "p75": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "min": 0,
+        "max": 0,
+        "se": 0,
+        "meanLow": 0,
+        "meanHigh": 0
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 1500,
+        "mean": 0,
+        "median": 0,
+        "std": 0,
+        "p50": 0,
+        "p75": 0,
+        "p90": 0,
+        "p95": 0,
+        "p99": 0,
+        "min": 0,
+        "max": 0,
+        "se": 0,
+        "meanLow": 0,
+        "meanHigh": 0
+      },
+      "debtHandStartRate": {
+        "n": 26291,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0001
+      },
+      "debtHandAnyRate": {
+        "n": 26291,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0001
+      },
+      "debtHandEndRate": {
+        "n": 26291,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0001
+      },
+      "legalHandRate": {
+        "n": 26291,
+        "count": 19718,
+        "percentage": 0.75,
+        "low": 0.7447,
+        "high": 0.7552
+      },
+      "blockedHandRate": {
+        "n": 26291,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0001
+      },
+      "blockedGivenLegal": {
+        "n": 19718,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0.0002
+      },
+      "depth": {
+        "0+": {
+          "n": 26291,
+          "count": 26291,
+          "percentage": 1,
+          "low": 0.9999,
+          "high": 1
+        },
+        "-1": {
+          "n": 26291,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0001
+        },
+        "-2": {
+          "n": 26291,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0001
+        },
+        "-3": {
+          "n": 26291,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0001
+        },
+        "-4": {
+          "n": 26291,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0001
+        }
+      },
+      "enterNeg4Per100Hands": 0,
+      "neg4Recovery": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null
+      },
+      "episodes": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "std": null,
+        "p50": null,
+        "p75": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "min": null,
+        "max": null,
+        "pGe3": {
+          "n": 0,
+          "count": 0,
+          "percentage": null
+        },
+        "pGe5": {
+          "n": 0,
+          "count": 0,
+          "percentage": null
+        },
+        "pGe10": {
+          "n": 0,
+          "count": 0,
+          "percentage": null
+        },
+        "pGe20": {
+          "n": 0,
+          "count": 0,
+          "percentage": null
+        },
+        "pGe30": {
+          "n": 0,
+          "count": 0,
+          "percentage": null
+        },
+        "histogram": {
+          "1": 0,
+          "2": 0,
+          "3-4": 0,
+          "5-9": 0,
+          "10-19": 0,
+          "20-29": 0,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 0,
+        "lossRecovery": 0,
+        "fortuneResource": 0,
+        "other": 0,
+        "lossUnits": 0,
+        "resourceUnits": 0
+      },
+      "fortuneWhileDebt": 0,
+      "skill": {
+        "legal": 19718,
+        "wanted": 19718,
+        "used": 19718,
+        "debtBlocked": 0,
+        "debtLockOnly": 0,
+        "debtBlockedRate": {
+          "n": 19718,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0002
+        },
+        "debtBlockedWantedRate": {
+          "n": 19718,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0002
+        },
+        "debtLockOnlyRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "perception": {
+        "factsPerHand": 0,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0,
+        "skipPer100Hands": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "turn": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "river": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          }
+        },
+        "nodes": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skip": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "facts": 0
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 26291,
+        "mean": 0.11231,
+        "median": 0.0908,
+        "std": 0.03369,
+        "p50": 0.0908,
+        "p75": 0.13018,
+        "p90": 0.17329,
+        "p95": 0.18616,
+        "p99": 0.19575,
+        "min": 0.08053,
+        "max": 0.19995,
+        "se": 0.00021,
+        "meanLow": 0.1119,
+        "meanHigh": 0.11272
+      },
+      "chipResetBugs": 0
+    },
+    "fortunePerceptionMirror": {
+      "label": "强运+感知 vs 同构筑",
+      "matches": 1500,
+      "hands": 20781,
+      "aWinRate": {
+        "n": 1500,
+        "count": 763,
+        "percentage": 0.5087,
+        "low": 0.4834,
+        "high": 0.5339
+      },
+      "bWinRate": {
+        "n": 1500,
+        "count": 737,
+        "percentage": 0.4913,
+        "low": 0.4661,
+        "high": 0.5166
+      },
+      "ties": 0,
+      "avgHands": 13.854,
+      "medianHands": 10,
+      "p90Hands": 32,
+      "foldRate": {
+        "n": 20781,
+        "count": 14115,
+        "percentage": 0.6792,
+        "low": 0.6728,
+        "high": 0.6855
+      },
+      "showdownRate": {
+        "n": 20781,
+        "count": 6666,
+        "percentage": 0.3208,
+        "low": 0.3145,
+        "high": 0.3272
+      },
+      "avgPot": {
+        "n": 20781,
+        "mean": 317.76161,
+        "median": 100,
+        "std": 488.94296,
+        "p50": 100,
+        "p75": 210,
+        "p90": 990,
+        "p95": 1760,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 3.39176,
+        "meanLow": 311.11376,
+        "meanHigh": 324.40946
+      },
+      "avgRaisesPerHand": 1.0546,
+      "avgFinalSpread": {
+        "n": 1500,
+        "mean": 34.66667,
+        "median": 2000,
+        "std": 2000.36643,
+        "p50": 2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 51.64924,
+        "meanLow": -66.56584,
+        "meanHigh": 135.89918
+      },
+      "avgRewritesPerHand": 0.1588,
+      "avgRewritesPerMatch": {
+        "n": 1500,
+        "mean": 2.20067,
+        "median": 1,
+        "std": 2.41833,
+        "p50": 1,
+        "p75": 3,
+        "p90": 5,
+        "p95": 7,
+        "p99": 10.01,
+        "min": 0,
+        "max": 19,
+        "se": 0.06244,
+        "meanLow": 2.07829,
+        "meanHigh": 2.32305
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 1500,
+        "mean": 0.24267,
+        "median": 0,
+        "std": 0.65222,
+        "p50": 0,
+        "p75": 0,
+        "p90": 1,
+        "p95": 2,
+        "p99": 3,
+        "min": 0,
+        "max": 5,
+        "se": 0.01684,
+        "meanLow": 0.20966,
+        "meanHigh": 0.27568
+      },
+      "debtHandStartRate": {
+        "n": 20781,
+        "count": 939,
+        "percentage": 0.0452,
+        "low": 0.0424,
+        "high": 0.0481
+      },
+      "debtHandAnyRate": {
+        "n": 20781,
+        "count": 1374,
+        "percentage": 0.0661,
+        "low": 0.0628,
+        "high": 0.0696
+      },
+      "debtHandEndRate": {
+        "n": 20781,
+        "count": 1050,
+        "percentage": 0.0505,
+        "low": 0.0476,
+        "high": 0.0536
+      },
+      "legalHandRate": {
+        "n": 20781,
+        "count": 20781,
+        "percentage": 1,
+        "low": 0.9998,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 20781,
+        "count": 1374,
+        "percentage": 0.0661,
+        "low": 0.0628,
+        "high": 0.0696
+      },
+      "blockedGivenLegal": {
+        "n": 20781,
+        "count": 1374,
+        "percentage": 0.0661,
+        "low": 0.0628,
+        "high": 0.0696
+      },
+      "depth": {
+        "0+": {
+          "n": 20781,
+          "count": 19731,
+          "percentage": 0.9495,
+          "low": 0.9464,
+          "high": 0.9524
+        },
+        "-1": {
+          "n": 20781,
+          "count": 452,
+          "percentage": 0.0218,
+          "low": 0.0199,
+          "high": 0.0238
+        },
+        "-2": {
+          "n": 20781,
+          "count": 329,
+          "percentage": 0.0158,
+          "low": 0.0142,
+          "high": 0.0176
+        },
+        "-3": {
+          "n": 20781,
+          "count": 201,
+          "percentage": 0.0097,
+          "low": 0.0084,
+          "high": 0.0111
+        },
+        "-4": {
+          "n": 20781,
+          "count": 68,
+          "percentage": 0.0033,
+          "low": 0.0026,
+          "high": 0.0041
+        }
+      },
+      "enterNeg4Per100Hands": 0.2214,
+      "neg4Recovery": {
+        "n": 43,
+        "mean": 4.74419,
+        "median": 4,
+        "std": 2.80385,
+        "p50": 4,
+        "p75": 6,
+        "p90": 8.8,
+        "p95": 9,
+        "p99": 12.48,
+        "min": 1,
+        "max": 15
+      },
+      "episodes": {
+        "n": 364,
+        "mean": 2.88462,
+        "median": 2,
+        "std": 2.73088,
+        "p50": 2,
+        "p75": 4,
+        "p90": 6,
+        "p95": 8,
+        "p99": 14.37,
+        "min": 1,
+        "max": 23,
+        "pGe3": {
+          "n": 364,
+          "count": 153,
+          "percentage": 0.4203,
+          "low": 0.3707,
+          "high": 0.4716
+        },
+        "pGe5": {
+          "n": 364,
+          "count": 57,
+          "percentage": 0.1566,
+          "low": 0.1229,
+          "high": 0.1975
+        },
+        "pGe10": {
+          "n": 364,
+          "count": 11,
+          "percentage": 0.0302,
+          "low": 0.017,
+          "high": 0.0533
+        },
+        "pGe20": {
+          "n": 364,
+          "count": 1,
+          "percentage": 0.0027,
+          "low": 0.0005,
+          "high": 0.0154
+        },
+        "pGe30": {
+          "n": 364,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0104
+        },
+        "histogram": {
+          "1": 145,
+          "2": 66,
+          "3-4": 96,
+          "5-9": 46,
+          "10-19": 10,
+          "20-29": 1,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 783,
+        "lossRecovery": 0.7905,
+        "fortuneResource": 0.2095,
+        "other": 0,
+        "lossUnits": 619,
+        "resourceUnits": 164
+      },
+      "fortuneWhileDebt": 283,
+      "skill": {
+        "legal": 46074,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 3002,
+        "debtLockOnly": 3002,
+        "debtBlockedRate": {
+          "n": 46074,
+          "count": 3002,
+          "percentage": 0.0652,
+          "low": 0.0629,
+          "high": 0.0674
+        },
+        "debtBlockedWantedRate": {
+          "n": 46074,
+          "count": 3002,
+          "percentage": 0.0652,
+          "low": 0.0629,
+          "high": 0.0674
+        },
+        "debtLockOnlyRate": {
+          "n": 3002,
+          "count": 3002,
+          "percentage": 1,
+          "low": 0.9987,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.6261,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0.6558,
+        "skipPer100Hands": {
+          "pre_flop": 5.4425,
+          "flop": 2.8969,
+          "turn": 2.9931,
+          "river": 3.1134
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 20781,
+            "count": 1131,
+            "percentage": 0.0544,
+            "low": 0.0514,
+            "high": 0.0576
+          },
+          "flop": {
+            "n": 9344,
+            "count": 602,
+            "percentage": 0.0644,
+            "low": 0.0596,
+            "high": 0.0696
+          },
+          "turn": {
+            "n": 8385,
+            "count": 622,
+            "percentage": 0.0742,
+            "low": 0.0688,
+            "high": 0.08
+          },
+          "river": {
+            "n": 7564,
+            "count": 647,
+            "percentage": 0.0855,
+            "low": 0.0794,
+            "high": 0.0921
+          }
+        },
+        "nodes": {
+          "pre_flop": 20781,
+          "flop": 9344,
+          "turn": 8385,
+          "river": 7564
+        },
+        "skip": {
+          "pre_flop": 1131,
+          "flop": 602,
+          "turn": 622,
+          "river": 647
+        },
+        "facts": 13012
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 20781,
+        "mean": 0.10436,
+        "median": 0.0908,
+        "std": 0.03243,
+        "p50": 0.0908,
+        "p75": 0.11992,
+        "p90": 0.1613,
+        "p95": 0.1757,
+        "p99": 0.19207,
+        "min": 0.06,
+        "max": 0.19989,
+        "se": 0.00022,
+        "meanLow": 0.10392,
+        "meanHigh": 0.1048
+      },
+      "chipResetBugs": 0
+    }
+  },
+  "strategyContrast": {
+    "checkdown": {
+      "betting": "checkdown",
+      "matches": 400,
+      "hands": 86564,
+      "aWinRate": {
+        "n": 400,
+        "count": 63,
+        "percentage": 0.1575,
+        "low": 0.1251,
+        "high": 0.1964
+      },
+      "bWinRate": {
+        "n": 400,
+        "count": 333,
+        "percentage": 0.8325,
+        "low": 0.7928,
+        "high": 0.8659
+      },
+      "ties": 4,
+      "avgHands": 216.41,
+      "medianHands": 250,
+      "p90Hands": 250,
+      "foldRate": {
+        "n": 86564,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0
+      },
+      "showdownRate": {
+        "n": 86564,
+        "count": 86564,
+        "percentage": 1,
+        "low": 1,
+        "high": 1
+      },
+      "avgPot": {
+        "n": 86564,
+        "mean": 99.9101,
+        "median": 100,
+        "std": 1.79253,
+        "p50": 100,
+        "p75": 100,
+        "p90": 100,
+        "p95": 100,
+        "p99": 100,
+        "min": 37,
+        "max": 100,
+        "se": 0.00609,
+        "meanLow": 99.89816,
+        "meanHigh": 99.92204
+      },
+      "avgRaisesPerHand": 0,
+      "avgFinalSpread": {
+        "n": 400,
+        "mean": -1046,
+        "median": -1275,
+        "std": 1045.60615,
+        "p50": -1275,
+        "p75": -437.5,
+        "p90": 405,
+        "p95": 1152.5,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 52.28031,
+        "meanLow": -1148.4694,
+        "meanHigh": -943.5306
+      },
+      "avgRewritesPerHand": 0.1965,
+      "avgRewritesPerMatch": {
+        "n": 400,
+        "mean": 42.52,
+        "median": 46,
+        "std": 9.36155,
+        "p50": 46,
+        "p75": 49,
+        "p90": 51,
+        "p95": 52,
+        "p99": 55,
+        "min": 12,
+        "max": 56,
+        "se": 0.46808,
+        "meanLow": 41.60257,
+        "meanHigh": 43.43743
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 400,
+        "mean": 15.5075,
+        "median": 15,
+        "std": 5.40537,
+        "p50": 15,
+        "p75": 19,
+        "p90": 23,
+        "p95": 24.05,
+        "p99": 27.01,
+        "min": 2,
+        "max": 33,
+        "se": 0.27027,
+        "meanLow": 14.97777,
+        "meanHigh": 16.03723
+      },
+      "debtHandStartRate": {
+        "n": 86564,
+        "count": 36439,
+        "percentage": 0.4209,
+        "low": 0.4177,
+        "high": 0.4242
+      },
+      "debtHandAnyRate": {
+        "n": 86564,
+        "count": 43421,
+        "percentage": 0.5016,
+        "low": 0.4983,
+        "high": 0.5049
+      },
+      "debtHandEndRate": {
+        "n": 86564,
+        "count": 36612,
+        "percentage": 0.4229,
+        "low": 0.4197,
+        "high": 0.4262
+      },
+      "legalHandRate": {
+        "n": 86564,
+        "count": 86564,
+        "percentage": 1,
+        "low": 1,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 86564,
+        "count": 43421,
+        "percentage": 0.5016,
+        "low": 0.4983,
+        "high": 0.5049
+      },
+      "blockedGivenLegal": {
+        "n": 86564,
+        "count": 43421,
+        "percentage": 0.5016,
+        "low": 0.4983,
+        "high": 0.5049
+      },
+      "depth": {
+        "0+": {
+          "n": 86564,
+          "count": 49952,
+          "percentage": 0.5771,
+          "low": 0.5738,
+          "high": 0.5803
+        },
+        "-1": {
+          "n": 86564,
+          "count": 12495,
+          "percentage": 0.1443,
+          "low": 0.142,
+          "high": 0.1467
+        },
+        "-2": {
+          "n": 86564,
+          "count": 12089,
+          "percentage": 0.1397,
+          "low": 0.1374,
+          "high": 0.142
+        },
+        "-3": {
+          "n": 86564,
+          "count": 8381,
+          "percentage": 0.0968,
+          "low": 0.0949,
+          "high": 0.0988
+        },
+        "-4": {
+          "n": 86564,
+          "count": 3647,
+          "percentage": 0.0421,
+          "low": 0.0408,
+          "high": 0.0435
+        }
+      },
+      "enterNeg4Per100Hands": 2.3774,
+      "neg4Recovery": {
+        "n": 1562,
+        "mean": 6.78361,
+        "median": 6,
+        "std": 3.0981,
+        "p50": 6,
+        "p75": 8,
+        "p90": 11,
+        "p95": 13,
+        "p99": 17,
+        "min": 1,
+        "max": 25
+      },
+      "episodes": {
+        "n": 6203,
+        "mean": 5.90231,
+        "median": 4,
+        "std": 5.54107,
+        "p50": 4,
+        "p75": 8,
+        "p90": 13,
+        "p95": 17,
+        "p99": 26,
+        "min": 1,
+        "max": 56,
+        "pGe3": {
+          "n": 6203,
+          "count": 4234,
+          "percentage": 0.6826,
+          "low": 0.6709,
+          "high": 0.694
+        },
+        "pGe5": {
+          "n": 6203,
+          "count": 2840,
+          "percentage": 0.4578,
+          "low": 0.4455,
+          "high": 0.4703
+        },
+        "pGe10": {
+          "n": 6203,
+          "count": 1182,
+          "percentage": 0.1906,
+          "low": 0.181,
+          "high": 0.2005
+        },
+        "pGe20": {
+          "n": 6203,
+          "count": 201,
+          "percentage": 0.0324,
+          "low": 0.0283,
+          "high": 0.0371
+        },
+        "pGe30": {
+          "n": 6203,
+          "count": 28,
+          "percentage": 0.0045,
+          "low": 0.0031,
+          "high": 0.0065
+        },
+        "histogram": {
+          "1": 995,
+          "2": 974,
+          "3-4": 1394,
+          "5-9": 1658,
+          "10-19": 981,
+          "20-29": 173,
+          "30+": 28
+        }
+      },
+      "repayment": {
+        "units": 24579,
+        "lossRecovery": 0.767,
+        "fortuneResource": 0.233,
+        "other": 0,
+        "lossUnits": 18852,
+        "resourceUnits": 5727
+      },
+      "fortuneWhileDebt": 3361,
+      "skill": {
+        "legal": 346256,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 164505,
+        "debtLockOnly": 164505,
+        "debtBlockedRate": {
+          "n": 346256,
+          "count": 164505,
+          "percentage": 0.4751,
+          "low": 0.4734,
+          "high": 0.4768
+        },
+        "debtBlockedWantedRate": {
+          "n": 346256,
+          "count": 164505,
+          "percentage": 0.4751,
+          "low": 0.4734,
+          "high": 0.4768
+        },
+        "debtLockOnlyRate": {
+          "n": 164505,
+          "count": 164505,
+          "percentage": 1,
+          "low": 1,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.6656,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 1.1494,
+        "skipPer100Hands": {
+          "pre_flop": 44.7923,
+          "flop": 46.6233,
+          "turn": 48.4624,
+          "river": 50.1606
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 86564,
+            "count": 38774,
+            "percentage": 0.4479,
+            "low": 0.4446,
+            "high": 0.4512
+          },
+          "flop": {
+            "n": 86564,
+            "count": 40359,
+            "percentage": 0.4662,
+            "low": 0.4629,
+            "high": 0.4696
+          },
+          "turn": {
+            "n": 86564,
+            "count": 41951,
+            "percentage": 0.4846,
+            "low": 0.4813,
+            "high": 0.488
+          },
+          "river": {
+            "n": 86564,
+            "count": 43421,
+            "percentage": 0.5016,
+            "low": 0.4983,
+            "high": 0.5049
+          }
+        },
+        "nodes": {
+          "pre_flop": 86564,
+          "flop": 86564,
+          "turn": 86564,
+          "river": 86564
+        },
+        "skip": {
+          "pre_flop": 38774,
+          "flop": 40359,
+          "turn": 41951,
+          "river": 43421
+        },
+        "facts": 57613
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 86564,
+        "mean": 0.10878,
+        "median": 0.10525,
+        "std": 0.03303,
+        "p50": 0.10525,
+        "p75": 0.13667,
+        "p90": 0.15617,
+        "p95": 0.16462,
+        "p99": 0.17667,
+        "min": 0.06,
+        "max": 0.19862,
+        "se": 0.00011,
+        "meanLow": 0.10856,
+        "meanHigh": 0.109
+      },
+      "chipResetBugs": 0
+    },
+    "heuristic": {
+      "betting": "heuristic",
+      "matches": 400,
+      "hands": 88319,
+      "aWinRate": {
+        "n": 400,
+        "count": 72,
+        "percentage": 0.18,
+        "low": 0.1454,
+        "high": 0.2206
+      },
+      "bWinRate": {
+        "n": 400,
+        "count": 324,
+        "percentage": 0.81,
+        "low": 0.7687,
+        "high": 0.8454
+      },
+      "ties": 4,
+      "avgHands": 220.798,
+      "medianHands": 250,
+      "p90Hands": 250,
+      "foldRate": {
+        "n": 88319,
+        "count": 0,
+        "percentage": 0,
+        "low": 0,
+        "high": 0
+      },
+      "showdownRate": {
+        "n": 88319,
+        "count": 88319,
+        "percentage": 1,
+        "low": 1,
+        "high": 1
+      },
+      "avgPot": {
+        "n": 88319,
+        "mean": 99.91631,
+        "median": 100,
+        "std": 1.78153,
+        "p50": 100,
+        "p75": 100,
+        "p90": 100,
+        "p95": 100,
+        "p99": 100,
+        "min": 37,
+        "max": 100,
+        "se": 0.00599,
+        "meanLow": 99.90456,
+        "meanHigh": 99.92806
+      },
+      "avgRaisesPerHand": 0,
+      "avgFinalSpread": {
+        "n": 400,
+        "mean": -928.94,
+        "median": -1100,
+        "std": 1053.71281,
+        "p50": -1100,
+        "p75": -250,
+        "p90": 505,
+        "p95": 1105,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 52.68564,
+        "meanLow": -1032.20386,
+        "meanHigh": -825.67614
+      },
+      "avgRewritesPerHand": 0.194,
+      "avgRewritesPerMatch": {
+        "n": 400,
+        "mean": 42.8325,
+        "median": 46,
+        "std": 8.82747,
+        "p50": 46,
+        "p75": 49,
+        "p90": 51,
+        "p95": 52,
+        "p99": 53.02,
+        "min": 9,
+        "max": 55,
+        "se": 0.44137,
+        "meanLow": 41.96741,
+        "meanHigh": 43.69759
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 400,
+        "mean": 15.1725,
+        "median": 15,
+        "std": 4.78015,
+        "p50": 15,
+        "p75": 19,
+        "p90": 21,
+        "p95": 23,
+        "p99": 26.01,
+        "min": 0,
+        "max": 28,
+        "se": 0.23901,
+        "meanLow": 14.70405,
+        "meanHigh": 15.64095
+      },
+      "debtHandStartRate": {
+        "n": 88319,
+        "count": 35315,
+        "percentage": 0.3999,
+        "low": 0.3966,
+        "high": 0.4031
+      },
+      "debtHandAnyRate": {
+        "n": 88319,
+        "count": 42127,
+        "percentage": 0.477,
+        "low": 0.4737,
+        "high": 0.4803
+      },
+      "debtHandEndRate": {
+        "n": 88319,
+        "count": 35499,
+        "percentage": 0.4019,
+        "low": 0.3987,
+        "high": 0.4052
+      },
+      "legalHandRate": {
+        "n": 88319,
+        "count": 88319,
+        "percentage": 1,
+        "low": 1,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 88319,
+        "count": 42127,
+        "percentage": 0.477,
+        "low": 0.4737,
+        "high": 0.4803
+      },
+      "blockedGivenLegal": {
+        "n": 88319,
+        "count": 42127,
+        "percentage": 0.477,
+        "low": 0.4737,
+        "high": 0.4803
+      },
+      "depth": {
+        "0+": {
+          "n": 88319,
+          "count": 52820,
+          "percentage": 0.5981,
+          "low": 0.5948,
+          "high": 0.6013
+        },
+        "-1": {
+          "n": 88319,
+          "count": 12087,
+          "percentage": 0.1369,
+          "low": 0.1346,
+          "high": 0.1391
+        },
+        "-2": {
+          "n": 88319,
+          "count": 11864,
+          "percentage": 0.1343,
+          "low": 0.1321,
+          "high": 0.1366
+        },
+        "-3": {
+          "n": 88319,
+          "count": 7965,
+          "percentage": 0.0902,
+          "low": 0.0883,
+          "high": 0.0921
+        },
+        "-4": {
+          "n": 88319,
+          "count": 3583,
+          "percentage": 0.0406,
+          "low": 0.0393,
+          "high": 0.0419
+        }
+      },
+      "enterNeg4Per100Hands": 2.1898,
+      "neg4Recovery": {
+        "n": 1499,
+        "mean": 6.87925,
+        "median": 6,
+        "std": 3.10467,
+        "p50": 6,
+        "p75": 8,
+        "p90": 11,
+        "p95": 13,
+        "p99": 17,
+        "min": 1,
+        "max": 32
+      },
+      "episodes": {
+        "n": 6069,
+        "mean": 5.84923,
+        "median": 4,
+        "std": 5.43723,
+        "p50": 4,
+        "p75": 8,
+        "p90": 13,
+        "p95": 16.6,
+        "p99": 26.32,
+        "min": 1,
+        "max": 46,
+        "pGe3": {
+          "n": 6069,
+          "count": 4162,
+          "percentage": 0.6858,
+          "low": 0.674,
+          "high": 0.6973
+        },
+        "pGe5": {
+          "n": 6069,
+          "count": 2819,
+          "percentage": 0.4645,
+          "low": 0.452,
+          "high": 0.4771
+        },
+        "pGe10": {
+          "n": 6069,
+          "count": 1123,
+          "percentage": 0.185,
+          "low": 0.1755,
+          "high": 0.195
+        },
+        "pGe20": {
+          "n": 6069,
+          "count": 181,
+          "percentage": 0.0298,
+          "low": 0.0258,
+          "high": 0.0344
+        },
+        "pGe30": {
+          "n": 6069,
+          "count": 32,
+          "percentage": 0.0053,
+          "low": 0.0037,
+          "high": 0.0074
+        },
+        "histogram": {
+          "1": 1019,
+          "2": 888,
+          "3-4": 1343,
+          "5-9": 1696,
+          "10-19": 942,
+          "20-29": 149,
+          "30+": 32
+        }
+      },
+      "repayment": {
+        "units": 23643,
+        "lossRecovery": 0.7674,
+        "fortuneResource": 0.2326,
+        "other": 0,
+        "lossUnits": 18143,
+        "resourceUnits": 5500
+      },
+      "fortuneWhileDebt": 3187,
+      "skill": {
+        "legal": 353276,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 159327,
+        "debtLockOnly": 159327,
+        "debtBlockedRate": {
+          "n": 353276,
+          "count": 159327,
+          "percentage": 0.451,
+          "low": 0.4494,
+          "high": 0.4526
+        },
+        "debtBlockedWantedRate": {
+          "n": 353276,
+          "count": 159327,
+          "percentage": 0.451,
+          "low": 0.4494,
+          "high": 0.4526
+        },
+        "debtLockOnlyRate": {
+          "n": 159327,
+          "count": 159327,
+          "percentage": 1,
+          "low": 1,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.682,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 1.1364,
+        "skipPer100Hands": {
+          "pre_flop": 42.4971,
+          "flop": 44.2555,
+          "turn": 45.9482,
+          "river": 47.6987
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 88319,
+            "count": 37533,
+            "percentage": 0.425,
+            "low": 0.4217,
+            "high": 0.4282
+          },
+          "flop": {
+            "n": 88319,
+            "count": 39086,
+            "percentage": 0.4426,
+            "low": 0.4393,
+            "high": 0.4458
+          },
+          "turn": {
+            "n": 88319,
+            "count": 40581,
+            "percentage": 0.4595,
+            "low": 0.4562,
+            "high": 0.4628
+          },
+          "river": {
+            "n": 88319,
+            "count": 42127,
+            "percentage": 0.477,
+            "low": 0.4737,
+            "high": 0.4803
+          }
+        },
+        "nodes": {
+          "pre_flop": 88319,
+          "flop": 88319,
+          "turn": 88319,
+          "river": 88319
+        },
+        "skip": {
+          "pre_flop": 37533,
+          "flop": 39086,
+          "turn": 40581,
+          "river": 42127
+        },
+        "facts": 60233
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 88319,
+        "mean": 0.10712,
+        "median": 0.10153,
+        "std": 0.03243,
+        "p50": 0.10153,
+        "p75": 0.1341,
+        "p90": 0.15427,
+        "p95": 0.16306,
+        "p99": 0.17589,
+        "min": 0.06,
+        "max": 0.19934,
+        "se": 0.00011,
+        "meanLow": 0.10691,
+        "meanHigh": 0.10733
+      },
+      "chipResetBugs": 0
+    },
+    "fold": {
+      "betting": "fold",
+      "matches": 400,
+      "hands": 7908,
+      "aWinRate": {
+        "n": 400,
+        "count": 189,
+        "percentage": 0.4725,
+        "low": 0.4241,
+        "high": 0.5215
+      },
+      "bWinRate": {
+        "n": 400,
+        "count": 211,
+        "percentage": 0.5275,
+        "low": 0.4785,
+        "high": 0.5759
+      },
+      "ties": 0,
+      "avgHands": 19.77,
+      "medianHands": 14,
+      "p90Hands": 44,
+      "foldRate": {
+        "n": 7908,
+        "count": 5399,
+        "percentage": 0.6827,
+        "low": 0.6724,
+        "high": 0.6929
+      },
+      "showdownRate": {
+        "n": 7908,
+        "count": 2509,
+        "percentage": 0.3173,
+        "low": 0.3071,
+        "high": 0.3276
+      },
+      "avgPot": {
+        "n": 7908,
+        "mean": 284.87759,
+        "median": 100,
+        "std": 446.33716,
+        "p50": 100,
+        "p75": 210,
+        "p90": 837,
+        "p95": 1603.25,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 5.01914,
+        "meanLow": 275.04007,
+        "meanHigh": 294.71511
+      },
+      "avgRaisesPerHand": 0.9521,
+      "avgFinalSpread": {
+        "n": 400,
+        "mean": -110,
+        "median": -2000,
+        "std": 1999.47361,
+        "p50": -2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 99.97368,
+        "meanLow": -305.94841,
+        "meanHigh": 85.94841
+      },
+      "avgRewritesPerHand": 0.1539,
+      "avgRewritesPerMatch": {
+        "n": 400,
+        "mean": 3.0425,
+        "median": 2,
+        "std": 3.18922,
+        "p50": 2,
+        "p75": 4,
+        "p90": 7,
+        "p95": 9,
+        "p99": 14,
+        "min": 0,
+        "max": 19,
+        "se": 0.15946,
+        "meanLow": 2.72996,
+        "meanHigh": 3.35504
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 400,
+        "mean": 0.3525,
+        "median": 0,
+        "std": 0.82762,
+        "p50": 0,
+        "p75": 0,
+        "p90": 1,
+        "p95": 2,
+        "p99": 4,
+        "min": 0,
+        "max": 5,
+        "se": 0.04138,
+        "meanLow": 0.27139,
+        "meanHigh": 0.43361
+      },
+      "debtHandStartRate": {
+        "n": 7908,
+        "count": 406,
+        "percentage": 0.0513,
+        "low": 0.0467,
+        "high": 0.0564
+      },
+      "debtHandAnyRate": {
+        "n": 7908,
+        "count": 572,
+        "percentage": 0.0723,
+        "low": 0.0668,
+        "high": 0.0783
+      },
+      "debtHandEndRate": {
+        "n": 7908,
+        "count": 441,
+        "percentage": 0.0558,
+        "low": 0.0509,
+        "high": 0.061
+      },
+      "legalHandRate": {
+        "n": 7908,
+        "count": 7908,
+        "percentage": 1,
+        "low": 0.9995,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 7908,
+        "count": 572,
+        "percentage": 0.0723,
+        "low": 0.0668,
+        "high": 0.0783
+      },
+      "blockedGivenLegal": {
+        "n": 7908,
+        "count": 572,
+        "percentage": 0.0723,
+        "low": 0.0668,
+        "high": 0.0783
+      },
+      "depth": {
+        "0+": {
+          "n": 7908,
+          "count": 7467,
+          "percentage": 0.9442,
+          "low": 0.939,
+          "high": 0.9491
+        },
+        "-1": {
+          "n": 7908,
+          "count": 217,
+          "percentage": 0.0274,
+          "low": 0.0241,
+          "high": 0.0313
+        },
+        "-2": {
+          "n": 7908,
+          "count": 126,
+          "percentage": 0.0159,
+          "low": 0.0134,
+          "high": 0.0189
+        },
+        "-3": {
+          "n": 7908,
+          "count": 64,
+          "percentage": 0.0081,
+          "low": 0.0063,
+          "high": 0.0103
+        },
+        "-4": {
+          "n": 7908,
+          "count": 34,
+          "percentage": 0.0043,
+          "low": 0.0031,
+          "high": 0.006
+        }
+      },
+      "enterNeg4Per100Hands": 0.3288,
+      "neg4Recovery": {
+        "n": 25,
+        "mean": 4.44,
+        "median": 4,
+        "std": 2.12289,
+        "p50": 4,
+        "p75": 5,
+        "p90": 7.6,
+        "p95": 8,
+        "p99": 8.76,
+        "min": 1,
+        "max": 9
+      },
+      "episodes": {
+        "n": 141,
+        "mean": 3.12766,
+        "median": 2,
+        "std": 2.62638,
+        "p50": 2,
+        "p75": 4,
+        "p90": 8,
+        "p95": 8,
+        "p99": 10.6,
+        "min": 1,
+        "max": 13,
+        "pGe3": {
+          "n": 141,
+          "count": 61,
+          "percentage": 0.4326,
+          "low": 0.3537,
+          "high": 0.5151
+        },
+        "pGe5": {
+          "n": 141,
+          "count": 32,
+          "percentage": 0.227,
+          "low": 0.1656,
+          "high": 0.3028
+        },
+        "pGe10": {
+          "n": 141,
+          "count": 3,
+          "percentage": 0.0213,
+          "low": 0.0073,
+          "high": 0.0607
+        },
+        "pGe20": {
+          "n": 141,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0265
+        },
+        "pGe30": {
+          "n": 141,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0265
+        },
+        "histogram": {
+          "1": 56,
+          "2": 24,
+          "3-4": 29,
+          "5-9": 29,
+          "10-19": 3,
+          "20-29": 0,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 315,
+        "lossRecovery": 0.7683,
+        "fortuneResource": 0.2317,
+        "other": 0,
+        "lossUnits": 242,
+        "resourceUnits": 73
+      },
+      "fortuneWhileDebt": 38,
+      "skill": {
+        "legal": 17520,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 1211,
+        "debtLockOnly": 1211,
+        "debtBlockedRate": {
+          "n": 17520,
+          "count": 1211,
+          "percentage": 0.0691,
+          "low": 0.0655,
+          "high": 0.073
+        },
+        "debtBlockedWantedRate": {
+          "n": 17520,
+          "count": 1211,
+          "percentage": 0.0691,
+          "low": 0.0655,
+          "high": 0.073
+        },
+        "debtLockOnlyRate": {
+          "n": 1211,
+          "count": 1211,
+          "percentage": 1,
+          "low": 0.9968,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.5994,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0.6318,
+        "skipPer100Hands": {
+          "pre_flop": 6.0698,
+          "flop": 3.0728,
+          "turn": 3.0475,
+          "river": 3.1234
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 7908,
+            "count": 480,
+            "percentage": 0.0607,
+            "low": 0.0556,
+            "high": 0.0662
+          },
+          "flop": {
+            "n": 3559,
+            "count": 243,
+            "percentage": 0.0683,
+            "low": 0.0604,
+            "high": 0.077
+          },
+          "turn": {
+            "n": 3202,
+            "count": 241,
+            "percentage": 0.0753,
+            "low": 0.0666,
+            "high": 0.0849
+          },
+          "river": {
+            "n": 2851,
+            "count": 247,
+            "percentage": 0.0866,
+            "low": 0.0769,
+            "high": 0.0975
+          }
+        },
+        "nodes": {
+          "pre_flop": 7908,
+          "flop": 3559,
+          "turn": 3202,
+          "river": 2851
+        },
+        "skip": {
+          "pre_flop": 480,
+          "flop": 243,
+          "turn": 241,
+          "river": 247
+        },
+        "facts": 4740
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 7908,
+        "mean": 0.10236,
+        "median": 0.0908,
+        "std": 0.0311,
+        "p50": 0.0908,
+        "p75": 0.11486,
+        "p90": 0.157,
+        "p95": 0.17253,
+        "p99": 0.19133,
+        "min": 0.06,
+        "max": 0.19995,
+        "se": 0.00035,
+        "meanLow": 0.10167,
+        "meanHigh": 0.10305
+      },
+      "chipResetBugs": 0
+    }
+  },
+  "builds": {
+    "defense": {
+      "label": "强运+防守",
+      "loadoutA": [
+        "FORTUNE",
+        "DEFENSE"
+      ],
+      "loadoutB": [
+        "DEEP_BREATH",
+        "BLOOD_BATTLE",
+        "DEFENSE"
+      ],
+      "matches": 2700,
+      "hands": 58646,
+      "aWinRate": {
+        "n": 2700,
+        "count": 1451,
+        "percentage": 0.5374,
+        "low": 0.5186,
+        "high": 0.5561
+      },
+      "bWinRate": {
+        "n": 2700,
+        "count": 1249,
+        "percentage": 0.4626,
+        "low": 0.4439,
+        "high": 0.4814
+      },
+      "ties": 0,
+      "avgHands": 21.721,
+      "medianHands": 16,
+      "p90Hands": 47,
+      "foldRate": {
+        "n": 58646,
+        "count": 40094,
+        "percentage": 0.6837,
+        "low": 0.6799,
+        "high": 0.6874
+      },
+      "showdownRate": {
+        "n": 58646,
+        "count": 18552,
+        "percentage": 0.3163,
+        "low": 0.3126,
+        "high": 0.3201
+      },
+      "avgPot": {
+        "n": 58646,
+        "mean": 274.67606,
+        "median": 100,
+        "std": 433.2378,
+        "p50": 100,
+        "p75": 200,
+        "p90": 764,
+        "p95": 1519,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 1.78899,
+        "meanLow": 271.16965,
+        "meanHigh": 278.18247
+      },
+      "avgRaisesPerHand": 0.9142,
+      "avgFinalSpread": {
+        "n": 2700,
+        "mean": 149.62963,
+        "median": 2000,
+        "std": 1994.76432,
+        "p50": 2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 38.38926,
+        "meanLow": 74.38669,
+        "meanHigh": 224.87257
+      },
+      "avgRewritesPerHand": 0.1205,
+      "avgRewritesPerMatch": {
+        "n": 2700,
+        "mean": 2.61815,
+        "median": 2,
+        "std": 2.49856,
+        "p50": 2,
+        "p75": 4,
+        "p90": 6,
+        "p95": 8,
+        "p99": 11,
+        "min": 0,
+        "max": 24,
+        "se": 0.04808,
+        "meanLow": 2.5239,
+        "meanHigh": 2.7124
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 2700,
+        "mean": 1.58556,
+        "median": 1,
+        "std": 1.66911,
+        "p50": 1,
+        "p75": 2,
+        "p90": 4,
+        "p95": 5,
+        "p99": 7,
+        "min": 0,
+        "max": 15,
+        "se": 0.03212,
+        "meanLow": 1.5226,
+        "meanHigh": 1.64852
+      },
+      "debtHandStartRate": {
+        "n": 58646,
+        "count": 14067,
+        "percentage": 0.2399,
+        "low": 0.2364,
+        "high": 0.2433
+      },
+      "debtHandAnyRate": {
+        "n": 58646,
+        "count": 18968,
+        "percentage": 0.3234,
+        "low": 0.3197,
+        "high": 0.3272
+      },
+      "debtHandEndRate": {
+        "n": 58646,
+        "count": 15035,
+        "percentage": 0.2564,
+        "low": 0.2529,
+        "high": 0.2599
+      },
+      "legalHandRate": {
+        "n": 58646,
+        "count": 43889,
+        "percentage": 0.7484,
+        "low": 0.7448,
+        "high": 0.7519
+      },
+      "blockedHandRate": {
+        "n": 58646,
+        "count": 9240,
+        "percentage": 0.1576,
+        "low": 0.1546,
+        "high": 0.1605
+      },
+      "blockedGivenLegal": {
+        "n": 43889,
+        "count": 9240,
+        "percentage": 0.2105,
+        "low": 0.2067,
+        "high": 0.2144
+      },
+      "depth": {
+        "0+": {
+          "n": 58646,
+          "count": 43611,
+          "percentage": 0.7436,
+          "low": 0.7401,
+          "high": 0.7471
+        },
+        "-1": {
+          "n": 58646,
+          "count": 6379,
+          "percentage": 0.1088,
+          "low": 0.1063,
+          "high": 0.1113
+        },
+        "-2": {
+          "n": 58646,
+          "count": 4847,
+          "percentage": 0.0826,
+          "low": 0.0804,
+          "high": 0.0849
+        },
+        "-3": {
+          "n": 58646,
+          "count": 2785,
+          "percentage": 0.0475,
+          "low": 0.0458,
+          "high": 0.0492
+        },
+        "-4": {
+          "n": 58646,
+          "count": 1024,
+          "percentage": 0.0175,
+          "low": 0.0164,
+          "high": 0.0186
+        }
+      },
+      "enterNeg4Per100Hands": 1.0862,
+      "neg4Recovery": {
+        "n": 564,
+        "mean": 5.48227,
+        "median": 5,
+        "std": 2.59827,
+        "p50": 5,
+        "p75": 7,
+        "p90": 9,
+        "p95": 10,
+        "p99": 12.37,
+        "min": 1,
+        "max": 15
+      },
+      "episodes": {
+        "n": 4281,
+        "mean": 3.51203,
+        "median": 2,
+        "std": 3.14181,
+        "p50": 2,
+        "p75": 5,
+        "p90": 8,
+        "p95": 10,
+        "p99": 16,
+        "min": 1,
+        "max": 25,
+        "pGe3": {
+          "n": 4281,
+          "count": 2124,
+          "percentage": 0.4961,
+          "low": 0.4812,
+          "high": 0.5111
+        },
+        "pGe5": {
+          "n": 4281,
+          "count": 1088,
+          "percentage": 0.2541,
+          "low": 0.2413,
+          "high": 0.2674
+        },
+        "pGe10": {
+          "n": 4281,
+          "count": 240,
+          "percentage": 0.0561,
+          "low": 0.0496,
+          "high": 0.0634
+        },
+        "pGe20": {
+          "n": 4281,
+          "count": 10,
+          "percentage": 0.0023,
+          "low": 0.0013,
+          "high": 0.0043
+        },
+        "pGe30": {
+          "n": 4281,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0009
+        },
+        "histogram": {
+          "1": 1315,
+          "2": 842,
+          "3-4": 1036,
+          "5-9": 848,
+          "10-19": 230,
+          "20-29": 10,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 10146,
+        "lossRecovery": 0.7753,
+        "fortuneResource": 0.2247,
+        "other": 0,
+        "lossUnits": 7866,
+        "resourceUnits": 2280
+      },
+      "fortuneWhileDebt": 909,
+      "skill": {
+        "legal": 112259,
+        "wanted": 36748,
+        "used": 8215,
+        "debtBlocked": 10498,
+        "debtLockOnly": 0,
+        "debtBlockedRate": {
+          "n": 112259,
+          "count": 10498,
+          "percentage": 0.0935,
+          "low": 0.0918,
+          "high": 0.0952
+        },
+        "debtBlockedWantedRate": {
+          "n": 36748,
+          "count": 10498,
+          "percentage": 0.2857,
+          "low": 0.2811,
+          "high": 0.2903
+        },
+        "debtLockOnlyRate": {
+          "n": 10498,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0004
+        }
+      },
+      "perception": {
+        "factsPerHand": 0,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0,
+        "skipPer100Hands": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "turn": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "river": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          }
+        },
+        "nodes": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skip": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "facts": 0
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 112259,
+        "wanted": 36748,
+        "used": 8215,
+        "debtBlocked": 10498,
+        "wouldHaveReducedLoss": 1341,
+        "debtBlockedRate": {
+          "n": 112259,
+          "count": 10498,
+          "percentage": 0.0935,
+          "low": 0.0918,
+          "high": 0.0952
+        },
+        "wantedBlockedRate": {
+          "n": 36748,
+          "count": 10498,
+          "percentage": 0.2857,
+          "low": 0.2811,
+          "high": 0.2903
+        }
+      },
+      "avgHoleChance": {
+        "n": 58646,
+        "mean": 0.09247,
+        "median": 0.07797,
+        "std": 0.03154,
+        "p50": 0.07797,
+        "p75": 0.10471,
+        "p90": 0.14948,
+        "p95": 0.16372,
+        "p99": 0.17763,
+        "min": 0.06,
+        "max": 0.19114,
+        "se": 0.00013,
+        "meanLow": 0.09221,
+        "meanHigh": 0.09273
+      },
+      "chipResetBugs": 0
+    },
+    "perception": {
+      "label": "强运+感知",
+      "loadoutA": [
+        "FORTUNE",
+        "PERCEPTION"
+      ],
+      "loadoutB": [
+        "DEEP_BREATH",
+        "BLOOD_BATTLE",
+        "DEFENSE"
+      ],
+      "matches": 2700,
+      "hands": 52329,
+      "aWinRate": {
+        "n": 2700,
+        "count": 1360,
+        "percentage": 0.5037,
+        "low": 0.4849,
+        "high": 0.5225
+      },
+      "bWinRate": {
+        "n": 2700,
+        "count": 1340,
+        "percentage": 0.4963,
+        "low": 0.4775,
+        "high": 0.5151
+      },
+      "ties": 0,
+      "avgHands": 19.381,
+      "medianHands": 14,
+      "p90Hands": 44,
+      "foldRate": {
+        "n": 52329,
+        "count": 35774,
+        "percentage": 0.6836,
+        "low": 0.6796,
+        "high": 0.6876
+      },
+      "showdownRate": {
+        "n": 52329,
+        "count": 16555,
+        "percentage": 0.3164,
+        "low": 0.3124,
+        "high": 0.3204
+      },
+      "avgPot": {
+        "n": 52329,
+        "mean": 283.31216,
+        "median": 100,
+        "std": 445.46795,
+        "p50": 100,
+        "p75": 210,
+        "p90": 837,
+        "p95": 1584,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 1.94736,
+        "meanLow": 279.49534,
+        "meanHigh": 287.12898
+      },
+      "avgRaisesPerHand": 0.9427,
+      "avgFinalSpread": {
+        "n": 2700,
+        "mean": 14.81481,
+        "median": 2000,
+        "std": 2000.31559,
+        "p50": 2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 38.49609,
+        "meanLow": -60.63753,
+        "meanHigh": 90.26715
+      },
+      "avgRewritesPerHand": 0.1502,
+      "avgRewritesPerMatch": {
+        "n": 2700,
+        "mean": 2.91111,
+        "median": 2,
+        "std": 3.13762,
+        "p50": 2,
+        "p75": 4,
+        "p90": 7,
+        "p95": 9,
+        "p99": 14,
+        "min": 0,
+        "max": 24,
+        "se": 0.06038,
+        "meanLow": 2.79276,
+        "meanHigh": 3.02946
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 2700,
+        "mean": 0.36333,
+        "median": 0,
+        "std": 0.85012,
+        "p50": 0,
+        "p75": 0,
+        "p90": 1,
+        "p95": 2,
+        "p99": 4,
+        "min": 0,
+        "max": 8,
+        "se": 0.01636,
+        "meanLow": 0.33126,
+        "meanHigh": 0.3954
+      },
+      "debtHandStartRate": {
+        "n": 52329,
+        "count": 3105,
+        "percentage": 0.0593,
+        "low": 0.0573,
+        "high": 0.0614
+      },
+      "debtHandAnyRate": {
+        "n": 52329,
+        "count": 4231,
+        "percentage": 0.0809,
+        "low": 0.0785,
+        "high": 0.0832
+      },
+      "debtHandEndRate": {
+        "n": 52329,
+        "count": 3349,
+        "percentage": 0.064,
+        "low": 0.0619,
+        "high": 0.0661
+      },
+      "legalHandRate": {
+        "n": 52329,
+        "count": 52329,
+        "percentage": 1,
+        "low": 0.9999,
+        "high": 1
+      },
+      "blockedHandRate": {
+        "n": 52329,
+        "count": 4231,
+        "percentage": 0.0809,
+        "low": 0.0785,
+        "high": 0.0832
+      },
+      "blockedGivenLegal": {
+        "n": 52329,
+        "count": 4231,
+        "percentage": 0.0809,
+        "low": 0.0785,
+        "high": 0.0832
+      },
+      "depth": {
+        "0+": {
+          "n": 52329,
+          "count": 48980,
+          "percentage": 0.936,
+          "low": 0.9339,
+          "high": 0.9381
+        },
+        "-1": {
+          "n": 52329,
+          "count": 1428,
+          "percentage": 0.0273,
+          "low": 0.0259,
+          "high": 0.0287
+        },
+        "-2": {
+          "n": 52329,
+          "count": 1086,
+          "percentage": 0.0208,
+          "low": 0.0196,
+          "high": 0.022
+        },
+        "-3": {
+          "n": 52329,
+          "count": 623,
+          "percentage": 0.0119,
+          "low": 0.011,
+          "high": 0.0129
+        },
+        "-4": {
+          "n": 52329,
+          "count": 212,
+          "percentage": 0.0041,
+          "low": 0.0035,
+          "high": 0.0046
+        }
+      },
+      "enterNeg4Per100Hands": 0.2503,
+      "neg4Recovery": {
+        "n": 118,
+        "mean": 5.16949,
+        "median": 5,
+        "std": 2.48862,
+        "p50": 5,
+        "p75": 6.75,
+        "p90": 8,
+        "p95": 9.15,
+        "p99": 10.83,
+        "min": 1,
+        "max": 14
+      },
+      "episodes": {
+        "n": 981,
+        "mean": 3.41386,
+        "median": 2,
+        "std": 3.05493,
+        "p50": 2,
+        "p75": 4,
+        "p90": 7,
+        "p95": 10,
+        "p99": 15,
+        "min": 1,
+        "max": 22,
+        "pGe3": {
+          "n": 981,
+          "count": 482,
+          "percentage": 0.4913,
+          "low": 0.4601,
+          "high": 0.5226
+        },
+        "pGe5": {
+          "n": 981,
+          "count": 244,
+          "percentage": 0.2487,
+          "low": 0.2227,
+          "high": 0.2767
+        },
+        "pGe10": {
+          "n": 981,
+          "count": 54,
+          "percentage": 0.055,
+          "low": 0.0424,
+          "high": 0.0711
+        },
+        "pGe20": {
+          "n": 981,
+          "count": 3,
+          "percentage": 0.0031,
+          "low": 0.001,
+          "high": 0.009
+        },
+        "pGe30": {
+          "n": 981,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0039
+        },
+        "histogram": {
+          "1": 321,
+          "2": 178,
+          "3-4": 238,
+          "5-9": 190,
+          "10-19": 51,
+          "20-29": 3,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 2235,
+        "lossRecovery": 0.7673,
+        "fortuneResource": 0.2327,
+        "other": 0,
+        "lossUnits": 1715,
+        "resourceUnits": 520
+      },
+      "fortuneWhileDebt": 210,
+      "skill": {
+        "legal": 115506,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 9043,
+        "debtLockOnly": 9043,
+        "debtBlockedRate": {
+          "n": 115506,
+          "count": 9043,
+          "percentage": 0.0783,
+          "low": 0.0768,
+          "high": 0.0799
+        },
+        "debtBlockedWantedRate": {
+          "n": 115506,
+          "count": 9043,
+          "percentage": 0.0783,
+          "low": 0.0768,
+          "high": 0.0799
+        },
+        "debtLockOnlyRate": {
+          "n": 9043,
+          "count": 9043,
+          "percentage": 1,
+          "low": 0.9996,
+          "high": 1
+        }
+      },
+      "perception": {
+        "factsPerHand": 0.5998,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0.6376,
+        "skipPer100Hands": {
+          "pre_flop": 6.9579,
+          "flop": 3.4493,
+          "turn": 3.4684,
+          "river": 3.4054
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 52329,
+            "count": 3641,
+            "percentage": 0.0696,
+            "low": 0.0674,
+            "high": 0.0718
+          },
+          "flop": {
+            "n": 23383,
+            "count": 1805,
+            "percentage": 0.0772,
+            "low": 0.0738,
+            "high": 0.0807
+          },
+          "turn": {
+            "n": 21019,
+            "count": 1815,
+            "percentage": 0.0864,
+            "low": 0.0826,
+            "high": 0.0902
+          },
+          "river": {
+            "n": 18775,
+            "count": 1782,
+            "percentage": 0.0949,
+            "low": 0.0908,
+            "high": 0.0992
+          }
+        },
+        "nodes": {
+          "pre_flop": 52329,
+          "flop": 23383,
+          "turn": 21019,
+          "river": 18775
+        },
+        "skip": {
+          "pre_flop": 3641,
+          "flop": 1805,
+          "turn": 1815,
+          "river": 1782
+        },
+        "facts": 31385
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 52329,
+        "mean": 0.10126,
+        "median": 0.0908,
+        "std": 0.03137,
+        "p50": 0.0908,
+        "p75": 0.11065,
+        "p90": 0.15796,
+        "p95": 0.17342,
+        "p99": 0.1891,
+        "min": 0.06,
+        "max": 0.19989,
+        "se": 0.00014,
+        "meanLow": 0.10099,
+        "meanHigh": 0.10153
+      },
+      "chipResetBugs": 0
+    },
+    "intel": {
+      "label": "强运+情报",
+      "loadoutA": [
+        "FORTUNE",
+        "INTEL_ONE"
+      ],
+      "loadoutB": [
+        "DEEP_BREATH",
+        "BLOOD_BATTLE",
+        "DEFENSE"
+      ],
+      "matches": 2700,
+      "hands": 54397,
+      "aWinRate": {
+        "n": 2700,
+        "count": 1400,
+        "percentage": 0.5185,
+        "low": 0.4997,
+        "high": 0.5373
+      },
+      "bWinRate": {
+        "n": 2700,
+        "count": 1300,
+        "percentage": 0.4815,
+        "low": 0.4627,
+        "high": 0.5003
+      },
+      "ties": 0,
+      "avgHands": 20.147,
+      "medianHands": 15,
+      "p90Hands": 45,
+      "foldRate": {
+        "n": 54397,
+        "count": 37260,
+        "percentage": 0.685,
+        "low": 0.681,
+        "high": 0.6889
+      },
+      "showdownRate": {
+        "n": 54397,
+        "count": 17137,
+        "percentage": 0.315,
+        "low": 0.3111,
+        "high": 0.319
+      },
+      "avgPot": {
+        "n": 54397,
+        "mean": 276.41216,
+        "median": 100,
+        "std": 437.30314,
+        "p50": 100,
+        "p75": 200,
+        "p90": 766,
+        "p95": 1546,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 1.87497,
+        "meanLow": 272.73721,
+        "meanHigh": 280.08711
+      },
+      "avgRaisesPerHand": 0.9157,
+      "avgFinalSpread": {
+        "n": 2700,
+        "mean": 74.07407,
+        "median": 2000,
+        "std": 1998.99801,
+        "p50": 2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 38.47073,
+        "meanLow": -1.32857,
+        "meanHigh": 149.47671
+      },
+      "avgRewritesPerHand": 0.1258,
+      "avgRewritesPerMatch": {
+        "n": 2700,
+        "mean": 2.53444,
+        "median": 2,
+        "std": 2.56128,
+        "p50": 2,
+        "p75": 4,
+        "p90": 6,
+        "p95": 8,
+        "p99": 11,
+        "min": 0,
+        "max": 20,
+        "se": 0.04929,
+        "meanLow": 2.43783,
+        "meanHigh": 2.63105
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 2700,
+        "mean": 1.10444,
+        "median": 1,
+        "std": 1.42264,
+        "p50": 1,
+        "p75": 2,
+        "p90": 3,
+        "p95": 4,
+        "p99": 6,
+        "min": 0,
+        "max": 12,
+        "se": 0.02738,
+        "meanLow": 1.05078,
+        "meanHigh": 1.1581
+      },
+      "debtHandStartRate": {
+        "n": 54397,
+        "count": 10091,
+        "percentage": 0.1855,
+        "low": 0.1823,
+        "high": 0.1888
+      },
+      "debtHandAnyRate": {
+        "n": 54397,
+        "count": 13462,
+        "percentage": 0.2475,
+        "low": 0.2439,
+        "high": 0.2511
+      },
+      "debtHandEndRate": {
+        "n": 54397,
+        "count": 10789,
+        "percentage": 0.1983,
+        "low": 0.195,
+        "high": 0.2017
+      },
+      "legalHandRate": {
+        "n": 54397,
+        "count": 40587,
+        "percentage": 0.7461,
+        "low": 0.7425,
+        "high": 0.7498
+      },
+      "blockedHandRate": {
+        "n": 54397,
+        "count": 5583,
+        "percentage": 0.1026,
+        "low": 0.1001,
+        "high": 0.1052
+      },
+      "blockedGivenLegal": {
+        "n": 40587,
+        "count": 5583,
+        "percentage": 0.1376,
+        "low": 0.1342,
+        "high": 0.1409
+      },
+      "depth": {
+        "0+": {
+          "n": 54397,
+          "count": 43608,
+          "percentage": 0.8017,
+          "low": 0.7983,
+          "high": 0.805
+        },
+        "-1": {
+          "n": 54397,
+          "count": 4436,
+          "percentage": 0.0815,
+          "low": 0.0793,
+          "high": 0.0839
+        },
+        "-2": {
+          "n": 54397,
+          "count": 3554,
+          "percentage": 0.0653,
+          "low": 0.0633,
+          "high": 0.0674
+        },
+        "-3": {
+          "n": 54397,
+          "count": 2081,
+          "percentage": 0.0383,
+          "low": 0.0367,
+          "high": 0.0399
+        },
+        "-4": {
+          "n": 54397,
+          "count": 718,
+          "percentage": 0.0132,
+          "low": 0.0123,
+          "high": 0.0142
+        }
+      },
+      "enterNeg4Per100Hands": 0.7905,
+      "neg4Recovery": {
+        "n": 388,
+        "mean": 5.35567,
+        "median": 5,
+        "std": 2.63298,
+        "p50": 5,
+        "p75": 7,
+        "p90": 8,
+        "p95": 10,
+        "p99": 12.13,
+        "min": 1,
+        "max": 21
+      },
+      "episodes": {
+        "n": 2982,
+        "mean": 3.61804,
+        "median": 3,
+        "std": 3.17107,
+        "p50": 3,
+        "p75": 5,
+        "p90": 8,
+        "p95": 10,
+        "p99": 15,
+        "min": 1,
+        "max": 31,
+        "pGe3": {
+          "n": 2982,
+          "count": 1577,
+          "percentage": 0.5288,
+          "low": 0.5109,
+          "high": 0.5467
+        },
+        "pGe5": {
+          "n": 2982,
+          "count": 790,
+          "percentage": 0.2649,
+          "low": 0.2494,
+          "high": 0.2811
+        },
+        "pGe10": {
+          "n": 2982,
+          "count": 169,
+          "percentage": 0.0567,
+          "low": 0.0489,
+          "high": 0.0656
+        },
+        "pGe20": {
+          "n": 2982,
+          "count": 10,
+          "percentage": 0.0034,
+          "low": 0.0018,
+          "high": 0.0062
+        },
+        "pGe30": {
+          "n": 2982,
+          "count": 1,
+          "percentage": 0.0003,
+          "low": 0.0001,
+          "high": 0.0019
+        },
+        "histogram": {
+          "1": 821,
+          "2": 584,
+          "3-4": 787,
+          "5-9": 621,
+          "10-19": 159,
+          "20-29": 9,
+          "30+": 1
+        }
+      },
+      "repayment": {
+        "units": 7164,
+        "lossRecovery": 0.7687,
+        "fortuneResource": 0.2313,
+        "other": 0,
+        "lossUnits": 5507,
+        "resourceUnits": 1657
+      },
+      "fortuneWhileDebt": 626,
+      "skill": {
+        "legal": 104068,
+        "wanted": 45848,
+        "used": 5192,
+        "debtBlocked": 14197,
+        "debtLockOnly": 0,
+        "debtBlockedRate": {
+          "n": 104068,
+          "count": 14197,
+          "percentage": 0.1364,
+          "low": 0.1343,
+          "high": 0.1385
+        },
+        "debtBlockedWantedRate": {
+          "n": 45848,
+          "count": 14197,
+          "percentage": 0.3097,
+          "low": 0.3054,
+          "high": 0.3139
+        },
+        "debtLockOnlyRate": {
+          "n": 14197,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0003
+        }
+      },
+      "perception": {
+        "factsPerHand": 0,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0,
+        "skipPer100Hands": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "turn": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "river": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          }
+        },
+        "nodes": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skip": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "facts": 0
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 54397,
+        "mean": 0.09333,
+        "median": 0.08053,
+        "std": 0.03078,
+        "p50": 0.08053,
+        "p75": 0.10296,
+        "p90": 0.14787,
+        "p95": 0.16533,
+        "p99": 0.18081,
+        "min": 0.06,
+        "max": 0.19661,
+        "se": 0.00013,
+        "meanLow": 0.09307,
+        "meanHigh": 0.09359
+      },
+      "chipResetBugs": 0
+    },
+    "topSecret": {
+      "label": "强运+绝密",
+      "loadoutA": [
+        "FORTUNE",
+        "TOP_SECRET"
+      ],
+      "loadoutB": [
+        "PERCEPTION",
+        "INTEL_ONE",
+        "RECYCLE"
+      ],
+      "matches": 2700,
+      "hands": 44611,
+      "aWinRate": {
+        "n": 2700,
+        "count": 1568,
+        "percentage": 0.5807,
+        "low": 0.562,
+        "high": 0.5992
+      },
+      "bWinRate": {
+        "n": 2700,
+        "count": 1132,
+        "percentage": 0.4193,
+        "low": 0.4008,
+        "high": 0.438
+      },
+      "ties": 0,
+      "avgHands": 16.523,
+      "medianHands": 12,
+      "p90Hands": 38,
+      "foldRate": {
+        "n": 44611,
+        "count": 30734,
+        "percentage": 0.6889,
+        "low": 0.6846,
+        "high": 0.6932
+      },
+      "showdownRate": {
+        "n": 44611,
+        "count": 13877,
+        "percentage": 0.3111,
+        "low": 0.3068,
+        "high": 0.3154
+      },
+      "avgPot": {
+        "n": 44611,
+        "mean": 278.52837,
+        "median": 100,
+        "std": 445.21574,
+        "p50": 100,
+        "p75": 200,
+        "p90": 806,
+        "p95": 1595,
+        "p99": 2000,
+        "min": 26,
+        "max": 2000,
+        "se": 2.1079,
+        "meanLow": 274.39689,
+        "meanHigh": 282.65985
+      },
+      "avgRaisesPerHand": 0.9126,
+      "avgFinalSpread": {
+        "n": 2700,
+        "mean": 322.96296,
+        "median": 2000,
+        "std": 1974.1171,
+        "p50": 2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 37.9919,
+        "meanLow": 248.49883,
+        "meanHigh": 397.42709
+      },
+      "avgRewritesPerHand": 0.1232,
+      "avgRewritesPerMatch": {
+        "n": 2700,
+        "mean": 2.03519,
+        "median": 1,
+        "std": 2.20761,
+        "p50": 1,
+        "p75": 3,
+        "p90": 5,
+        "p95": 6,
+        "p99": 10,
+        "min": 0,
+        "max": 20,
+        "se": 0.04249,
+        "meanLow": 1.95192,
+        "meanHigh": 2.11846
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 2700,
+        "mean": 1.09444,
+        "median": 1,
+        "std": 1.40197,
+        "p50": 1,
+        "p75": 2,
+        "p90": 3,
+        "p95": 4,
+        "p99": 6,
+        "min": 0,
+        "max": 15,
+        "se": 0.02698,
+        "meanLow": 1.04156,
+        "meanHigh": 1.14732
+      },
+      "debtHandStartRate": {
+        "n": 44611,
+        "count": 9006,
+        "percentage": 0.2019,
+        "low": 0.1982,
+        "high": 0.2056
+      },
+      "debtHandAnyRate": {
+        "n": 44611,
+        "count": 12352,
+        "percentage": 0.2769,
+        "low": 0.2727,
+        "high": 0.2811
+      },
+      "debtHandEndRate": {
+        "n": 44611,
+        "count": 9883,
+        "percentage": 0.2215,
+        "low": 0.2177,
+        "high": 0.2254
+      },
+      "legalHandRate": {
+        "n": 44611,
+        "count": 13448,
+        "percentage": 0.3015,
+        "low": 0.2972,
+        "high": 0.3057
+      },
+      "blockedHandRate": {
+        "n": 44611,
+        "count": 6555,
+        "percentage": 0.1469,
+        "low": 0.1437,
+        "high": 0.1503
+      },
+      "blockedGivenLegal": {
+        "n": 13448,
+        "count": 6555,
+        "percentage": 0.4874,
+        "low": 0.479,
+        "high": 0.4959
+      },
+      "depth": {
+        "0+": {
+          "n": 44611,
+          "count": 34728,
+          "percentage": 0.7785,
+          "low": 0.7746,
+          "high": 0.7823
+        },
+        "-1": {
+          "n": 44611,
+          "count": 4127,
+          "percentage": 0.0925,
+          "low": 0.0899,
+          "high": 0.0952
+        },
+        "-2": {
+          "n": 44611,
+          "count": 3291,
+          "percentage": 0.0738,
+          "low": 0.0714,
+          "high": 0.0762
+        },
+        "-3": {
+          "n": 44611,
+          "count": 1822,
+          "percentage": 0.0408,
+          "low": 0.039,
+          "high": 0.0427
+        },
+        "-4": {
+          "n": 44611,
+          "count": 643,
+          "percentage": 0.0144,
+          "low": 0.0133,
+          "high": 0.0156
+        }
+      },
+      "enterNeg4Per100Hands": 0.8989,
+      "neg4Recovery": {
+        "n": 370,
+        "mean": 5.14595,
+        "median": 5,
+        "std": 2.67788,
+        "p50": 5,
+        "p75": 7,
+        "p90": 8.1,
+        "p95": 10,
+        "p99": 13.31,
+        "min": 1,
+        "max": 15
+      },
+      "episodes": {
+        "n": 2955,
+        "mean": 3.3445,
+        "median": 2,
+        "std": 2.92882,
+        "p50": 2,
+        "p75": 4,
+        "p90": 7,
+        "p95": 9,
+        "p99": 14,
+        "min": 1,
+        "max": 27,
+        "pGe3": {
+          "n": 2955,
+          "count": 1427,
+          "percentage": 0.4829,
+          "low": 0.4649,
+          "high": 0.5009
+        },
+        "pGe5": {
+          "n": 2955,
+          "count": 713,
+          "percentage": 0.2413,
+          "low": 0.2262,
+          "high": 0.257
+        },
+        "pGe10": {
+          "n": 2955,
+          "count": 140,
+          "percentage": 0.0474,
+          "low": 0.0403,
+          "high": 0.0556
+        },
+        "pGe20": {
+          "n": 2955,
+          "count": 4,
+          "percentage": 0.0014,
+          "low": 0.0005,
+          "high": 0.0035
+        },
+        "pGe30": {
+          "n": 2955,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0013
+        },
+        "histogram": {
+          "1": 981,
+          "2": 547,
+          "3-4": 714,
+          "5-9": 573,
+          "10-19": 136,
+          "20-29": 4,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 6508,
+        "lossRecovery": 0.7721,
+        "fortuneResource": 0.2279,
+        "other": 0,
+        "lossUnits": 5025,
+        "resourceUnits": 1483
+      },
+      "fortuneWhileDebt": 595,
+      "skill": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 10274,
+        "debtLockOnly": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 10274,
+          "percentage": 10274,
+          "low": 2122.0258,
+          "high": 2122.8192
+        },
+        "debtBlockedWantedRate": {
+          "n": 1,
+          "count": 10274,
+          "percentage": 10274,
+          "low": 2122.0258,
+          "high": 2122.8192
+        },
+        "debtLockOnlyRate": {
+          "n": 10274,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0004
+        }
+      },
+      "perception": {
+        "factsPerHand": 0,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0,
+        "skipPer100Hands": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "turn": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "river": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          }
+        },
+        "nodes": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skip": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "facts": 0
+      },
+      "topSecret": {
+        "holeAccess": 38208,
+        "legalProtect": 6893,
+        "protected": 6893,
+        "debtBlocked": 10274,
+        "leakDueToDebt": 10274,
+        "debtBlockedPer100Hands": 23.0302,
+        "leakPer100Hands": 23.0302
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 44611,
+        "mean": 0.09292,
+        "median": 0.08053,
+        "std": 0.03036,
+        "p50": 0.08053,
+        "p75": 0.10347,
+        "p90": 0.14673,
+        "p95": 0.1625,
+        "p99": 0.17831,
+        "min": 0.06,
+        "max": 0.19549,
+        "se": 0.00014,
+        "meanLow": 0.09264,
+        "meanHigh": 0.0932
+      },
+      "chipResetBugs": 0
+    },
+    "clairvoyance": {
+      "label": "强运+灵视",
+      "loadoutA": [
+        "FORTUNE",
+        "CLAIRVOYANCE"
+      ],
+      "loadoutB": [
+        "DEEP_BREATH",
+        "BLOOD_BATTLE",
+        "DEFENSE"
+      ],
+      "matches": 2700,
+      "hands": 54930,
+      "aWinRate": {
+        "n": 2700,
+        "count": 1336,
+        "percentage": 0.4948,
+        "low": 0.476,
+        "high": 0.5137
+      },
+      "bWinRate": {
+        "n": 2700,
+        "count": 1364,
+        "percentage": 0.5052,
+        "low": 0.4863,
+        "high": 0.524
+      },
+      "ties": 0,
+      "avgHands": 20.344,
+      "medianHands": 14,
+      "p90Hands": 47,
+      "foldRate": {
+        "n": 54930,
+        "count": 37630,
+        "percentage": 0.6851,
+        "low": 0.6812,
+        "high": 0.6889
+      },
+      "showdownRate": {
+        "n": 54930,
+        "count": 17300,
+        "percentage": 0.3149,
+        "low": 0.3111,
+        "high": 0.3188
+      },
+      "avgPot": {
+        "n": 54930,
+        "mean": 276.02348,
+        "median": 100,
+        "std": 437.22353,
+        "p50": 100,
+        "p75": 200,
+        "p90": 781.1,
+        "p95": 1542.55,
+        "p99": 2000,
+        "min": 27,
+        "max": 2000,
+        "se": 1.86551,
+        "meanLow": 272.36707,
+        "meanHigh": 279.67989
+      },
+      "avgRaisesPerHand": 0.9106,
+      "avgFinalSpread": {
+        "n": 2700,
+        "mean": -20.74074,
+        "median": -2000,
+        "std": 2000.26291,
+        "p50": -2000,
+        "p75": 2000,
+        "p90": 2000,
+        "p95": 2000,
+        "p99": 2000,
+        "min": -2000,
+        "max": 2000,
+        "se": 38.49508,
+        "meanLow": -96.19109,
+        "meanHigh": 54.70961
+      },
+      "avgRewritesPerHand": 0.1127,
+      "avgRewritesPerMatch": {
+        "n": 2700,
+        "mean": 2.29296,
+        "median": 2,
+        "std": 2.36243,
+        "p50": 2,
+        "p75": 3,
+        "p90": 5,
+        "p95": 7,
+        "p99": 11,
+        "min": 0,
+        "max": 18,
+        "se": 0.04546,
+        "meanLow": 2.20385,
+        "meanHigh": 2.38207
+      },
+      "avgDebtEntriesPerMatch": {
+        "n": 2700,
+        "mean": 1.58519,
+        "median": 1,
+        "std": 1.75272,
+        "p50": 1,
+        "p75": 2,
+        "p90": 4,
+        "p95": 5,
+        "p99": 8,
+        "min": 0,
+        "max": 13,
+        "se": 0.03373,
+        "meanLow": 1.51908,
+        "meanHigh": 1.6513
+      },
+      "debtHandStartRate": {
+        "n": 54930,
+        "count": 14666,
+        "percentage": 0.267,
+        "low": 0.2633,
+        "high": 0.2707
+      },
+      "debtHandAnyRate": {
+        "n": 54930,
+        "count": 19390,
+        "percentage": 0.353,
+        "low": 0.349,
+        "high": 0.357
+      },
+      "debtHandEndRate": {
+        "n": 54930,
+        "count": 15673,
+        "percentage": 0.2853,
+        "low": 0.2816,
+        "high": 0.2891
+      },
+      "legalHandRate": {
+        "n": 54930,
+        "count": 41143,
+        "percentage": 0.749,
+        "low": 0.7454,
+        "high": 0.7526
+      },
+      "blockedHandRate": {
+        "n": 54930,
+        "count": 13803,
+        "percentage": 0.2513,
+        "low": 0.2477,
+        "high": 0.2549
+      },
+      "blockedGivenLegal": {
+        "n": 41143,
+        "count": 13803,
+        "percentage": 0.3355,
+        "low": 0.3309,
+        "high": 0.3401
+      },
+      "depth": {
+        "0+": {
+          "n": 54930,
+          "count": 39257,
+          "percentage": 0.7147,
+          "low": 0.7109,
+          "high": 0.7184
+        },
+        "-1": {
+          "n": 54930,
+          "count": 6399,
+          "percentage": 0.1165,
+          "low": 0.1138,
+          "high": 0.1192
+        },
+        "-2": {
+          "n": 54930,
+          "count": 5384,
+          "percentage": 0.098,
+          "low": 0.0956,
+          "high": 0.1005
+        },
+        "-3": {
+          "n": 54930,
+          "count": 2877,
+          "percentage": 0.0524,
+          "low": 0.0505,
+          "high": 0.0543
+        },
+        "-4": {
+          "n": 54930,
+          "count": 1013,
+          "percentage": 0.0184,
+          "low": 0.0173,
+          "high": 0.0196
+        }
+      },
+      "enterNeg4Per100Hands": 1.1378,
+      "neg4Recovery": {
+        "n": 559,
+        "mean": 5.51878,
+        "median": 5,
+        "std": 2.71183,
+        "p50": 5,
+        "p75": 7,
+        "p90": 9,
+        "p95": 10,
+        "p99": 12.42,
+        "min": 1,
+        "max": 17
+      },
+      "episodes": {
+        "n": 4280,
+        "mean": 3.66192,
+        "median": 3,
+        "std": 3.17164,
+        "p50": 3,
+        "p75": 5,
+        "p90": 8,
+        "p95": 10,
+        "p99": 15,
+        "min": 1,
+        "max": 27,
+        "pGe3": {
+          "n": 4280,
+          "count": 2292,
+          "percentage": 0.5355,
+          "low": 0.5205,
+          "high": 0.5504
+        },
+        "pGe5": {
+          "n": 4280,
+          "count": 1134,
+          "percentage": 0.265,
+          "low": 0.2519,
+          "high": 0.2784
+        },
+        "pGe10": {
+          "n": 4280,
+          "count": 255,
+          "percentage": 0.0596,
+          "low": 0.0529,
+          "high": 0.0671
+        },
+        "pGe20": {
+          "n": 4280,
+          "count": 14,
+          "percentage": 0.0033,
+          "low": 0.0019,
+          "high": 0.0055
+        },
+        "pGe30": {
+          "n": 4280,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0009
+        },
+        "histogram": {
+          "1": 1162,
+          "2": 826,
+          "3-4": 1158,
+          "5-9": 879,
+          "10-19": 241,
+          "20-29": 14,
+          "30+": 0
+        }
+      },
+      "repayment": {
+        "units": 10444,
+        "lossRecovery": 0.7827,
+        "fortuneResource": 0.2173,
+        "other": 0,
+        "lossUnits": 8174,
+        "resourceUnits": 2270
+      },
+      "fortuneWhileDebt": 887,
+      "skill": {
+        "legal": 94914,
+        "wanted": 74123,
+        "used": 12950,
+        "debtBlocked": 29920,
+        "debtLockOnly": 0,
+        "debtBlockedRate": {
+          "n": 94914,
+          "count": 29920,
+          "percentage": 0.3152,
+          "low": 0.3123,
+          "high": 0.3182
+        },
+        "debtBlockedWantedRate": {
+          "n": 74123,
+          "count": 29920,
+          "percentage": 0.4037,
+          "low": 0.4001,
+          "high": 0.4072
+        },
+        "debtLockOnlyRate": {
+          "n": 29920,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.0001
+        }
+      },
+      "perception": {
+        "factsPerHand": 0,
+        "factsPerHandDebtStart": 0,
+        "factsPerHandOkStart": 0,
+        "skipPer100Hands": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skipRate": {
+          "pre_flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "flop": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "turn": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          },
+          "river": {
+            "n": 1,
+            "count": 0,
+            "percentage": 0,
+            "low": 0,
+            "high": 0.7935
+          }
+        },
+        "nodes": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "skip": {
+          "pre_flop": 0,
+          "flop": 0,
+          "turn": 0,
+          "river": 0
+        },
+        "facts": 0
+      },
+      "topSecret": {
+        "holeAccess": 0,
+        "legalProtect": 0,
+        "protected": 0,
+        "debtBlocked": 0,
+        "leakDueToDebt": 0,
+        "debtBlockedPer100Hands": 0,
+        "leakPer100Hands": 0
+      },
+      "defense": {
+        "legal": 0,
+        "wanted": 0,
+        "used": 0,
+        "debtBlocked": 0,
+        "wouldHaveReducedLoss": 0,
+        "debtBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        },
+        "wantedBlockedRate": {
+          "n": 1,
+          "count": 0,
+          "percentage": 0,
+          "low": 0,
+          "high": 0.7935
+        }
+      },
+      "avgHoleChance": {
+        "n": 54930,
+        "mean": 0.09103,
+        "median": 0.0754,
+        "std": 0.03082,
+        "p50": 0.0754,
+        "p75": 0.10132,
+        "p90": 0.14703,
+        "p95": 0.16178,
+        "p99": 0.17586,
+        "min": 0.06,
+        "max": 0.18706,
+        "se": 0.00013,
+        "meanLow": 0.09077,
+        "meanHigh": 0.09129
+      },
+      "chipResetBugs": 0
+    }
+  },
+  "pooledDebt": {
+    "hands": 264913,
+    "episodes": {
+      "n": 15479,
+      "mean": 3.53569,
+      "median": 3,
+      "std": 3.11271,
+      "p50": 3,
+      "p75": 5,
+      "p90": 8,
+      "p95": 10,
+      "p99": 15,
+      "min": 1,
+      "max": 31,
+      "pGe3": {
+        "n": 15479,
+        "count": 7902,
+        "percentage": 0.5105,
+        "low": 0.5026,
+        "high": 0.5184
+      },
+      "pGe5": {
+        "n": 15479,
+        "count": 3969,
+        "percentage": 0.2564,
+        "low": 0.2496,
+        "high": 0.2634
+      },
+      "pGe10": {
+        "n": 15479,
+        "count": 858,
+        "percentage": 0.0554,
+        "low": 0.0519,
+        "high": 0.0591
+      },
+      "pGe20": {
+        "n": 15479,
+        "count": 41,
+        "percentage": 0.0026,
+        "low": 0.002,
+        "high": 0.0036
+      },
+      "pGe30": {
+        "n": 15479,
+        "count": 1,
+        "percentage": 0.0001,
+        "low": 0,
+        "high": 0.0004
+      },
+      "histogram": {
+        "1": 4600,
+        "2": 2977,
+        "3-4": 3933,
+        "5-9": 3111,
+        "10-19": 817,
+        "20-29": 40,
+        "30+": 1
+      }
+    },
+    "depth": {
+      "0+": {
+        "count": 210184,
+        "percentage": 0.7934
+      },
+      "-1": {
+        "count": 22769,
+        "percentage": 0.0859
+      },
+      "-2": {
+        "count": 18162,
+        "percentage": 0.0686
+      },
+      "-3": {
+        "count": 10188,
+        "percentage": 0.0385
+      },
+      "-4": {
+        "count": 3610,
+        "percentage": 0.0136
+      }
+    }
+  },
+  "elapsedMs": 242375
+}

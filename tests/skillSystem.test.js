@@ -1,6 +1,6 @@
 const { GAME_MODE } = require("../game/gameModes");
 const { SKILL_MODE } = require("../game/skillModes");
-const { SKILL_CONFIG } = require("../game/skillConfig");
+const { SKILL_CONFIG, PERCEPTION_CONFIG, FORTUNE_RULE, SKILL_RULE_FREEZE } = require("../game/skillConfig");
 const { RoomManager } = require("../game/roomManager");
 const { GameEngine } = require("../game/gameEngine");
 const { getValidActions, collectBet } = require("../game/pokerLogic");
@@ -17,7 +17,7 @@ const {
   getPublicRoomSkillSnapshot,
 } = require("../game/skills/skillEngine");
 const { listSkillDefinitions } = require("../game/skills/definitions");
-const { FORTUNE_CONFIG } = require("../game/skills/fortuneConfig");
+const { FORTUNE_CONFIG, computeFortuneChance } = require("../game/skills/fortuneConfig");
 const logger = require("../utils/logger");
 const eventBus = require("../utils/eventBus");
 
@@ -515,10 +515,9 @@ describe("情报、绝密、千术、零化、感知、灵视", () => {
   });
 
   test("感知每节点独立判定、每手最多 3 次，且不带真假标签", () => {
-    const sequence = [0, 0, 0, 0, 0, 0, 0, 0];
     const { a, engine, room } = setupRoom({
       loadoutA: ["PERCEPTION", "RECYCLE"],
-      random: () => sequence.shift() ?? 0.99,
+      random: () => 0,
     });
     expect(a.skillRuntime.perceptionTriggerCount).toBe(1);
     goToStreet(engine, room, "flop");
@@ -527,6 +526,8 @@ describe("情报、绝密、千术、零化、感知、灵视", () => {
     expect(a.skillRuntime.perceptionTriggerCount).toBe(3);
     expect(a.skillRuntime.privateResults[0].message).toMatch(/^感知 · /);
     expect(a.skillRuntime.privateResults[0].message).not.toMatch(/真实|虚假|75%/);
+    const axes = a.skillRuntime.perceptionHistory.map((entry) => entry.axis);
+    expect(new Set(axes).size).toBe(axes.length);
   });
 
   test("感知触及底牌信息时才触发绝密，且绝密生效后不再泄露底牌命题", () => {
@@ -561,6 +562,21 @@ describe("情报、绝密、千术、零化、感知、灵视", () => {
     expect(JSON.stringify(result.events)).not.toContain("口袋对子");
     expect(result.message).not.toContain("口袋对子");
   });
+
+  test("感知内容对对手隐藏，公开日志不含命题文本", () => {
+    const { a, b, room } = setupRoom({
+      loadoutA: ["PERCEPTION", "RECYCLE"],
+      loadoutB: ["DEEP_BREATH", "RECYCLE"],
+      random: () => 0,
+    });
+    expect(a.skillRuntime.perceptionTriggerCount).toBeGreaterThan(0);
+    expect(a.skillRuntime.privateResults.some((entry) => String(entry.message || "").startsWith("感知 · "))).toBe(true);
+    expect(b.skillRuntime.privateResults.some((entry) => String(entry.message || "").includes("感知"))).toBe(false);
+    const snapshot = getPublicRoomSkillSnapshot(room);
+    expect(snapshot.recentLog.some((entry) => entry.skillId === "PERCEPTION")).toBe(false);
+    expect(JSON.stringify(snapshot)).not.toContain("对方可能有");
+    expect(JSON.stringify(snapshot)).not.toContain("口袋对子");
+  });
 });
 
 describe("强运、天命与协议", () => {
@@ -587,6 +603,15 @@ describe("强运、天命与协议", () => {
     blocked.a.skillRuntime.abyssEnergy = -2;
     expect(blocked.engine.skillEngine.applyHoleFortune(blocked.room)).toHaveLength(0);
     expect(blocked.a.skillRuntime.abyssEnergy).toBe(-2);
+
+    const edge = setupRoom({ loadoutA: ["FORTUNE", "RECYCLE"], start: false, random: () => 0 });
+    beginHandSkills(edge.room);
+    edge.a.cards = weakHole();
+    edge.b.cards = [byCode().S3, byCode().H8];
+    edge.room.deck = createDeck().filter((card) => !["C2", "D7", "S3", "H8"].includes(card.code));
+    edge.a.skillRuntime.abyssEnergy = -1;
+    expect(edge.engine.skillEngine.applyHoleFortune(edge.room)).toHaveLength(1);
+    expect(edge.a.skillRuntime.abyssEnergy).toBe(-4);
   });
 
   test("强运负能量时其他主动技能与新的被动事件都不能发生", () => {
@@ -704,9 +729,36 @@ describe("强运、天命与协议", () => {
   });
 
   test("强运配置保持可替换，且默认事件池仍可审计", () => {
-    expect(FORTUNE_CONFIG.status).toBe("DRAFT_UNCONFIRMED");
+    expect(SKILL_RULE_FREEZE.FORTUNE).toMatchObject({
+      skillId: "FORTUNE",
+      status: "FROZEN_V1",
+      variant: "soft-v1",
+      frozenAt: "2026-08-20",
+    });
+    expect(SKILL_RULE_FREEZE.PERCEPTION).toMatchObject({
+      skillId: "PERCEPTION",
+      status: "FROZEN_V1",
+      variant: "spec-25-50",
+      frozenAt: "2026-08-20",
+    });
+    expect(FORTUNE_RULE.status).toBe("FROZEN_V1");
+    expect(FORTUNE_CONFIG.status).toBe(SKILL_RULE_FREEZE.FORTUNE.status);
+    expect(FORTUNE_CONFIG.variant).toBe(SKILL_RULE_FREEZE.FORTUNE.variant);
+    expect(FORTUNE_CONFIG.frozenAt).toBe("2026-08-20");
     expect(FORTUNE_COMBOS).toHaveLength(126);
     expect(new Set(FORTUNE_COMBOS.map((combo) => combo.codes.slice().sort().join("-"))).size).toBe(126);
+    expect(computeFortuneChance("hole", { disadvantage: 0, energy: 4 })).toBeCloseTo(0.0805, 3);
+    expect(computeFortuneChance("board", { disadvantage: 0, energy: 4 })).toBeCloseTo(0.0539, 3);
+    expect(computeFortuneChance("resource", { disadvantage: 0, energy: 4 })).toBeCloseTo(0.16, 3);
+    expect(computeFortuneChance("hole", { disadvantage: 1, energy: 4 })).toBeCloseTo(0.1897, 3);
+    expect(PERCEPTION_CONFIG.status).toBe(SKILL_RULE_FREEZE.PERCEPTION.status);
+    expect(PERCEPTION_CONFIG.variant).toBe("spec-25-50");
+    expect(PERCEPTION_CONFIG.frozenAt).toBe("2026-08-20");
+    expect(PERCEPTION_CONFIG.nodes).toEqual(["pre_flop", "flop", "turn", "river"]);
+    expect(SKILL_CONFIG.PERCEPTION_BASE_CHANCE).toBe(0.25);
+    expect(SKILL_CONFIG.PERCEPTION_MAX_CHANCE).toBe(0.5);
+    expect(SKILL_CONFIG.PERCEPTION_TRUTH_CHANCE).toBe(0.75);
+    expect(SKILL_CONFIG.PERCEPTION_MAX_TRIGGERS_PER_HAND).toBe(3);
   });
 
   test("强运改写后最终牌区仍保持 52 张唯一", () => {
@@ -749,6 +801,63 @@ describe("强运、天命与协议", () => {
     expect(room.deck[room.deck.length - 1].code).toBe(burnCode);
     const afterReserved = getFutureCommunitySlots(room).map((slot) => slot.card.code);
     expect(afterReserved.slice(1)).toEqual(reservedCodes.slice(1));
+  });
+
+  test("公共牌强运只按自己的底牌打分，不读取对手底牌", () => {
+    const run = (villainCodes) => {
+      const { engine, room, a, b } = setupRoom({
+        loadoutA: ["FORTUNE", "RECYCLE"],
+        start: false,
+        random: () => 0,
+      });
+      beginHandSkills(room);
+      const cards = byCode();
+      a.cards = [cards.SA, cards.C2];
+      b.cards = villainCodes.map((code) => cards[code]);
+      room.communityCards = [];
+      room.deck = createDeck().filter((card) => !["SA", "C2", "S3", "H8", "HA", "DA"].includes(card.code));
+      a.skillRuntime.abyssEnergy = 8;
+      engine.skillEngine.applyBoardFortune(room, "flop");
+      return getFutureCommunitySlots(room)[0].card.code;
+    };
+    expect(run(["S3", "H8"])).toBe(run(["HA", "DA"]));
+  });
+
+  test("未触发不扣能量；资源强运 +1 且不递归、不消耗能量", () => {
+    const miss = setupRoom({ loadoutA: ["FORTUNE", "RECYCLE"], start: false, random: () => 0.99 });
+    beginHandSkills(miss.room);
+    miss.a.cards = weakHole();
+    miss.b.cards = [byCode().S3, byCode().H8];
+    miss.room.deck = createDeck().filter((card) => !["C2", "D7", "S3", "H8"].includes(card.code));
+    miss.a.skillRuntime.abyssEnergy = 4;
+    expect(miss.engine.skillEngine.applyHoleFortune(miss.room)).toHaveLength(0);
+    expect(miss.a.skillRuntime.abyssEnergy).toBe(4);
+
+    const { engine, room, a } = setupRoom({ loadoutA: ["FORTUNE", "RECYCLE"], start: false, random: () => 0 });
+    beginHandSkills(room);
+    a.skillRuntime.abyssEnergy = 4;
+    expect(engine.skillEngine.applyResourceFortune(room, a)).toBe(true);
+    expect(a.skillRuntime.abyssEnergy).toBe(5);
+    expect(engine.skillEngine.applyResourceFortune(room, a)).toBe(false);
+    expect(a.skillRuntime.abyssEnergy).toBe(5);
+  });
+
+  test("负能量时强运自身仍可判定，其他被动不产生新事件", () => {
+    const { engine, room, a } = setupRoom({
+      loadoutA: ["FORTUNE", "PERCEPTION"],
+      start: false,
+      random: () => 0,
+    });
+    beginHandSkills(room);
+    a.cards = weakHole();
+    room.players[1].cards = [byCode().S3, byCode().H8];
+    room.deck = createDeck().filter((card) => !["C2", "D7", "S3", "H8"].includes(card.code));
+    a.skillRuntime.abyssEnergy = -1;
+    expect(engine.skillEngine.applyHoleFortune(room)).toHaveLength(1);
+    expect(a.skillRuntime.abyssEnergy).toBe(-4);
+    const before = a.skillRuntime.perceptionTriggerCount;
+    engine.skillEngine.onCardsDealt(room, "pre_flop");
+    expect(a.skillRuntime.perceptionTriggerCount).toBe(before);
   });
 });
 

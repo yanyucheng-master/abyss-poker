@@ -52,6 +52,69 @@ const CARD_EDIT_TAGS = Object.freeze([
   SKILL_TAGS.BOARD_EDIT,
 ]);
 
+/**
+ * 感知核心概率已冻结为 spec-25-50。
+ * 触发：四节点独立判定，均势 25% 线性插值到全劣 50%；每手最多成功 3 次。
+ * 真假：先选信息类别，再 75% 真 / 25% 假，不从大小不一的真/假池里抽。
+ * 信息池命题仍允许后续扩充，但不要改这组概率。
+ */
+const PERCEPTION_CONFIG = Object.freeze({
+  status: "FROZEN_V1",
+  variant: "spec-25-50",
+  frozenAt: "2026-08-20",
+  freezeBasis: Object.freeze([
+    "trigger 25-50",
+    "truth 75/25",
+    "four nodes",
+    "max 3 per hand",
+    "category-then-truth",
+  ]),
+  baseChance: 0.25,
+  maxChance: 0.5,
+  truthChance: 0.75,
+  maxTriggersPerHand: 3,
+  nodes: Object.freeze(["pre_flop", "flop", "turn", "river"]),
+});
+
+/**
+ * 强运规则冻结登记。具体概率表在 fortuneConfig.soft-v1，此处只作为规则层状态源。
+ * 未解冻前不要改 soft-v1 数值、改牌费用或负债下限。
+ */
+const FORTUNE_RULE = Object.freeze({
+  status: "FROZEN_V1",
+  variant: "soft-v1",
+  recommended: true,
+  frozenAt: "2026-08-20",
+  freezeBasis: Object.freeze([
+    "single-hand causal equity",
+    "rewrite frequency",
+    "energy negative feedback",
+    "debt experience",
+    "dynamic stacks",
+    "fold-policy matches",
+  ]),
+});
+
+/**
+ * 生产路径冻结总表。引擎与测试应读这里的 status/variant，而不是散落注释。
+ */
+const SKILL_RULE_FREEZE = Object.freeze({
+  PERCEPTION: Object.freeze({
+    skillId: "PERCEPTION",
+    status: PERCEPTION_CONFIG.status,
+    variant: PERCEPTION_CONFIG.variant,
+    frozenAt: PERCEPTION_CONFIG.frozenAt,
+    freezeBasis: PERCEPTION_CONFIG.freezeBasis,
+  }),
+  FORTUNE: Object.freeze({
+    skillId: "FORTUNE",
+    status: FORTUNE_RULE.status,
+    variant: FORTUNE_RULE.variant,
+    frozenAt: FORTUNE_RULE.frozenAt,
+    freezeBasis: FORTUNE_RULE.freezeBasis,
+  }),
+});
+
 const PROTOCOL_CATEGORIES = Object.freeze({
   HIGH_CARD: 1,
   PAIR: 2,
@@ -66,6 +129,9 @@ const PROTOCOL_CATEGORIES = Object.freeze({
 
 module.exports = {
   SKILL_CONFIG,
+  PERCEPTION_CONFIG,
+  FORTUNE_RULE,
+  SKILL_RULE_FREEZE,
   SKILL_TAGS,
   CARD_EDIT_TAGS,
   PROTOCOL_CATEGORIES,
