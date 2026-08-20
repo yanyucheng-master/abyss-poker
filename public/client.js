@@ -87,7 +87,6 @@ function loadSettings() {
     reduceMotion: window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     sfx: 55,
     music: 0,
-    scale: 100,
     lowPerformance: false,
     skillExpertText: false,
   };
@@ -114,7 +113,6 @@ function loadSettings() {
       typeof stored.reduceMotion === "boolean" ? stored.reduceMotion : defaults.reduceMotion,
     sfx: clampStoredNumber(stored.sfx, 0, 100, defaults.sfx),
     music: clampStoredNumber(stored.music, 0, 100, defaults.music),
-    scale: clampStoredNumber(stored.scale, 85, 115, defaults.scale),
     lowPerformance:
       typeof stored.lowPerformance === "boolean"
         ? stored.lowPerformance
@@ -253,8 +251,6 @@ const el = {
   settingSfxValue: byId("setting-sfx-value"),
   settingMusic: byId("setting-music"),
   settingMusicValue: byId("setting-music-value"),
-  settingScale: byId("setting-scale"),
-  settingScaleValue: byId("setting-scale-value"),
   settingLowPerformance: byId("setting-low-performance"),
   leaveConfirmModal: byId("leave-confirm-modal"),
   btnLeaveCancel: byId("btn-leave-cancel"),
@@ -657,7 +653,6 @@ function applySettings() {
   document.body.classList.toggle("reduce-motion", Boolean(state.settings.reduceMotion));
   document.body.classList.toggle("low-performance", Boolean(state.settings.lowPerformance));
   document.body.classList.toggle("pro-player-mode", Boolean(state.settings.proPlayerMode));
-  document.documentElement.style.setProperty("--ui-scale", String(Number(state.settings.scale) / 100));
   el.settingAnimation.value = state.settings.animation;
   el.flash.dataset.allinStyle = state.settings.allInStyle;
   el.settingAllInStyles.forEach((input) => {
@@ -676,8 +671,6 @@ function applySettings() {
   el.settingSfxValue.textContent = String(state.settings.sfx) + "%";
   el.settingMusic.value = String(state.settings.music);
   el.settingMusicValue.textContent = String(state.settings.music) + "%";
-  el.settingScale.value = String(state.settings.scale);
-  el.settingScaleValue.textContent = String(state.settings.scale) + "%";
   el.settingLowPerformance.checked = Boolean(state.settings.lowPerformance);
   updateAmbientAudio();
   if (el.game?.classList.contains("active")) renderActions();
@@ -2019,6 +2012,7 @@ function createSkillCatalogCard(skill, { selected = false, disabled = false, onS
   const name = document.createElement("strong");
   const cost = document.createElement("small");
   const description = document.createElement("span");
+  description.className = "skill-card-copy";
   name.textContent = skill.name;
   const passive = (skill.tags || []).includes("PASSIVE");
   const energyHint = skill.energyCosts
@@ -2563,11 +2557,6 @@ el.settingSfx.addEventListener("input", () => {
 });
 el.settingMusic.addEventListener("input", () => {
   state.settings.music = Number(el.settingMusic.value);
-  saveSettings();
-  applySettings();
-});
-el.settingScale.addEventListener("input", () => {
-  state.settings.scale = Number(el.settingScale.value);
   saveSettings();
   applySettings();
 });

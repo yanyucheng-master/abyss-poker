@@ -32,7 +32,6 @@
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-sm: 9px;
-  --ui-scale: 1;
   --motion-factor: 1;
   --allin-duration: 2200ms;
   --blur: 18px;
@@ -100,7 +99,7 @@ body {
     radial-gradient(circle at 8% 62%, rgba(0, 191, 232, 0.1), transparent 35%),
     radial-gradient(circle at 92% 55%, rgba(255, 66, 208, 0.08), transparent 38%),
     linear-gradient(155deg, var(--void-1), var(--void-0) 64%);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 16px;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -2051,26 +2050,33 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   min-height: 0;
   max-height: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 12px;
   margin: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 #skill-lab-catalog .skill-card {
-  padding: 8px 10px;
+  align-self: start;
+  height: auto;
 }
 
 #skill-lab-catalog .skill-card strong {
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 }
 
-#skill-lab-catalog .skill-card span {
-  font-size: 0.72rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+#skill-lab-catalog .skill-card-copy {
+  display: block;
+  overflow: visible;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .skill-lab-actions {
@@ -4613,7 +4619,7 @@ body.low-performance .hand-settle-modal {
 
 @media (max-width: 640px) {
   body {
-    font-size: calc(15px * var(--ui-scale));
+    font-size: 15px;
   }
 
   .wait-layout {
@@ -4837,7 +4843,7 @@ body.low-performance .hand-settle-modal {
   }
 
   #skill-lab-catalog.skill-catalog {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
   }
 
   .app-shell {
