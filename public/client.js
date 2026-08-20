@@ -152,7 +152,7 @@ const state = {
   selectedLoadout: [],
   savedLoadout: [],
   suspectedSkillIds: loadSuspectedSkillIds(),
-  skillConfig: { minEquipped: 2, maxEquipped: 4, maxLoad: 8 },
+  skillConfig: { minEquipped: 1, maxEquipped: 4, maxLoad: 8 },
   pendingRoomAction: null,
   pendingJoinRoomId: null,
   autoLoadoutSubmitted: false,
@@ -172,10 +172,12 @@ const state = {
   bestFiveCodes: new Set(),
   communityCards: [],
   pot: 0,
+  chipViewHidden: false,
   currentBet: 0,
   dealer: null,
   currentTurnPlayerId: null,
   validActions: [],
+  endgameWindow: false,
   minRaise: 0,
   maxBet: 0,
   toCall: 0,
@@ -232,6 +234,7 @@ const el = {
   toastRegion: byId("toast-region"),
   chipFx: byId("chip-fx-layer"),
   flash: byId("flash-allin"),
+  flashEndgame: byId("flash-endgame"),
   riverOverload: byId("river-overload"),
   protocolBurst: byId("protocol-burst"),
   resultBanner: byId("result-banner"),
@@ -405,6 +408,9 @@ const el = {
   raiseMinLabel: byId("raise-min-label"),
   raiseMaxLabel: byId("raise-max-label"),
   raiseConsole: document.querySelector("#screen-game .raise-console"),
+  endgameWindowActions: byId("endgame-window-actions"),
+  btnEndgameFire: byId("btn-endgame-fire"),
+  btnEndgameSkip: byId("btn-endgame-skip"),
   btnRaise: byId("btn-raise"),
   btnRaiseOptions: byId("btn-raise-options"),
   actionButtons: document.querySelectorAll(".action-button[data-action]"),
@@ -822,8 +828,8 @@ function renderPlayers() {
   const me = getMe();
   const opponent = getOpponent();
   el.selfName.textContent = me?.name || state.myName || "你";
-  el.selfChips.textContent = String(me?.chips ?? "—");
-  el.selfBet.textContent = String(me?.streetBet ?? 0);
+  el.selfChips.textContent = state.chipViewHidden ? "—" : String(me?.chips ?? "—");
+  el.selfBet.textContent = state.chipViewHidden ? "—" : String(me?.streetBet ?? 0);
   el.selfState.textContent = playerStateLabel(me);
   el.selfState.dataset.state = (me?.status || "standby").toLowerCase();
   el.selfConnection.innerHTML = "";
@@ -832,8 +838,8 @@ function renderPlayers() {
   el.selfConnection.append(selfDot, document.createTextNode(me?.isConnected ? "在线" : "离线"));
 
   el.opponentName.textContent = opponent?.name || "等待对手";
-  el.opponentChips.textContent = String(opponent?.chips ?? "—");
-  el.opponentBet.textContent = String(opponent?.streetBet ?? 0);
+  el.opponentChips.textContent = state.chipViewHidden ? "—" : String(opponent?.chips ?? "—");
+  el.opponentBet.textContent = state.chipViewHidden ? "—" : String(opponent?.streetBet ?? 0);
   el.opponentState.textContent = playerStateLabel(opponent);
   el.opponentState.dataset.state = (opponent?.status || "standby").toLowerCase();
   el.opponentConnection.innerHTML = "";
@@ -879,6 +885,10 @@ function renderCards() {
 }
 
 function clampRaise(value) {
+  if (state.chipViewHidden) {
+    const next = Math.round(Number(value) || 0);
+    return Number.isFinite(next) && next > 0 ? next : 0;
+  }
   const min = Number(state.minRaise || 0);
   const max = Number(state.maxBet || 0);
   if (max <= 0 || max < min) return 0;
@@ -904,6 +914,29 @@ function setRaiseExpanded(expanded) {
 
 function renderActions() {
   const me = getMe();
+  const endgameMine = Boolean(
+    state.endgameWindow
+    && socket.connected
+    && me?.isConnected !== false
+    && state.currentTurnPlayerId === state.playerId
+    && !state.handSettling
+    && !state.gameOver
+    && !state.uiPending.action
+  );
+  el.endgameWindowActions?.classList.toggle("hidden", !endgameMine);
+  if (el.btnEndgameFire) el.btnEndgameFire.disabled = !endgameMine;
+  if (el.btnEndgameSkip) el.btnEndgameSkip.disabled = !endgameMine;
+  if (endgameMine) {
+    el.actionButtons.forEach((button) => {
+      button.classList.add("hidden");
+      button.disabled = true;
+    });
+    if (el.raiseConsole) el.raiseConsole.classList.add("hidden");
+    el.turnKicker.textContent = state.settings.proPlayerMode ? "ENDGAME" : "终局窗口";
+    el.turnMessage.textContent = state.settings.proPlayerMode ? "FIRE OR SKIP" : "发动终局或放弃";
+    return;
+  }
+  if (el.raiseConsole) el.raiseConsole.classList.remove("hidden");
   const isMyTurn =
     socket.connected &&
     me?.isConnected !== false &&
@@ -912,14 +945,16 @@ function renderActions() {
     !state.handSettling &&
     !state.gameOver &&
     !state.uiPending.action;
-  const toCall = Number.isFinite(state.toCall)
-    ? state.toCall
-    : Math.max(0, Number(state.currentBet || 0) - Number(me?.streetBet || 0));
+  const toCall = state.chipViewHidden
+    ? 0
+    : Number.isFinite(state.toCall)
+      ? state.toCall
+      : Math.max(0, Number(state.currentBet || 0) - Number(me?.streetBet || 0));
   const canCheck = isMyTurn && state.validActions.includes("check");
   const canCall = isMyTurn && state.validActions.includes("call");
 
   el.callLabel.textContent = "跟注";
-  el.callAmount.textContent = toCall > 0 ? String(toCall) : "—";
+  el.callAmount.textContent = state.chipViewHidden || !(toCall > 0) ? "—" : String(toCall);
   el.actionButtons.forEach((button) => {
     const action = button.dataset.action;
     if (action === "check") {
@@ -943,17 +978,21 @@ function renderActions() {
   const canRaise =
     isMyTurn &&
     state.validActions.includes("raise") &&
-    Number(state.maxBet) > 0 &&
-    Number(state.maxBet) >= Number(state.minRaise);
+    (state.chipViewHidden || (Number(state.maxBet) > 0 && Number(state.maxBet) >= Number(state.minRaise)));
   if (el.btnRaise) el.btnRaise.disabled = !canRaise;
   if (el.btnRaiseOptions) el.btnRaiseOptions.disabled = !canRaise;
   el.raiseInput.disabled = !canRaise;
   const pro = Boolean(state.settings.proPlayerMode);
-  if (canRaise) {
+  if (canRaise && !state.chipViewHidden) {
     el.raiseInput.min = String(state.minRaise);
     el.raiseInput.max = String(state.maxBet);
     el.raiseMinLabel.textContent = (pro ? "MIN " : "最小 ") + state.minRaise;
     el.raiseMaxLabel.textContent = (pro ? "MAX " : "最大 ") + state.maxBet;
+  } else if (canRaise && state.chipViewHidden) {
+    el.raiseInput.min = "0";
+    el.raiseInput.max = "999999";
+    el.raiseMinLabel.textContent = pro ? "MIN —" : "最小 —";
+    el.raiseMaxLabel.textContent = pro ? "MAX —" : "最大 —";
   } else {
     el.raiseInput.min = "0";
     el.raiseInput.max = "0";
@@ -962,12 +1001,16 @@ function renderActions() {
     setRaiseExpanded(false);
   }
   el.raisePresets.forEach((button) => {
-    button.disabled = !canRaise;
+    button.disabled = !canRaise || state.chipViewHidden;
   });
   if (canRaise) {
     const existing = Number(el.raiseInput.value);
-    setRaiseValue(existing >= state.minRaise && existing <= state.maxBet ? existing : state.minRaise);
-  } else {
+    if (state.chipViewHidden) {
+      el.raiseValue.textContent = existing > 0 ? String(existing) : "—";
+    } else {
+      setRaiseValue(existing >= state.minRaise && existing <= state.maxBet ? existing : state.minRaise);
+    }
+  } else if (!state.chipViewHidden) {
     setRaiseValue(0);
   }
 
@@ -1019,6 +1062,11 @@ function updateActionCountdown() {
 }
 
 function animatePot(value) {
+  if (state.chipViewHidden) {
+    el.pot.textContent = "—";
+    el.potCore.setAttribute("aria-label", "当前底池已隐藏");
+    return;
+  }
   const next = Math.max(0, Number(value || 0));
   el.pot.textContent = String(next);
   const energy = Math.min(1, next / 2000);
@@ -1299,6 +1347,14 @@ function playAllInEffect(_actorId, { preview = false } = {}) {
   playTone("allin");
 }
 
+function playEndgameExecution() {
+  if (!el.flashEndgame) return;
+  el.flashEndgame.classList.remove("hidden");
+  window.setTimeout(() => {
+    el.flashEndgame.classList.add("hidden");
+  }, 1800);
+}
+
 function triggerProtocolBurst() {
   if (state.gameMode !== GAME_MODE.OVERDRIVE) return;
   el.protocolBurst.classList.remove("hidden");
@@ -1370,6 +1426,7 @@ function resetLocalRoom() {
   state.currentBet = 0;
   state.currentTurnPlayerId = null;
   state.validActions = [];
+  state.endgameWindow = false;
   state.actionDeadline = null;
   state.turnId = null;
   state.handHint = "等待发牌";
@@ -1475,6 +1532,8 @@ function clearHandSettlement() {
   state.handSettleRaf = 0;
   state.handSettleTimer = 0;
   el.handSettleModal.classList.add("hidden");
+  el.handSettleModal.classList.remove("is-endgame-execution");
+  el.flashEndgame?.classList.add("hidden");
   el.board.classList.remove("settle-dim");
   el.chipFx.classList.remove("settlement-flow");
 }
@@ -1493,6 +1552,7 @@ function startHandSettlement(payload) {
   state.handSettling = true;
   state.phase = payload.reason === "showdown" ? "showdown" : "end";
   state.validActions = [];
+  state.endgameWindow = false;
   state.currentTurnPlayerId = null;
   state.actionDeadline = null;
   state.turnId = null;
@@ -1513,12 +1573,12 @@ function startHandSettlement(payload) {
   el.settleVerdict.className = payload.tie ? "tie-text" : won ? "win-text" : "lose-text";
   if (payload.reason === "fold") {
     el.settleDetail.textContent = won
-      ? (opponent?.name || "对手") + " 弃牌，你赢得底池 " + payload.pot
-      : "你已弃牌，" + (payload.winnerName || opponent?.name || "对手") + " 赢得底池 " + payload.pot;
+      ? (opponent?.name || "对手") + " 弃牌" + (payload.pot == null ? "，你赢得底池" : "，你赢得底池 " + payload.pot)
+      : "你已弃牌，" + (payload.winnerName || opponent?.name || "对手") + (payload.pot == null ? " 赢得底池" : " 赢得底池 " + payload.pot);
   } else if (payload.tie) {
-    el.settleDetail.textContent = "底池 " + payload.pot + " 平分";
+    el.settleDetail.textContent = payload.pot == null ? "平分底池" : "底池 " + payload.pot + " 平分";
   } else {
-    el.settleDetail.textContent = (payload.winnerName || "胜方") + " 赢得底池 " + payload.pot;
+    el.settleDetail.textContent = (payload.winnerName || "胜方") + (payload.pot == null ? " 赢得底池" : " 赢得底池 " + payload.pot);
   }
   el.settleSelfLabel.textContent = me?.name || "你";
   el.settleOppLabel.textContent = opponent?.name || "对手";
@@ -1532,6 +1592,9 @@ function startHandSettlement(payload) {
   if (opponentDetail?.handName) types.push((opponent?.name || "对手") + "：" + opponentDetail.handName);
   el.settleHandName.textContent = types.join(" ｜ ");
   el.settleNext.textContent = payload.isFinalHand ? "整场对局即将结束" : "下一手即将开始";
+  const executionKill = Boolean(payload.endgameExecutionOverride);
+  el.handSettleModal.classList.toggle("is-endgame-execution", executionKill);
+  if (executionKill) playEndgameExecution();
   el.handSettleModal.classList.remove("hidden");
   el.board.classList.add("settle-dim");
   el.chipFx.classList.add("settlement-flow");
@@ -1753,7 +1816,7 @@ function loadSavedLoadout() {
 }
 
 function validateLoadoutIds(ids, catalog = state.skillCatalog) {
-  const min = state.skillConfig.minEquipped || 2;
+  const min = state.skillConfig.minEquipped ?? 1;
   const max = state.skillConfig.maxEquipped || 4;
   const maxLoad = state.skillConfig.maxLoad || 8;
   if (!Array.isArray(ids) || ids.length < min || ids.length > max) {
@@ -1847,7 +1910,7 @@ async function ensureSkillCatalog() {
       state.skillCatalogStatus = "ready";
       if (data.config) {
         state.skillConfig = {
-          minEquipped: data.config.minEquipped || 2,
+          minEquipped: data.config.minEquipped ?? 1,
           maxEquipped: data.config.maxEquipped || 4,
           maxLoad: data.config.maxLoad || 8,
         };
@@ -2054,7 +2117,7 @@ function renderSkillLab() {
       : "尚未选择技能";
     el.skillLabStatus.textContent = validation.ok
       ? selectionSummary + "。构筑有效，可保存。"
-      : selectionSummary + " · " + (validation.error || "选择 2–4 个技能，总负载不超过 8。");
+      : selectionSummary + " · " + (validation.error || `选择 ${state.skillConfig.minEquipped ?? 1}–${state.skillConfig.maxEquipped || 4} 个技能，总负载不超过 8。`);
   }
   if (el.btnSaveLoadout) el.btnSaveLoadout.disabled = !validation.ok;
   el.skillLabCatalog.textContent = "";
@@ -2443,6 +2506,19 @@ el.actionButtons.forEach((button) => {
     socket.emit("player_action", payload);
   });
 });
+el.btnEndgameFire?.addEventListener("click", () => {
+  if (!state.endgameWindow || el.btnEndgameFire.disabled) return;
+  emitSkillUse("ENDGAME");
+});
+el.btnEndgameSkip?.addEventListener("click", () => {
+  if (!state.endgameWindow || el.btnEndgameSkip.disabled) return;
+  if (!beginRealtimeRequest("action", 3000)) return;
+  socket.emit("player_action", {
+    action: "skip_endgame",
+    handId: state.activeCommitment?.handId || null,
+    turnId: state.turnId,
+  });
+});
 el.btnRaiseOptions?.addEventListener("click", () => {
   if (el.btnRaiseOptions.disabled) return;
   setRaiseExpanded(!el.raiseConsole?.classList.contains("expanded"));
@@ -2752,8 +2828,18 @@ socket.on("room_state", (payload) => {
   if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
     state.hasPassword = Boolean(payload.hasPassword);
   }
-  state.pot = payload.pot ?? state.pot;
-  state.currentBet = payload.currentBet ?? state.currentBet;
+  state.chipViewHidden = Boolean(payload.chipViewHidden);
+  el.game?.classList.toggle("chip-view-hidden", state.chipViewHidden);
+  if (state.chipViewHidden) {
+    state.pot = null;
+    state.currentBet = null;
+    state.toCall = null;
+    state.minRaise = null;
+    state.maxBet = null;
+  } else {
+    if (payload.pot != null) state.pot = payload.pot;
+    if (payload.currentBet != null) state.currentBet = payload.currentBet;
+  }
   state.dealer = payload.dealer || null;
   if (Object.prototype.hasOwnProperty.call(payload, "activePlayerId")) {
     state.currentTurnPlayerId = payload.activePlayerId;
@@ -2762,7 +2848,10 @@ socket.on("room_state", (payload) => {
   }
   state.communityCards = payload.communityCards || state.communityCards;
   state.nullifiedCommunityCardIds = payload.nullifiedCommunityCardIds || state.nullifiedCommunityCardIds;
-  if (payload.skillState) state.skillState = payload.skillState;
+  if (payload.skillState) {
+    state.skillState = payload.skillState;
+    state.endgameWindow = Boolean(payload.skillState.endgameWindow);
+  }
   state.players = payload.players || state.players;
   if (!state.skillSelf) state.skillSelf = getMe()?.skills || null;
   if (Object.prototype.hasOwnProperty.call(payload, "actionDeadline")) {
@@ -2869,9 +2958,10 @@ socket.on("player_turn", (payload) => {
   endUiRequest("action");
   state.currentTurnPlayerId = payload.playerId;
   state.validActions = payload.playerId === state.playerId ? payload.validActions || [] : [];
-  state.minRaise = Number(payload.minRaise || 0);
-  state.maxBet = Number(payload.maxBet || 0);
-  state.toCall = Number(payload.toCall || 0);
+  state.endgameWindow = Boolean(payload.endgameWindow);
+  state.minRaise = payload.minRaise == null ? null : Number(payload.minRaise || 0);
+  state.maxBet = payload.maxBet == null ? null : Number(payload.maxBet || 0);
+  state.toCall = payload.toCall == null ? null : Number(payload.toCall || 0);
   state.actionDeadline = payload.actionDeadline || null;
   state.turnId = payload.turnId || null;
   if (payload.handId && state.commitments.has(payload.handId)) {
@@ -2885,19 +2975,26 @@ socket.on("action_made", (payload) => {
   endUiRequest("action");
   state.currentTurnPlayerId = null;
   state.validActions = [];
+  state.endgameWindow = false;
   state.actionDeadline = null;
   state.turnId = null;
   if (Array.isArray(payload.playerChips)) state.players = payload.playerChips;
-  if (typeof payload.pot === "number") state.pot = payload.pot;
-  const presentedAction = payload.declaredAction === "allin" ? "allin" : payload.action;
+  if (payload.pot === null && state.chipViewHidden) state.pot = null;
+  else if (typeof payload.pot === "number") state.pot = payload.pot;
+  const presentedAction = payload.forcePublicAllIn
+    ? "allin"
+    : payload.declaredAction === "allin" && (!state.chipViewHidden || payload.playerId === state.playerId)
+      ? "allin"
+      : payload.action;
   const label = ACTION_LABELS[presentedAction] || presentedAction;
   logAction("玩家 " + payload.playerId + " · " + label + (payload.amount ? " " + payload.amount : ""));
   if (["call", "raise", "allin"].includes(payload.action) && payload.amount > 0) {
     flyChip(payload.playerId);
     playTone("chips");
   }
-  if (presentedAction === "allin" || payload.action === "allin") playAllInEffect(payload.playerId);
-  else playTone(payload.action);
+  if ((presentedAction === "allin" || payload.forcePublicAllIn) && (!state.chipViewHidden || payload.forcePublicAllIn || payload.playerId === state.playerId)) {
+    playAllInEffect(payload.playerId);
+  } else playTone(payload.action);
   renderState();
 });
 socket.on("hand_result", queueHandSettlement);
@@ -3089,13 +3186,13 @@ function renderSkillDraft() {
   el.draftLoadMeter.textContent = load + " / 8 · " + draftIds.length + " / 4";
   el.draftStatus.textContent = confirmed
     ? "构筑已确认，等待对手…"
-    : "选择 2–4 个技能，总负载不超过 8。";
+    : `选择 ${state.skillConfig.minEquipped ?? 1}–${state.skillConfig.maxEquipped || 4} 个技能，总负载不超过 8。`;
   el.btnConfirmLoadout.disabled =
     confirmed ||
     !socket.connected ||
     state.uiPending.loadout ||
-    state.selectedLoadout.length < 2 ||
-    state.selectedLoadout.length > 4 ||
+    state.selectedLoadout.length < (state.skillConfig.minEquipped ?? 1) ||
+    state.selectedLoadout.length > (state.skillConfig.maxEquipped || 4) ||
     load > 8;
   el.btnConfirmLoadout.classList.toggle("hidden", confirmed);
   el.skillCatalog.textContent = "";
@@ -3138,8 +3235,8 @@ function skillAvailability(def, skills, me) {
   else if (Number(skills?.abyssEnergy || 0) < 0) reason = "负能量时不能发动";
   else if (skills?.lockedThisHand || state.skillState?.fairnessActive) reason = "本手技能已封锁";
   else if (Array.isArray(def.allowedPhases) && def.allowedPhases.length && !def.allowedPhases.includes(state.phase)) reason = "当前阶段不可用";
-  else if (def.requiresActionTurn && state.currentTurnPlayerId !== state.playerId) reason = "等待你的行动回合";
-  else if (def.requiresActionTurn && me?.isAllIn) reason = "All In 后没有下注行动回合";
+  else if (def.requiresActionTurn && state.currentTurnPlayerId !== state.playerId && !(def.id === "ENDGAME" && state.skillState?.endgameWindow?.playerId === state.playerId)) reason = "等待你的行动回合";
+  else if (def.requiresActionTurn && me?.isAllIn && !(def.id === "ENDGAME" && state.skillState?.endgameWindow?.playerId === state.playerId)) reason = "All In 后没有下注行动回合";
   else if (def.requiresFirstSkillEvent && Number(skills?.skillEventsThisHand || 0) > 0) reason = "必须是本手第一个技能事件";
   else if (def.maxUsesPerHand != null && handUsed >= def.maxUsesPerHand) reason = "本手次数已用完";
   else if (def.maxUsesPerGame != null && gameUsed >= def.maxUsesPerGame) reason = "本场次数已用完";
@@ -3331,6 +3428,37 @@ function useSkill(skillId) {
       target: { mode: "board", boardIndex },
     }));
     return openSkillTargetOptions({ skillId, title: "零化", text: "选择模式与目标。双方可以点同一张公共牌。", options });
+  }
+  if (skillId === "LOAN") {
+    const self = state.skillSelf || getMe()?.skills || {};
+    const chipUses = Number(self.loanChipUsesThisHand || 0);
+    const energyUses = Number(self.loanEnergyUsesThisHand || 0);
+    const chipLeft = Math.max(0, 2 - chipUses);
+    const energyLeft = Math.max(0, 1 - energyUses);
+    const options = [];
+    if (chipLeft > 0) {
+      options.push({
+        label: `筹码贷款：立即取得 100，下一手结束偿还 150（公开，本手还可 ${chipLeft} 次）`,
+        target: { mode: "chip" },
+        tone: "intel",
+      });
+    }
+    if (energyLeft > 0) {
+      options.push({
+        label: "能量贷款：立即 +5 能量，下一手结束偿还 6（秘密，本手 1 次）",
+        target: { mode: "energy" },
+      });
+    }
+    if (!options.length) {
+      showToast("本手贷款次数已用完", "error");
+      return;
+    }
+    return openSkillTargetOptions({
+      skillId,
+      title: "贷款",
+      text: "支付前锁定分支。同一手：筹码最多 2 次，能量最多 1 次。",
+      options,
+    });
   }
   if (skillId === "DESTINY") {
     const options = [];

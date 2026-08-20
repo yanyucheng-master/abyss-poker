@@ -1,4 +1,4 @@
-/* Abyss Hold'em — responsive neon terminal skin */
+/* 超限德州 / OVERLIMIT: HOLD'EM — responsive neon terminal skin */
 :root {
   color-scheme: dark;
   --void-0: #02030a;
@@ -2622,6 +2622,16 @@ body:has(#screen-skill-lab.skill-lab-screen.active) .app-shell {
 
 #screen-game .primary-actions {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#screen-game .endgame-window-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#screen-game .endgame-window-actions.hidden {
+  display: none;
 }
 
 #screen-game .primary-actions .action-button.hidden {
@@ -5849,5 +5859,39 @@ body.low-performance .hand-settle-modal {
 #skill-silence-flag {
   color: #f472b6;
   font-weight: 700;
+}
+
+.flash-endgame {
+  z-index: 80;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 214, 102, 0.28), transparent 24%),
+    radial-gradient(circle at 50% 50%, rgba(120, 20, 40, 0.55), #050308 72%);
+}
+
+.flash-endgame .endgame-lockup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.flash-endgame .endgame-text {
+  font-family: "Noto Sans SC", var(--font-display), sans-serif;
+  font-size: clamp(3.2rem, 12vw, 7rem);
+  font-weight: 900;
+  letter-spacing: 0.28em;
+  color: #ffe7a8;
+  text-shadow:
+    0 0 12px rgba(255, 210, 90, 0.95),
+    0 0 36px rgba(255, 80, 60, 0.8),
+    0 0 64px rgba(160, 20, 40, 0.7);
+}
+
+.chip-view-hidden .self-chips,
+.chip-view-hidden .opponent-chips,
+.chip-view-hidden .pot-value,
+.chip-view-hidden .self-bet,
+.chip-view-hidden .opponent-bet {
+  font-variant-numeric: tabular-nums;
 }
 

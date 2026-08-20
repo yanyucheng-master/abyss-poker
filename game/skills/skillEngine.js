@@ -31,6 +31,15 @@ const {
   recordPaidFailure,
   canTriggerNewSkillEvent,
   equippedProtocols,
+  isChipViewHiddenFor,
+  addDirectChipGain,
+  expireLoanDebtsForRoom,
+  isMatchOverForLoan,
+  loanReuseBlocked,
+  maskLoanPublicSummary,
+  addChipLoanTranche,
+  listChipLoans,
+  syncChipLoanState,
 } = require("./skillState");
 const {
   FORTUNE_COMBOS,
@@ -40,6 +49,7 @@ const {
   scoreHeroBoard,
 } = require("./fortuneConfig");
 const { buildPerceptionFacts, pickPerceptionStatement } = require("./perceptionFacts");
+const { shuffle } = require("../../utils/shuffle");
 
 const ACTIVE_PHASES = new Set(["pre_flop", "flop", "turn", "river"]);
 const CARD_CODE_RE = /^[SHCD](?:[2-9TJQKA])$/;
@@ -65,6 +75,16 @@ function opponentOf(room, player) {
 
 function contributionFor(player) {
   return Math.max(0, Number(player?.totalBet) || 0);
+}
+
+function isHiddenActiveEvent(skill, target = {}, result = {}) {
+  if (result.secret === true) return true;
+  if (result.secret === false) return false;
+  if (skill?.visibility === "PUBLIC") return false;
+  if (skill?.visibility === "SECRET") return true;
+  if (skill?.id === "LOAN") return String(target.mode || target.branch || "").toLowerCase() !== "chip";
+  if (skill?.id === "CHEAT") return String(target.zone || "").toLowerCase() !== "community";
+  return skill?.visibility === "MIXED";
 }
 
 function getDisadvantageSeverity(room, player) {
@@ -280,6 +300,7 @@ const CLEARED_PUBLIC_EFFECTS = new Set([
   "DEAD_END",
   "DEFENSE",
   "COUNTER",
+  "DISGUISE",
 ]);
 
 function clearPersistentSkillState(room) {
@@ -300,6 +321,14 @@ function clearPersistentSkillState(room) {
     runtime.defenseRevealed = false;
     runtime.deadEndActive = false;
     runtime.topSecretActive = false;
+    runtime.retreatActive = false;
+    runtime.probeActive = false;
+    runtime.disguiseActive = false;
+    runtime.chipLoan = null;
+    runtime.chipLoans = [];
+    runtime.energyLoan = null;
+    runtime.energyDebt = 0;
+    runtime.chipDebt = 0;
     runtime.confirmedPublicSkills = (runtime.confirmedPublicSkills || [])
       .filter((id) => !CLEARED_PUBLIC_EFFECTS.has(id));
   });
@@ -343,11 +372,10 @@ class SkillEngine {
 
   broadcastSkillState(room) {
     if (!isSkillEnabled(room.skillMode)) return;
-    const roomSnapshot = getPublicRoomSkillSnapshot(room);
     room.players.forEach((viewer) => {
       this.emitToPlayer(viewer, "skill:state", {
         skillMode: room.skillMode,
-        room: roomSnapshot,
+        room: getPublicRoomSkillSnapshot(room, viewer),
         self: getSelfSkillSummary(viewer),
         players: room.players.map((player) => ({
           playerId: player.playerId,
@@ -387,8 +415,34 @@ class SkillEngine {
       publicSummary: options.publicSummary || `${player.name} 发动「${skill.name}」`,
       publicData: options.publicData || null,
     };
-    if (secret) this.emitToPlayer(player, "skill:resolved", payload);
-    else this.emitToRoom(room, "skill:resolved", payload);
+    if (secret) {
+      this.emitToPlayer(player, "skill:resolved", payload);
+      return;
+    }
+    room.players.forEach((viewer) => {
+      const next = { ...payload };
+      if (skill.id === "LOAN" && isChipViewHiddenFor(room, viewer)) {
+        next.publicSummary = maskLoanPublicSummary({
+          skillId: "LOAN",
+          casterId: player.playerId,
+          publicSummary: next.publicSummary,
+        }, room, viewer).publicSummary;
+        if (next.publicData && typeof next.publicData === "object") {
+          const publicData = { ...next.publicData };
+          if (Object.prototype.hasOwnProperty.call(publicData, "take")) publicData.take = null;
+          if (Object.prototype.hasOwnProperty.call(publicData, "kill")) publicData.kill = null;
+          if (Object.prototype.hasOwnProperty.call(publicData, "repay")) publicData.repay = null;
+          next.publicData = publicData;
+        }
+      }
+      if (isChipViewHiddenFor(room, viewer) && next.publicData && typeof next.publicData === "object") {
+        const publicData = { ...next.publicData };
+        if (Object.prototype.hasOwnProperty.call(publicData, "confiscated")) publicData.confiscated = null;
+        if (Object.prototype.hasOwnProperty.call(publicData, "take")) publicData.take = null;
+        next.publicData = publicData;
+      }
+      this.emitToPlayer(viewer, "skill:resolved", next);
+    });
   }
 
   tryActivateTopSecret(room, defender, { requestId } = {}) {
@@ -478,6 +532,11 @@ class SkillEngine {
     if (!isSkillEnabled(room.skillMode)) return;
     revealNullifications(room);
     const fairness = Boolean(room.skillState?.fairnessActive);
+    if (isMatchOverForLoan(room)) this.expireLoanDebts(room);
+    else {
+      this.applyLoanRepayments(room);
+      if (isMatchOverForLoan(room)) this.expireLoanDebts(room);
+    }
     room.players.forEach((player) => {
       const runtime = player.skillRuntime;
       if (!runtime) return;
@@ -498,7 +557,9 @@ class SkillEngine {
           });
         }
         const lost = !tie && winner && winner.playerId !== player.playerId;
-        if (lost) gainEnergy(player, SKILL_CONFIG.ENERGY_LOSER_GAIN);
+        if (lost && !runtime.retreatTriggered && reason !== "retreat") {
+          gainEnergy(player, SKILL_CONFIG.ENERGY_LOSER_GAIN);
+        }
         if (!tie && winner?.playerId === player.playerId && runtime.desperationActive) {
           gainEnergy(player, 1);
         }
@@ -522,8 +583,10 @@ class SkillEngine {
     if (["folded", "out", "disconnected"].includes(player.status)) return { ok: false, error: "当前已退出本手" };
     if (skill.allowedPhases.length && !skill.allowedPhases.includes(room.phase)) return { ok: false, error: "当前阶段不可发动该技能" };
     if (skill.requiresActionTurn) {
+      const window = room.skillState?.endgameWindow;
+      const endgameWindowTurn = skill.id === "ENDGAME" && window?.playerId === player.playerId;
       const current = room.players[room.currentPlayerIndex];
-      if (!current || current.playerId !== player.playerId || player.isAllIn) {
+      if (!endgameWindowTurn && (!current || current.playerId !== player.playerId || player.isAllIn)) {
         return { ok: false, error: "该技能只能在你的下注行动回合发动" };
       }
     }
@@ -600,6 +663,41 @@ class SkillEngine {
         if (!pool.length) return { ok: false, error: "当前没有可暗抽的非顶部牌" };
       }
     }
+    if (skill.id === "LOAN") {
+      const mode = String(target.mode || target.branch || "").toLowerCase();
+      if (!["chip", "energy"].includes(mode)) return { ok: false, error: "请选择筹码贷款或能量贷款" };
+      const runtimeLoan = player.skillRuntime;
+      if (loanReuseBlocked(player)) {
+        return { ok: false, error: "贷款债务尚未清偿" };
+      }
+      const chipUses = Math.max(0, Number(runtimeLoan.loanChipUsesThisHand) || 0);
+      const energyUses = Math.max(0, Number(runtimeLoan.loanEnergyUsesThisHand) || 0);
+      if (mode === "chip" && chipUses >= SKILL_CONFIG.LOAN_CHIP_MAX_USES_PER_HAND) {
+        return { ok: false, error: "本手筹码贷款已用完" };
+      }
+      if (mode === "energy" && energyUses >= SKILL_CONFIG.LOAN_ENERGY_MAX_USES_PER_HAND) {
+        return { ok: false, error: "本手能量贷款已用完" };
+      }
+      if (mode === "energy" && runtimeLoan.energyLoan) return { ok: false, error: "已有未偿还的能量贷款" };
+      if (mode === "chip" && !opponentOf(room, player)) return { ok: false, error: "没有可贷款的对手" };
+    }
+    if (skill.id === "RESTART") {
+      if (!player.cards || player.cards.length !== 2) return { ok: false, error: "底牌尚未就绪" };
+    }
+    if (skill.id === "ENDGAME") {
+      const window = room.skillState?.endgameWindow;
+      const inWindow = window?.playerId === player.playerId;
+      if (room.skillState?.endgameActive) return { ok: false, error: "终局已经发动" };
+      if (room.skillState?.bettingClosed) return { ok: false, error: "本手下注阶段已关闭" };
+    }
+    if (room.skillState?.endgameWindow) {
+      if (skill.id !== "ENDGAME" || room.skillState.endgameWindow.playerId !== player.playerId) {
+        return { ok: false, error: "当前只能响应终局" };
+      }
+    }
+    if (room.skillState?.bettingClosed && skill.id !== "ENDGAME") {
+      return { ok: false, error: "本手下注阶段已关闭" };
+    }
     return { ok: true, skill, cost };
   }
 
@@ -622,6 +720,14 @@ class SkillEngine {
     room.skillState.processedRequestIds.add(requestId);
     markSkillUse(player, skill.id);
     markSkillEvent(player, skill.id);
+    if (skill.id === "LOAN") {
+      const mode = String(target.mode || target.branch || "").toLowerCase();
+      if (mode === "chip") {
+        player.skillRuntime.loanChipUsesThisHand = (Number(player.skillRuntime.loanChipUsesThisHand) || 0) + 1;
+      } else if (mode === "energy") {
+        player.skillRuntime.loanEnergyUsesThisHand = (Number(player.skillRuntime.loanEnergyUsesThisHand) || 0) + 1;
+      }
+    }
 
     const opponent = opponentOf(room, player);
     if (skill.canBeCountered !== false && opponent?.skillRuntime?.counterArmed) {
@@ -645,6 +751,7 @@ class SkillEngine {
         publicSummary: `${opponent.name} 的「反制」生效`,
       });
       this.notifyPrivate(player, { skillId: skill.id, message: "技能被反制；本手后续主动与新的被动技能事件已封锁。" });
+      this.observeAlert(room, player, skill, target, { status: "COUNTERED" });
       this.broadcastSkillState(room);
       this.gameEngine?.broadcastRoomState(room);
       return { ok: true, status: "COUNTERED" };
@@ -706,7 +813,10 @@ class SkillEngine {
     }
     this.broadcastSkillState(room);
     this.gameEngine?.broadcastRoomState(room);
+    this.observeAlert(room, player, skill, target, result);
     if (result.commitAllIn) this.commitDeclaredAllIn(room, player);
+    if (result.loanKill) this.gameEngine?.settleLoanKill?.(room, player, opponent);
+    if (result.endgameContinue) this.gameEngine?.continueAfterEndgame?.(room);
     return { ok: true, status: result.status || "SUCCESS" };
   }
 
@@ -769,6 +879,22 @@ class SkillEngine {
         return this.resolveNullification(room, player, opponent, target, requestId, cost);
       case "DESTINY":
         return this.resolveDestiny(room, player, opponent, target, requestId, cost);
+      case "LOAN":
+        return this.resolveLoan(room, player, opponent, target);
+      case "RETREAT":
+        runtime.retreatActive = true;
+        return { secret: true, publicSummary: "秘密技能已结算", persistent: true, pending: true, privateResult: { message: "撤退已秘密生效。" } };
+      case "RESTART":
+        return this.resolveRestart(room, player);
+      case "PROBE":
+        runtime.probeActive = true;
+        return { secret: true, publicSummary: "秘密技能已结算", persistent: true, pending: true, privateResult: { message: "试探已秘密生效。" } };
+      case "DISGUISE":
+        runtime.disguiseActive = true;
+        confirmPublicSkill(player, "DISGUISE");
+        return { publicSummary: `${player.name} 发动「伪装」`, persistent: true };
+      case "ENDGAME":
+        return this.resolveEndgame(room, player, opponent);
       default:
         throw new Error("技能尚未接入结算器");
     }
@@ -1022,6 +1148,212 @@ class SkillEngine {
     };
   }
 
+  resolveLoan(room, player, opponent, target) {
+    const mode = String(target.mode || target.branch || "").toLowerCase();
+    const runtime = player.skillRuntime;
+    if (mode === "energy") {
+      const gained = gainEnergy(player, SKILL_CONFIG.LOAN_ENERGY_GAIN);
+      runtime.energyLoan = { repay: SKILL_CONFIG.LOAN_ENERGY_REPAY, skipCurrentEnd: true };
+      return {
+        secret: true,
+        publicSummary: "秘密技能已结算",
+        privateResult: { message: `能量贷款：立即获得 ${gained} 点能量，下一手结束偿还 ${SKILL_CONFIG.LOAN_ENERGY_REPAY}。` },
+        audit: { mode: "energy", gained, repay: SKILL_CONFIG.LOAN_ENERGY_REPAY },
+      };
+    }
+    if (!opponent) throw new Error("没有可贷款的对手");
+    const take = Math.min(SKILL_CONFIG.LOAN_CHIP_TAKE, Math.max(0, Number(opponent.chips) || 0));
+    opponent.chips -= take;
+    player.chips += take;
+    addDirectChipGain(player, take);
+    addDirectChipGain(opponent, -take);
+    addChipLoanTranche(runtime, {
+      repay: SKILL_CONFIG.LOAN_CHIP_REPAY,
+      lenderId: opponent.playerId,
+      skipCurrentEnd: true,
+    });
+    confirmPublicSkill(player, "LOAN");
+    const kill = opponent.chips <= 0;
+    return {
+      secret: false,
+      publicSummary: kill
+        ? `${player.name} 发动「贷款」并完成斩杀`
+        : `${player.name} 发动「贷款」：取得 ${take} 筹码`,
+      audit: { mode: "chip", take, kill },
+      loanKill: kill,
+      publicData: { mode: "chip", take, kill },
+    };
+  }
+
+  resolveRestart(room, player) {
+    const original = (player.cards || []).map(cloneCard);
+    if (original.length !== 2) throw new Error("底牌尚未就绪");
+    const snapshot = snapshotZones(room);
+    const pool = [...(room.deck || []), ...original];
+    const randomInt = (max) => Math.min(max - 1, Math.floor(this.random() * max));
+    const shuffled = shuffle(pool, randomInt);
+    player.cards = [shuffled.pop(), shuffled.pop()];
+    room.deck = shuffled;
+    if (!zonesAreUnique(room) || player.cards.length !== 2) {
+      restoreZones(room, snapshot);
+      throw new Error("牌张守恒校验失败");
+    }
+    room.skillState.transformations.push({
+      at: Date.now(),
+      skillId: "RESTART",
+      casterId: player.playerId,
+      from: original.map((card) => card.code),
+      to: player.cards.map((card) => card.code),
+    });
+    return {
+      secret: true,
+      publicSummary: "秘密技能已结算",
+      privateResult: {
+        message: `重启完成：${original.map((card) => card.code).join(" ")} → ${player.cards.map((card) => card.code).join(" ")}`,
+        from: original,
+        to: player.cards.map(cloneCard),
+      },
+      cardsChanged: true,
+      cardMutationCompleted: true,
+      audit: {
+        from: original.map((card) => card.code),
+        to: player.cards.map((card) => card.code),
+        sameAsOriginal: original.every((card, index) => card.code === player.cards[index]?.code)
+          || (original.some((card) => player.cards.some((next) => next.code === card.code))
+            && original.every((card) => player.cards.some((next) => next.code === card.code))),
+      },
+    };
+  }
+
+  resolveEndgame(room, player, opponent) {
+    const matched = Math.min(contributionFor(player), contributionFor(opponent));
+    const ownerUnmatched = Math.max(0, contributionFor(player) - matched);
+    const unmatched = Math.max(0, contributionFor(opponent) - matched);
+    const execution = Number(opponent?.chips || 0) <= 0;
+    if (unmatched > 0) {
+      opponent.totalBet -= unmatched;
+      opponent.streetBet = Math.max(0, opponent.streetBet - unmatched);
+      room.pot = Math.max(0, room.pot - unmatched);
+      player.chips += unmatched;
+      addDirectChipGain(player, unmatched);
+    }
+    room.skillState.bettingClosed = true;
+    room.skillState.endgameActive = {
+      casterId: player.playerId,
+      execution,
+      confiscated: unmatched,
+      ownerUnmatched,
+      transferKind: "DIRECT_SKILL_CHIP_TRANSFER",
+    };
+    room.skillState.endgameWindow = null;
+    room.skillState.endgameWindowResolved = true;
+    confirmPublicSkill(player, "ENDGAME");
+    return {
+      publicSummary: execution
+        ? `${player.name} 宣告「终局」：进入处决`
+        : `${player.name} 宣告「终局」`,
+      persistent: true,
+      endgameContinue: true,
+      publicData: {
+        endgame: true,
+        execution,
+        confiscated: unmatched,
+      },
+      audit: { matched, unmatched, execution },
+    };
+  }
+
+  observeAlert(room, caster, skill, target = {}, result = {}) {
+    const observer = opponentOf(room, caster);
+    if (!observer || !hasEquipped(observer, "ALERT")) return;
+    if (!canTriggerNewSkillEvent(observer, "ALERT", room)) return;
+    if (!isActiveSkill(skill)) return;
+    if (!isHiddenActiveEvent(skill, target, result)) return;
+    const runtime = observer.skillRuntime;
+    const ladder = SKILL_CONFIG.ALERT_CHANCES;
+    const index = Math.max(0, Math.min(ladder.length - 1, Number(runtime.alertChanceIndex) || 0));
+    const chance = ladder[index];
+    if (this.random() < chance) {
+      runtime.alertChanceIndex = 0;
+      if (!runtime.alertPromptedThisHand) runtime.alertPromptPending = true;
+      this.recordSkill(room, observer, getSkillDefinition("ALERT"), {
+        status: "TRIGGERED",
+        secret: true,
+        kind: "passive",
+        publicSummary: "秘密技能已结算",
+        audit: { chance, success: true },
+      });
+      markSkillEvent(observer, "ALERT");
+      return;
+    }
+    runtime.alertChanceIndex = Math.min(ladder.length - 1, index + 1);
+    this.recordSkill(room, observer, getSkillDefinition("ALERT"), {
+      status: "MISSED",
+      secret: true,
+      kind: "passive",
+      publicSummary: "秘密技能已结算",
+      audit: { chance, success: false, nextIndex: runtime.alertChanceIndex },
+    });
+    markSkillEvent(observer, "ALERT");
+  }
+
+  onBettingDecisionStart(room, player) {
+    const runtime = player?.skillRuntime;
+    if (!runtime?.alertPromptPending || runtime.alertPromptedThisHand) return;
+    runtime.alertPromptPending = false;
+    runtime.alertPromptedThisHand = true;
+    this.notifyPrivate(player, {
+      skillId: "ALERT",
+      message: SKILL_CONFIG.ALERT_MESSAGE,
+    });
+  }
+
+  expireLoanDebts(room) {
+    expireLoanDebtsForRoom(room);
+  }
+
+  applyLoanRepayments(room) {
+    room.players.forEach((player) => {
+      const runtime = player.skillRuntime;
+      if (!runtime) return;
+      if (runtime.energyLoan) {
+        if (runtime.energyLoan.skipCurrentEnd) {
+          runtime.energyLoan.skipCurrentEnd = false;
+        } else {
+          const due = Math.max(0, Number(runtime.energyLoan.repay) || 0);
+          const available = Math.max(0, Number(runtime.abyssEnergy) || 0);
+          const paid = Math.min(available, due);
+          runtime.abyssEnergy -= paid;
+          const remain = due - paid;
+          if (remain > 0) runtime.energyDebt = (Number(runtime.energyDebt) || 0) + remain;
+          runtime.energyLoan = null;
+        }
+      }
+      const chipLoans = listChipLoans(runtime);
+      const remaining = [];
+      chipLoans.forEach((loan) => {
+        if (loan.skipCurrentEnd) {
+          remaining.push({ ...loan, skipCurrentEnd: false });
+          return;
+        }
+        const lender = room.players.find((candidate) => candidate.playerId === loan.lenderId)
+          || opponentOf(room, player);
+        const due = Math.max(0, Number(loan.repay) || 0);
+        const paid = Math.min(Math.max(0, Number(player.chips) || 0), due);
+        player.chips -= paid;
+        if (lender) {
+          lender.chips += paid;
+          addDirectChipGain(lender, paid);
+        }
+        addDirectChipGain(player, -paid);
+        const remain = due - paid;
+        if (remain > 0) runtime.chipDebt = (Number(runtime.chipDebt) || 0) + remain;
+      });
+      runtime.chipLoans = remaining;
+      syncChipLoanState(runtime);
+    });
+  }
+
   applyHoleFortune(room) {
     if (!isSkillEnabled(room.skillMode)) return [];
     const triggered = [];
@@ -1260,7 +1592,16 @@ class SkillEngine {
     if (!isSkillEnabled(room.skillMode) || tie || !winner) return details;
     const loser = opponentOf(room, winner);
     if (!loser) return details;
-    const baseTransfer = Math.max(0, winner.chips - (winner.skillRuntime?.handStartChips || winner.chips));
+    const directGain = Number(winner.skillRuntime?.directChipGainThisHand) || 0;
+    let baseTransfer = Math.max(0, winner.chips - (winner.skillRuntime?.handStartChips || winner.chips) - directGain);
+    if (
+      reason === "fold"
+      && winner.skillRuntime?.probeActive
+      && !loser.skillRuntime?.retreatTriggered
+    ) {
+      baseTransfer += SKILL_CONFIG.PROBE_FOLD_BONUS;
+      details.effects.push({ skillId: "PROBE", amount: SKILL_CONFIG.PROBE_FOLD_BONUS, source: "self" });
+    }
     let selfSkillMultiplier = 1;
     let opponentSkillMultiplier = 1;
 
@@ -1391,4 +1732,7 @@ module.exports = {
   validateLoadout,
   listSkillDefinitions,
   evaluationExcludedCodes,
+  isChipViewHiddenFor,
+  expireLoanDebtsForRoom,
+  isMatchOverForLoan,
 };

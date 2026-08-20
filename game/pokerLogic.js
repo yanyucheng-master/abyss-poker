@@ -19,6 +19,8 @@ function isContributionCapped(room, player) {
 
 function isActionablePlayer(room, player) {
   if (!player) return false;
+  if (room?.skillState?.bettingClosed) return false;
+  if (room?.skillState?.endgameWindow) return false;
   if (!["active", "disconnected"].includes(player.status)) return false;
   if (player.isAllIn) return false;
   if (isContributionCapped(room, player)) return false;
@@ -57,7 +59,7 @@ function getMinRaiseTo(room) {
 function getValidActions(room, playerIndex) {
   const player = room.players[playerIndex];
   const opponent = room.players[otherIndex(playerIndex)];
-  if (!player || !opponent || player.status !== "active" || player.isAllIn || isContributionCapped(room, player)) {
+  if (!player || !opponent || player.status !== "active" || player.isAllIn || isContributionCapped(room, player) || room.skillState?.bettingClosed || room.skillState?.endgameWindow) {
     return { validActions: [], minRaiseTo: 0, maxTotalBet: 0, toCall: 0 };
   }
   const toCall = getToCall(room, player);

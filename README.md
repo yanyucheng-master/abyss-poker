@@ -1,4 +1,4 @@
-# 深渊德州（Abyss Poker）
+# 超限德州（OVERLIMIT: HOLD'EM）
 
 网页端双人实时联机 Texas Hold'em 游戏。项目采用服务端权威架构，支持标准局、高爆局、人机测试、断线重连、行动倒计时、再来一局和牌堆承诺验证。
 
@@ -54,10 +54,11 @@ npm run simulate:skills
 
 ### 深渊技能（ABYSS）
 
-- 负载上限 8，装备 2–4 个技能，开局前构筑，开局后不可更换。
-- 初始深渊能量 4，上限 10；每手恢复 1；摊牌失败者额外 +1（主动弃牌无补偿）。
-- 首发 12 技能：被动资源、情报、防御、反制、底牌/牌序/公共牌改写。
-- 每手最多成功一次牌面改写；反制窗口由服务器权威计时。
+- 负载上限 8，可装备 1–4 个技能，开局前构筑，开局后不可更换。
+- 初始能量 4，通常上限 8；装备「天命」时个人上限为 10。
+- 手牌结束：胜者 +0 能量，败者 +1，普通 Fold 按败者处理，平局 +0。
+- 首发 **24 个主体技能 + 9 个协议**。感知与强运概率已冻结（FROZEN_V1）。
+- 对手开局不知道你的技能数量、总负载及具体构筑。
 - 高爆局已锁定牌堆后，技能只能在其上抽/烧/移除/零化，不会重新生成候选。
 - 牌堆承诺：`SHA-256(handId + dealMode + skillMode + serializedDeck + nonce)`。
 
@@ -229,7 +230,7 @@ game/gameEngine.js             服务端权威牌局状态机
 game/gameModes.js              发牌模式常量
 game/skillModes.js             技能模式常量
 game/skillConfig.js            能量/负载配置
-game/skills/definitions.js     首发 12 技能定义
+game/skills/definitions.js     首发 24 主体技能 + 9 协议定义
 game/skills/skillState.js      技能运行时状态
 game/skills/skillEngine.js     技能校验、反制、结算
 game/candidateScorer.js        高爆候选评分

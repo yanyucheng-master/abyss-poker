@@ -78,20 +78,27 @@ function weakHole() {
 }
 
 describe("技能目录、构筑与隐私", () => {
-  test("目录包含 17 个基础技能与 9 个协议，并提供新手/专家说明", () => {
+  test("目录包含 24 个主体技能与 9 个协议，并提供新手/专家说明", () => {
     const catalog = listSkillDefinitions();
-    expect(catalog).toHaveLength(26);
-    expect(catalog.map((skill) => skill.id).slice(0, 17)).toEqual([
+    expect(catalog).toHaveLength(33);
+    expect(catalog.map((skill) => skill.id).slice(0, 24)).toEqual([
       "DEEP_BREATH", "RECYCLE", "INTIMIDATION", "DESPERATION", "BLOOD_BATTLE",
       "DEFENSE", "PERCEPTION", "INTEL_ONE", "TOP_SECRET", "COUNTER", "FAIRNESS",
       "CHEAT", "DEAD_END", "CLAIRVOYANCE", "NULLIFICATION", "FORTUNE", "DESTINY",
+      "LOAN", "ALERT", "RETREAT", "RESTART", "PROBE", "DISGUISE", "ENDGAME",
     ]);
     expect(catalog.filter((skill) => skill.id.startsWith("PROTOCOL_"))).toHaveLength(9);
     const destiny = catalog.find((skill) => skill.id === "DESTINY");
     expect(destiny).toMatchObject({ load: 5, energyCost: 7, maxUsesPerHand: null });
     expect(destiny.shortDescription).toBeTruthy();
     expect(destiny.expertDescription).toContain("能量上限");
-    expect(catalog.find((skill) => skill.id === "FAIRNESS").canBeCountered).toBe(false);
+    expect(catalog.find((skill) => skill.id === "FAIRNESS")).toMatchObject({
+      load: 4, energyCost: 3, canBeCountered: false,
+    });
+    expect(catalog.find((skill) => skill.id === "ENDGAME")).toMatchObject({
+      load: 6, energyCost: 8, visibility: "PUBLIC", canBeCountered: true,
+    });
+    expect(validateLoadout(["ENDGAME", "DEEP_BREATH"])).toMatchObject({ ok: true, totalLoad: 7 });
   });
 
   test("构筑最多 4 个技能且总负载不超过 8", () => {
@@ -100,13 +107,16 @@ describe("技能目录、构筑与隐私", () => {
     expect(validateLoadout(["PROTOCOL_PAIR", "PROTOCOL_TWO_PAIR", "PROTOCOL_TRIPS", "PROTOCOL_FLUSH"])).toMatchObject({
       ok: true, totalLoad: 4,
     });
-    expect(validateLoadout(["DESTINY"])).toMatchObject({ ok: false });
+    expect(validateLoadout(["DESTINY"])).toMatchObject({ ok: true, totalLoad: 5 });
+    expect(validateLoadout(["ENDGAME"])).toMatchObject({ ok: true, totalLoad: 6 });
+    expect(validateLoadout([])).toMatchObject({ ok: false });
     expect(validateLoadout(["RECYCLE", "RECYCLE"])).toMatchObject({ ok: false });
     expect(validateLoadout(["RECYCLE", "OLD_SKILL"])).toMatchObject({ ok: false });
     expect(validateLoadout([
       "DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE", "PERCEPTION",
     ]).ok).toBe(false);
-    expect(validateLoadout(["CHEAT", "NULLIFICATION"]).ok).toBe(false);
+    expect(validateLoadout(["FAIRNESS", "CHEAT"]).ok).toBe(false);
+    expect(validateLoadout(["FAIRNESS", "COUNTER"])).toMatchObject({ ok: true, totalLoad: 8 });
   });
 
   test("公开快照隐藏构筑与技能数量，不暴露天命 10 点上限", () => {
@@ -226,8 +236,8 @@ describe("能量、深呼吸、回收与公平", () => {
 
   test("公平清除反制、防守、血战、零化，但不回滚已完成的千术与天命", () => {
     const { engine, room, a, b } = setupRoom({
-      loadoutA: ["FAIRNESS", "CHEAT"],
-      loadoutB: ["COUNTER", "DEFENSE"],
+      loadoutA: ["CHEAT", "RECYCLE"],
+      loadoutB: ["FAIRNESS", "COUNTER"],
     });
     a.skillRuntime.abyssEnergy = 8;
     b.skillRuntime.counterArmed = false;
@@ -243,15 +253,16 @@ describe("能量、深呼吸、回收与公平", () => {
     expect(use(engine, room, a, "CHEAT", { ownIndex: 0, zone: "community", index: 0 }, "cheat-then-fair")).toMatchObject({ status: "SUCCESS" });
     expect(a.cards[0].code).toBe(board.code);
     b.skillRuntime.counterArmed = true;
-    a.skillRuntime.abyssEnergy = 8;
-    expect(use(engine, room, a, "FAIRNESS", {}, "fair-clear")).toMatchObject({ status: "SUCCESS" });
+    b.skillRuntime.abyssEnergy = 8;
+    room.currentPlayerIndex = 1;
+    expect(use(engine, room, b, "FAIRNESS", {}, "fair-clear")).toMatchObject({ status: "SUCCESS" });
     expect(b.skillRuntime.counterArmed).toBe(false);
     expect(b.skillRuntime.defenseActive).toBe(false);
     expect(a.skillRuntime.bloodBattleActive).toBe(false);
     expect(room.skillState.nullifications).toEqual([]);
     expect(a.cards[0].code).toBe(board.code);
     expect(room.communityCards[0].code).toBe(own.code);
-    expect(getPublicSkillSummary(a).publicEffects).toContain("FAIRNESS");
+    expect(getPublicSkillSummary(b).publicEffects).toContain("FAIRNESS");
     expect(getPublicSkillSummary(a).publicEffects).not.toContain("BLOOD_BATTLE");
     expect(getPublicSkillSummary(a).publicEffects).not.toContain("INTIMIDATION");
   });
@@ -640,13 +651,18 @@ describe("强运、天命与协议", () => {
   });
 
   test("天命在转牌后立刻把合法牌移到 River 有效发牌位；公平不能回滚；失败仍扣 7", () => {
-    const { engine, room, a, b } = setupRoom({ loadoutA: ["DESTINY", "FAIRNESS"] });
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["DESTINY", "RECYCLE"],
+      loadoutB: ["FAIRNESS", "DEEP_BREATH"],
+    });
     goToStreet(engine, room, "turn", 0);
     a.skillRuntime.abyssEnergy = 10;
     expect(room.deck.some((card) => card.code === "S2")).toBe(true);
     expect(use(engine, room, a, "DESTINY", { cardCode: "S2" }, "destiny-s2")).toMatchObject({ status: "SUCCESS" });
     expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe("S2");
-    expect(use(engine, room, a, "FAIRNESS", {}, "fair-after-destiny")).toMatchObject({ status: "SUCCESS" });
+    room.currentPlayerIndex = 1;
+    b.skillRuntime.abyssEnergy = 8;
+    expect(use(engine, room, b, "FAIRNESS", {}, "fair-after-destiny")).toMatchObject({ status: "SUCCESS" });
     expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe("S2");
 
     const miss = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });

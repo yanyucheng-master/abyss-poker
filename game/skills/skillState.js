@@ -35,8 +35,23 @@ function createEmptySkillRuntime() {
     fortuneResourceUsed: false,
     foldedThisHand: false,
     handStartChips: 0,
+    directChipGainThisHand: 0,
     privateResults: [],
     confirmedPublicSkills: [],
+    chipLoan: null,
+    chipLoans: [],
+    energyLoan: null,
+    energyDebt: 0,
+    chipDebt: 0,
+    loanChipUsesThisHand: 0,
+    loanEnergyUsesThisHand: 0,
+    alertChanceIndex: 0,
+    alertPromptPending: false,
+    alertPromptedThisHand: false,
+    retreatActive: false,
+    retreatTriggered: false,
+    probeActive: false,
+    disguiseActive: false,
   };
 }
 
@@ -53,6 +68,11 @@ function createRoomSkillState() {
     contributionCap: null,
     fairnessActive: false,
     settlement: null,
+    bettingClosed: false,
+    endgameActive: null,
+    endgameWindow: null,
+    endgameWindowResolved: false,
+    callToZeroAggressorId: null,
   };
 }
 
@@ -82,35 +102,22 @@ function resetPlayerSkillsForGame(player) {
 function resetPlayerSkillsForHand(player) {
   if (!player.skillRuntime) return;
   const runtime = player.skillRuntime;
-  runtime.skillUsesThisHand = {};
-  runtime.skillEventsThisHand = 0;
-  runtime.lockedThisHand = false;
-  runtime.lockReason = null;
-  runtime.breathArmed = false;
-  runtime.breathBroken = false;
-  runtime.recycleUsedThisHand = false;
-  runtime.paidFailuresThisHand = [];
-  runtime.topSecretActive = false;
-  runtime.topSecretPaidThisHand = false;
-  runtime.topSecretRevealed = false;
-  runtime.counterArmed = false;
-  runtime.desperationActive = false;
-  runtime.bloodBattleActive = false;
-  runtime.defenseActive = false;
-  runtime.defenseRevealed = false;
-  runtime.facedAggressionThisPhase = false;
-  runtime.deadEndActive = false;
-  runtime.allInAction = false;
-  runtime.stackCommitted = false;
-  runtime.perceptionTriggerCount = 0;
-  runtime.perceptionCheckedNodes = [];
-  runtime.perceptionHistory = [];
-  runtime.fortuneRewriteCount = 0;
-  runtime.fortuneResourceUsed = false;
-  runtime.foldedThisHand = false;
+  const persist = {
+    equippedSkillIds: runtime.equippedSkillIds,
+    loadoutConfirmed: runtime.loadoutConfirmed,
+    abyssEnergy: runtime.abyssEnergy,
+    visibleAbyssEnergy: runtime.visibleAbyssEnergy,
+    skillUsesThisGame: runtime.skillUsesThisGame,
+    chipLoan: runtime.chipLoan || null,
+    chipLoans: Array.isArray(runtime.chipLoans) ? runtime.chipLoans.map((loan) => ({ ...loan })) : [],
+    energyLoan: runtime.energyLoan || null,
+    energyDebt: Math.max(0, Number(runtime.energyDebt) || 0),
+    chipDebt: Math.max(0, Number(runtime.chipDebt) || 0),
+    alertChanceIndex: Math.max(0, Number(runtime.alertChanceIndex) || 0),
+    alertPromptPending: Boolean(runtime.alertPromptPending),
+  };
+  Object.assign(runtime, createEmptySkillRuntime(), persist);
   runtime.handStartChips = Number(player.chips) || 0;
-  runtime.privateResults = [];
-  runtime.confirmedPublicSkills = [];
 }
 
 function resetRoomSkillsForHand(room) {
@@ -161,8 +168,16 @@ function gainEnergy(player, amount) {
   const runtime = player?.skillRuntime;
   const requested = Math.max(0, Math.floor(Number(amount) || 0));
   if (!runtime || requested <= 0) return 0;
+  let remaining = requested;
+  const debt = Math.max(0, Math.floor(Number(runtime.energyDebt) || 0));
+  if (debt > 0) {
+    const paid = Math.min(debt, remaining);
+    runtime.energyDebt = debt - paid;
+    remaining -= paid;
+  }
+  if (remaining <= 0) return 0;
   const before = runtime.abyssEnergy;
-  runtime.abyssEnergy = Math.min(getEnergyCap(player), before + requested);
+  runtime.abyssEnergy = Math.min(getEnergyCap(player), before + remaining);
   return runtime.abyssEnergy - before;
 }
 
@@ -214,6 +229,7 @@ function getPublicSkillSummary(player) {
       runtime.defenseRevealed ? "DEFENSE" : null,
       runtime.deadEndActive ? "DEAD_END" : null,
       runtime.topSecretRevealed ? "TOP_SECRET" : null,
+      runtime.disguiseActive ? "DISGUISE" : null,
     ].filter(Boolean).filter((id, index, list) => list.indexOf(id) === index),
   };
 }
@@ -240,15 +256,39 @@ function getSelfSkillSummary(player) {
     facedAggressionThisPhase: Boolean(runtime.facedAggressionThisPhase),
     deadEndActive: Boolean(runtime.deadEndActive),
     allInAction: Boolean(runtime.allInAction),
+    retreatActive: Boolean(runtime.retreatActive),
+    probeActive: Boolean(runtime.probeActive),
+    disguiseActive: Boolean(runtime.disguiseActive),
+    energyDebt: Math.max(0, Number(runtime.energyDebt) || 0),
+    chipDebt: Math.max(0, Number(runtime.chipDebt) || 0),
+    chipLoanPending: Boolean(listChipLoans(runtime).length),
+    energyLoanPending: Boolean(runtime.energyLoan),
+    loanChipUsesThisHand: Math.max(0, Number(runtime.loanChipUsesThisHand) || 0),
+    loanEnergyUsesThisHand: Math.max(0, Number(runtime.loanEnergyUsesThisHand) || 0),
   };
 }
 
-function getPublicRoomSkillSnapshot(room) {
+function maskLoanPublicSummary(entry, room, viewer) {
+  if (!entry || entry.skillId !== "LOAN" || !isChipViewHiddenFor(room, viewer)) return entry;
+  const caster = (room?.players || []).find((player) => player.playerId === entry.casterId);
+  return {
+    ...entry,
+    publicSummary: `${caster?.name || "玩家"} 发动「贷款」`,
+  };
+}
+
+function getPublicRoomSkillSnapshot(room, viewer = null) {
   const state = room?.skillState || createRoomSkillState();
   return {
     noFoldActive: Boolean(state.noFoldActive),
     contributionCap: state.contributionCap == null ? null : Number(state.contributionCap),
     fairnessActive: Boolean(state.fairnessActive),
+    bettingClosed: Boolean(state.bettingClosed),
+    disguiseActive: Boolean((room.players || []).some((player) => player.skillRuntime?.disguiseActive)),
+    endgameWindow: state.endgameWindow
+      ? { playerId: state.endgameWindow.playerId }
+      : null,
+    endgameActive: Boolean(state.endgameActive),
     nullifiedCommunityCardIds: (state.nullifications || [])
       .filter((entry) => entry.revealed && entry.type !== "hole")
       .map((entry) => entry.cardCode)
@@ -257,9 +297,9 @@ function getPublicRoomSkillSnapshot(room) {
     recentLog: (state.skillActionLog || [])
       .filter((entry) => !entry.secret)
       .slice(-8)
-      .map(({ at, skillId, casterId, status, publicSummary }) => ({
+      .map(({ at, skillId, casterId, status, publicSummary }) => maskLoanPublicSummary({
         at, skillId, casterId, status, publicSummary,
-      })),
+      }, room, viewer)),
   };
 }
 
@@ -312,6 +352,73 @@ function equippedProtocols(player) {
     .filter((skill) => isProtocolSkill(skill));
 }
 
+function isChipViewHiddenFor(room, viewer) {
+  if (!room || !viewer) return false;
+  const opponent = (room.players || []).find((player) => player.playerId !== viewer.playerId);
+  return Boolean(opponent?.skillRuntime?.disguiseActive);
+}
+
+function addDirectChipGain(player, amount) {
+  if (!player?.skillRuntime) return;
+  player.skillRuntime.directChipGainThisHand =
+    (Number(player.skillRuntime.directChipGainThisHand) || 0) + Math.floor(Number(amount) || 0);
+}
+
+function listChipLoans(runtime) {
+  if (Array.isArray(runtime?.chipLoans)) return runtime.chipLoans;
+  if (runtime?.chipLoan) return [runtime.chipLoan];
+  return [];
+}
+
+function syncChipLoanState(runtime) {
+  if (!runtime) return;
+  const list = listChipLoans(runtime);
+  runtime.chipLoans = list;
+  if (!list.length) {
+    runtime.chipLoan = null;
+    return;
+  }
+  runtime.chipLoan = {
+    repay: list.reduce((sum, loan) => sum + Math.max(0, Number(loan.repay) || 0), 0),
+    lenderId: list[0].lenderId,
+    skipCurrentEnd: list.every((loan) => loan.skipCurrentEnd),
+    count: list.length,
+  };
+}
+
+function addChipLoanTranche(runtime, tranche) {
+  if (!runtime) return;
+  runtime.chipLoans = listChipLoans(runtime);
+  runtime.chipLoans.push(tranche);
+  syncChipLoanState(runtime);
+}
+
+function loanReuseBlocked(player) {
+  const runtime = player?.skillRuntime;
+  if (!runtime) return true;
+  return (Number(runtime.energyDebt) || 0) > 0 || (Number(runtime.chipDebt) || 0) > 0;
+}
+
+function expireLoanDebts(player) {
+  const runtime = player?.skillRuntime;
+  if (!runtime) return;
+  runtime.chipLoan = null;
+  runtime.chipLoans = [];
+  runtime.energyLoan = null;
+  runtime.energyDebt = 0;
+  runtime.chipDebt = 0;
+}
+
+function expireLoanDebtsForRoom(room) {
+  (room?.players || []).forEach(expireLoanDebts);
+}
+
+function isMatchOverForLoan(room) {
+  return (room?.players || []).some((player) => (
+    player.status === "out" || (Number(player.chips) || 0) <= 0
+  ));
+}
+
 module.exports = {
   createEmptySkillRuntime, createRoomSkillState, resetPlayerSkillsForGame,
   resetPlayerSkillsForHand, resetRoomSkillsForHand,
@@ -321,4 +428,7 @@ module.exports = {
   markSkillUse, markSkillEvent, getRemainingUses, listSkillDefinitions,
   getSkillDefinition, getEnergyCap, getPublicEnergyDisplay, confirmPublicSkill,
   recordPaidFailure, canTriggerNewSkillEvent, equippedProtocols,
+  isChipViewHiddenFor, addDirectChipGain, loanReuseBlocked,
+  expireLoanDebts, expireLoanDebtsForRoom, isMatchOverForLoan,
+  maskLoanPublicSummary, addChipLoanTranche, listChipLoans, syncChipLoanState,
 };

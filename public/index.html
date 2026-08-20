@@ -6,10 +6,18 @@
     <meta name="theme-color" content="#0a0c10" />
     <meta
       name="description"
-      content="深渊德州：双人实时联机德州扑克，可选高爆发牌与深渊技能。"
+      content="超限德州：双人实时联机德州扑克，可选高爆发牌与深渊技能。"
     />
-    <title>深渊德州</title>
-    <link rel="icon" type="image/webp" href="./assets/abyss-poker-logo.webp" />
+    <meta name="application-name" content="超限德州" />
+    <meta property="og:title" content="超限德州" />
+    <meta property="og:description" content="超限德州：双人实时联机德州扑克，可选高爆发牌与深渊技能。" />
+    <meta property="og:image" content="./assets/overlimit-holdem-icon.png" />
+    <title>超限德州</title>
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/overlimit-holdem-icon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/overlimit-holdem-icon-192.png" />
+    <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -62,6 +70,13 @@
       <span class="river-overline">FINAL STREET // CRITICAL</span>
       <strong>RIVER OVERLOAD</strong>
       <span>河牌过载</span>
+    </div>
+
+    <div id="flash-endgame" class="flash-overlay flash-endgame hidden" aria-hidden="true">
+      <div class="endgame-vignette"></div>
+      <div class="endgame-lockup">
+        <div class="endgame-text">斩杀</div>
+      </div>
     </div>
 
     <div id="protocol-burst" class="protocol-burst hidden" aria-hidden="true">
@@ -331,16 +346,16 @@
             <div class="lobby-logo-wrap">
               <img
                 class="lobby-logo"
-                src="./assets/abyss-poker-logo.webp"
-                alt="深渊德州 Abyss Poker"
+                src="./assets/overlimit-holdem-logo.webp"
+                alt="超限德州 OVERLIMIT: HOLD'EM"
                 width="220"
                 height="220"
                 decoding="async"
               />
             </div>
             <div class="hero-copy">
-              <p class="hero-kicker">ABYSS POKER</p>
-              <h1 id="brand-title" class="brand-title neon-title">深渊德州</h1>
+              <p class="hero-kicker">OVERLIMIT: HOLD'EM</p>
+              <h1 id="brand-title" class="brand-title neon-title">超限德州</h1>
               <p class="hero-subtitle">双人实时对局 · 选模式直接开打</p>
             </div>
           </div>
@@ -537,7 +552,7 @@
                 <div><h2>技能确认</h2></div>
                 <span id="draft-load-meter" class="mode-pill">0 / 8</span>
               </div>
-              <p id="draft-status" class="panel-tip">选择 2–4 个技能，总负载不超过 8。</p>
+              <p id="draft-status" class="panel-tip">选择 1–4 个技能，总负载不超过 8。</p>
               <div id="skill-catalog" class="skill-catalog"></div>
               <div class="button-stack">
                 <button id="btn-confirm-loadout" class="button button-primary" type="button" disabled>
@@ -712,6 +727,14 @@
             </button>
             <button data-action="allin" class="action-button allin" type="button">
               <span class="action-zh">全押</span><span class="action-en">ALL IN</span>
+            </button>
+          </div>
+          <div id="endgame-window-actions" class="endgame-window-actions hidden">
+            <button id="btn-endgame-fire" class="action-button allin" type="button">
+              <span class="action-zh">发动终局</span><span class="action-en">ENDGAME</span>
+            </button>
+            <button id="btn-endgame-skip" class="action-button fold" type="button">
+              <span class="action-zh">放弃</span><span class="action-en">SKIP</span>
             </button>
           </div>
 

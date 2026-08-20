@@ -1,0 +1,26 @@
+{
+  "name": "超限德州",
+  "short_name": "超限德州",
+  "description": "双人实时联机德州扑克，可选高爆发牌与深渊技能。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#0a0c10",
+  "icons": [
+    {
+      "src": "./assets/overlimit-holdem-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/overlimit-holdem-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/overlimit-holdem-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}

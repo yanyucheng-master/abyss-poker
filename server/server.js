@@ -61,7 +61,7 @@ function startServer(port = process.env.PORT || 3002, options = {}) {
   const { httpServer } = createAppServer(options);
   return new Promise((resolve) => {
     httpServer.listen(port, () => {
-      logger.info("BOOT", "Abyss Poker 启动成功", { port });
+      logger.info("BOOT", "超限德州 启动成功", { port });
       resolve({ httpServer, port });
     });
   });

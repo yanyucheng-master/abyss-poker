@@ -412,7 +412,13 @@
   position: absolute;
   inset: 12% 8%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(190, 90, 255, 0.45), rgba(70, 110, 255, 0.12) 48%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(90, 180, 255, 0.42),
+    rgba(180, 90, 255, 0.2) 42%,
+    rgba(255, 176, 64, 0.12) 62%,
+    transparent 74%
+  );
   filter: blur(10px);
   pointer-events: none;
   z-index: 0;
@@ -449,7 +455,7 @@
   font-family: "Orbitron", var(--font-display);
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.12em;
   text-shadow:
     0 0 8px rgba(100, 180, 255, 0.55),
     0 0 18px rgba(150, 80, 255, 0.35);
@@ -1481,7 +1487,7 @@
 
   .salon-ui .lobby-hero-compact .hero-kicker {
     font-size: 0.52rem;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.08em;
   }
 
   .salon-ui .lobby-hero-compact .brand-title.neon-title,
