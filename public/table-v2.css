@@ -89,6 +89,13 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   gap: 8px;
 }
 
+.salon-ui #screen-game .history-chip {
+  flex: 0 0 auto;
+  border: 0;
+  background: rgba(80, 225, 232, 0.08);
+  box-shadow: none;
+}
+
 .salon-ui #screen-game #game-room-id {
   overflow: hidden;
   max-width: 130px;
@@ -272,26 +279,45 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
 
 .salon-ui #screen-game .self-stage {
   display: grid;
-  grid-template-columns: auto minmax(230px, 1fr);
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: 16px;
   min-height: 96px;
-  padding: 8px 10px;
+  padding: 8px 14px 10px;
   border-color: rgba(80, 225, 232, 0.18);
   background: linear-gradient(100deg, rgba(9, 18, 38, 0.94), rgba(4, 8, 20, 0.9));
 }
 
+.salon-ui #screen-game .self-cards-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: calc(var(--card-h, 80px) + 6px);
+}
+
 .salon-ui #screen-game .self-cards {
-  --card-w: 56px;
+  --card-w: 64px;
   --card-h: calc(var(--card-w) * 1.42);
-  gap: 6px;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.salon-ui #screen-game .self-cards .card:nth-child(1) {
+  position: relative;
+  z-index: 1;
+}
+
+.salon-ui #screen-game .self-cards .card:nth-child(2) {
+  position: relative;
+  z-index: 2;
+  margin-left: -18px;
 }
 
 .salon-ui #screen-game .self-stage > .player-console {
-  min-height: 76px;
-  padding: 7px 10px;
-  border-color: rgba(80, 225, 232, 0.18);
-  background: rgba(2, 6, 18, 0.58);
+  min-height: 0;
+  padding: 2px 0 2px 4px;
+  border: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -328,12 +354,6 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
 .salon-ui #screen-game .hand-hint {
   margin-top: 2px;
   font-size: 0.58rem;
-}
-
-.salon-ui #screen-game .card-visibility {
-  width: 34px;
-  height: 34px;
-  font-size: 0.66rem;
 }
 
 /* Command dock — one compact tactical row on desktop. */
@@ -864,6 +884,10 @@ html[data-allin-style="singularity"] {
     font-size: 0.58rem;
   }
 
+  .salon-ui #screen-game .opponent-zone .opponent-energy-metric {
+    font-size: inherit;
+  }
+
   .salon-ui #screen-game .opponent-zone .player-state {
     grid-column: auto;
     align-self: center;
@@ -939,26 +963,20 @@ html[data-allin-style="singularity"] {
   .salon-ui #screen-game .self-stage {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 6px;
+    align-items: end;
+    gap: 10px;
     min-height: 72px;
-    padding: 4px 5px;
+    padding: 4px 8px 6px;
     border-radius: 11px;
   }
 
   .salon-ui #screen-game .self-cards {
-    --card-w: 42px;
+    --card-w: 46px;
     --card-h: calc(var(--card-w) * 1.42);
-    gap: 3px;
   }
 
-  .salon-ui #screen-game .self-cards-wrap {
-    gap: 4px;
-  }
-
-  .salon-ui #screen-game .card-visibility {
-    width: 30px;
-    height: 30px;
-    font-size: 0.59rem;
+  .salon-ui #screen-game .self-cards .card:nth-child(2) {
+    margin-left: -12px;
   }
 
   .salon-ui #screen-game .self-stage > .player-console {
@@ -1289,7 +1307,7 @@ html[data-allin-style="singularity"] {
   }
 
   .salon-ui #screen-game .self-cards {
-    --card-w: 34px;
+    --card-w: 36px;
   }
 
   .salon-ui #screen-game .self-stage > .player-console {
@@ -1548,23 +1566,17 @@ html[data-allin-style="singularity"] {
 
   .salon-ui #screen-game .self-stage {
     grid-template-columns: auto minmax(180px, 1fr);
-    gap: 5px;
+    gap: 8px;
     min-height: 48px;
-    padding: 2px 5px;
+    padding: 2px 8px 4px;
   }
 
   .salon-ui #screen-game .self-cards {
-    --card-w: 30px;
-    gap: 3px;
+    --card-w: 34px;
   }
 
-  .salon-ui #screen-game .self-cards-wrap {
-    gap: 3px;
-  }
-
-  .salon-ui #screen-game .card-visibility {
-    width: 28px;
-    height: 28px;
+  .salon-ui #screen-game .self-cards .card:nth-child(2) {
+    margin-left: -10px;
   }
 
   .salon-ui #screen-game .self-stage > .player-console {
@@ -1833,7 +1845,7 @@ html[data-pro-font="classic"] body.pro-player-mode .raise-amount-meta .raise-to-
   font-family: "Teko", "Impact", "Arial Narrow", sans-serif;
   font-weight: 600;
   letter-spacing: 0.12em;
-  font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+  font-size: clamp(0.89rem, 1.53vw, 1.15rem);
 }
 
 .salon-ui .settings-grid .setting-row.is-disabled {
@@ -2293,7 +2305,11 @@ html[data-pro-font="classic"] body.pro-player-mode .raise-amount-meta .raise-to-
   align-content: start;
   gap: 6px;
   min-height: 0;
-  overflow: hidden;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .salon-ui #screen-game .skill-feed-entry {
@@ -2342,8 +2358,24 @@ html[data-pro-font="classic"] body.pro-player-mode .raise-amount-meta .raise-to-
   font-size: 0.56rem;
   font-weight: 700;
   line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 4;
+}
+
+.salon-ui #screen-game .skill-feed-entry.is-self {
+  background: rgba(80, 225, 232, 0.06);
+}
+
+.salon-ui #screen-game .skill-feed-entry.is-self .skill-feed-marker {
+  border-color: rgba(255, 147, 225, 0.38);
+  color: #ffb7ea;
+  background: rgba(255, 147, 225, 0.08);
+}
+
+.salon-ui #screen-game .skill-feed-entry.is-self strong {
+  -webkit-line-clamp: 8;
 }
 
 .salon-ui #screen-game .skill-feed-entry.is-failed,
@@ -3268,7 +3300,7 @@ html[data-pro-font="classic"] body.pro-player-mode .raise-amount-meta .raise-to-
 }
 
 .salon-ui #screen-game .self-stage > .player-console {
-  background: linear-gradient(90deg, rgba(2, 7, 18, 0.54), rgba(2, 5, 14, 0.2));
+  background: transparent;
 }
 
 .salon-ui #screen-game .intel-skill-card {
@@ -3317,6 +3349,10 @@ html[data-pro-font="classic"] body.pro-player-mode .raise-amount-meta .raise-to-
 .salon-ui #screen-game .skill-feed-entry.is-countered {
   border: 0;
   box-shadow: inset 2px 0 0 rgba(238, 99, 120, 0.36);
+}
+
+.salon-ui #screen-game .skill-feed-entry.is-self {
+  box-shadow: inset 2px 0 0 rgba(255, 147, 225, 0.46);
 }
 
 .salon-ui #screen-game .skill-feed-marker {
@@ -3541,6 +3577,10 @@ body.pro-player-mode.salon-ui #screen-game .action-dock {
 
 .salon-ui #screen-game .action-button,
 body.pro-player-mode.salon-ui #screen-game .action-button {
+  display: grid;
+  grid-template-rows: auto auto 0.85em;
+  align-content: center;
+  justify-items: center;
   min-height: 62px;
   border: 0;
   border-radius: 13px;
@@ -3558,24 +3598,67 @@ body.pro-player-mode.salon-ui #screen-game .action-button:not(:disabled) {
 }
 
 .salon-ui #screen-game .action-button .action-zh {
-  font-size: 0.96rem;
+  grid-row: 1;
+  margin: 0;
+  font-size: 0.82rem;
   font-weight: 850;
+  line-height: 1;
 }
 
 .salon-ui #screen-game .action-button .action-en {
-  font-size: 0.58rem;
+  grid-row: 2;
+  margin: 0;
+  font-size: 0.49rem;
   font-weight: 800;
+  line-height: 1;
+}
+
+.salon-ui #screen-game .action-button .action-amt {
+  grid-row: 3;
+  align-self: start;
+  margin: 0;
+  font-size: 0.52rem;
+  line-height: 1;
 }
 
 body.pro-player-mode.salon-ui #screen-game .action-button .action-en {
-  font-size: clamp(1.08rem, 1.28vw, 1.36rem);
-  letter-spacing: 0.13em;
+  font-size: clamp(0.92rem, 1.09vw, 1.16rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
 }
 
-body.pro-player-mode.salon-ui #screen-game .action-button.fold .action-en {
-  font-size: clamp(1.28rem, 1.48vw, 1.58rem);
+body.pro-player-mode.salon-ui #screen-game .action-button .action-amt {
+  font-size: 0.61rem;
+}
+
+body.pro-player-mode.salon-ui #screen-game .raise-amount-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto 0.85em;
+  align-content: center;
+  justify-items: center;
+}
+
+body.pro-player-mode.salon-ui #screen-game .raise-amount-meta .raise-to-en {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  left: 8px;
+  margin: 0;
+  font-size: 0.5rem;
+  line-height: 1;
+  letter-spacing: 0.12em;
+}
+
+body.pro-player-mode.salon-ui #screen-game .raise-amount-meta strong {
+  grid-row: 2;
+  margin: 0;
+  color: inherit;
+  font-size: clamp(0.92rem, 1.09vw, 1.16rem);
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
+  line-height: 1;
 }
 
 .salon-ui #screen-game .action-button.fold,
@@ -3718,12 +3801,9 @@ body.pro-player-mode.salon-ui #screen-game .action-button.allin {
     height: 44px;
   }
 
-  body.pro-player-mode.salon-ui #screen-game .action-button .action-en {
-    font-size: 0.88rem;
-  }
-
-  body.pro-player-mode.salon-ui #screen-game .action-button.fold .action-en {
-    font-size: 1rem;
+  body.pro-player-mode.salon-ui #screen-game .action-button .action-en,
+  body.pro-player-mode.salon-ui #screen-game .raise-amount-meta strong {
+    font-size: 0.75rem;
   }
 }
 
@@ -3875,12 +3955,9 @@ body.pro-player-mode.salon-ui #screen-game .action-button.allin {
     border-radius: 10px;
   }
 
-  body.pro-player-mode.salon-ui #screen-game .action-button .action-en {
-    font-size: clamp(0.86rem, 4vw, 1.02rem);
-  }
-
-  body.pro-player-mode.salon-ui #screen-game .action-button.fold .action-en {
-    font-size: clamp(1rem, 4.8vw, 1.2rem);
+  body.pro-player-mode.salon-ui #screen-game .action-button .action-en,
+  body.pro-player-mode.salon-ui #screen-game .raise-amount-meta strong {
+    font-size: clamp(0.73rem, 3.4vw, 0.87rem);
   }
 
   .salon-ui #screen-game .raise-console.collapsed #btn-raise {

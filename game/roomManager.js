@@ -98,6 +98,7 @@ class RoomManager {
       handNo: 0,
       history: [],
       lastActionAt: Date.now(),
+      handResultHistory: [],
       rematch: null,
       skillState: null,
       deferredHandReveals: [],

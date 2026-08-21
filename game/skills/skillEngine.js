@@ -23,6 +23,9 @@ const {
   getPublicSkillSummary,
   getSelfSkillSummary,
   getPublicRoomSkillSnapshot,
+  getRealEnergy,
+  getPublicEnergySnapshot,
+  energyVisibleToViewer,
   markSkillUse,
   markSkillEvent,
   getRemainingUses,
@@ -507,7 +510,7 @@ class SkillEngine {
 
   restorePrivateState(_room, player) {
     (player?.skillRuntime?.privateResults || []).slice(-8).forEach((result) => {
-      this.emitToPlayer(player, "skill:private-result", result);
+      this.emitToPlayer(player, "skill:private-result", { ...result, restored: true });
     });
   }
 
@@ -691,6 +694,8 @@ class SkillEngine {
         this.applyResourceFortune(room, player);
       }
       this.refreshLoanCreditFromResiduals(player, room);
+      // Public opponent energy updates only after every end-of-hand resource
+      // settlement (restore, Fairness suppression, loans, Fortune) has finished.
       syncVisibleEnergy(player);
     });
   }
@@ -1944,6 +1949,10 @@ class SkillEngine {
       loser.chips += refund;
     }
     details.baseTransfer = baseTransfer;
+    details.standardTransfer = actualStandardTransfer;
+    details.directGain = Math.max(0, directGain);
+    details.lossBeforeDefense = lossBeforeDefense;
+    details.desiredTransfer = desiredTransfer;
     details.finalTransfer = Math.max(0, winner.chips - (winner.skillRuntime?.handStartChips || winner.chips));
     details.multiplier = multiplier;
     details.selfSkillMultiplier = selfSkillMultiplier;
@@ -2024,6 +2033,10 @@ module.exports = {
   getPublicSkillSummary,
   getSelfSkillSummary,
   getPublicRoomSkillSnapshot,
+  getRealEnergy,
+  getPublicEnergySnapshot,
+  energyVisibleToViewer,
+  syncVisibleEnergy,
   validateLoadout,
   listSkillDefinitions,
   evaluationExcludedCodes,

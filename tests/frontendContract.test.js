@@ -91,9 +91,10 @@ describe("frontend DOM contract", () => {
       /\.skill-bar\[data-count="4"\][^{]*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s
     );
     expect(tableV2).toContain(
-      'body.pro-player-mode.salon-ui #screen-game .action-button.fold .action-en'
+      'body.pro-player-mode.salon-ui #screen-game .action-button .action-en'
     );
-    expect(tableV2).toContain('font-size: clamp(1.28rem, 1.48vw, 1.58rem)');
+    expect(tableV2).toContain('font-size: clamp(0.92rem, 1.09vw, 1.16rem)');
+    expect(tableV2).toContain('grid-template-rows: auto auto 0.85em');
   });
 
   test("storage failures and modal focus are handled defensively", () => {
@@ -169,10 +170,49 @@ describe("frontend DOM contract", () => {
     expect(client).toContain('skillLoadout: "abyss_skill_loadout_v2"');
     expect(html).toContain('id="self-energy"');
     expect(html).toContain('id="self-energy-cap"');
+    expect(html).toContain('id="opponent-visible-energy"');
+    expect(html).toContain('id="settle-opp-energy"');
+    expect(html).toContain('id="settle-chip-ledger"');
+    expect(html).toContain('id="btn-hand-history"');
+    expect(html).toContain('id="hand-history-modal"');
+    expect(client).toContain("function renderSettleChipLedger");
+    expect(client).toContain("只结算 50% 筹码");
+    expect(client).toContain("function openHandHistoryModal()");
+    expect(html).toContain('id="opponent-energy-pop"');
+    expect(client).toContain("function getOpponentVisibleEnergy()");
+    expect(client).toContain("function getKnownOpponentEnergy()");
+    expect(client).toMatch(/function getOpponentVisibleEnergy\(\) \{\s*return getPublicOpponentEnergy\(\);\s*\}/);
+    expect(client).toContain("state.knownOpponentEnergy");
+    expect(client).toContain("function showHandSettlementReview");
+    expect(client).toContain("function fillHandSettleModal");
+    expect(client).not.toContain("Math.max(0, Number(opponent");
     expect(html).toContain('id="btn-skill-preview-novice"');
     expect(html).toContain('id="btn-skill-preview-expert"');
+    expect(html).toContain(">简易</button>");
+    expect(html).toContain(">详细</button>");
+    expect(html).not.toContain(">新手</button>");
+    expect(html).not.toContain(">专家规则</button>");
     expect(client).toContain("shortDescription");
     expect(client).toContain("skillExpertText");
+  });
+
+  test("公开技能短特效不阻断操作，秘密技能仅本人可见", () => {
+    expect(html).toContain('id="skill-fx-public"');
+    expect(html).toContain('id="skill-fx-secret"');
+    expect(html).toContain('id="skill-fx-name"');
+    expect(client).toContain("const SKILL_FX_PUBLIC_MS = 980");
+    expect(client).toContain("const SKILL_FX_BLOOD_MS = 1180");
+    expect(client).toContain("const SKILL_FX_SECRET_MS = 720");
+    expect(client).toContain("function announceSkillResolved");
+    expect(client).toContain("function announcePrivateSkillResult");
+    expect(client).toContain('enqueueSkillFx({ lane: "public", payload })');
+    expect(client).toContain("job.payload?.skillId === \"BLOOD_BATTLE\"");
+    expect(client).toContain("payload.restored");
+    expect(html).toContain("SELF ONLY");
+    expect(style).toContain("pointer-events: none");
+    expect(style).toContain(".skill-fx-public");
+    expect(style).toContain(".skill-fx-secret");
+    expect(style).toContain('[data-skill="BLOOD_BATTLE"]');
   });
 
   test("技能选择随权威回合失效，移动技能抽屉不会穿透或污染无技能局", () => {
@@ -182,8 +222,14 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("function syncTableRailAccessibility");
     expect(client).toContain("el.opponentSkillField.inert = intelHidden");
     expect(client).toContain("rememberPublicSkillIntel(payload)");
+    expect(html).not.toContain('id="btn-toggle-cards"');
+    expect(client).toContain("renderCardRow(el.selfCards, state.myCards");
+    expect(client).toContain("function applySkillRuntimeUi()");
+    expect(client).toContain("container.dataset.rowSignature === signature");
     expect(tableV2).toContain(".poker-board.skills-disabled .table-rail-tab");
     expect(tableV2).toMatch(/\.poker-board\.skills-disabled \.table-rail-tab\s*\{\s*display:\s*none;/);
+    expect(tableV2).toMatch(/\.salon-ui #screen-game \.skill-log\s*\{[^}]*overflow-y:\s*auto/s);
+    expect(tableV2).toContain("max-height: none");
   });
 
   test("技能牌堆审计包含最终牌区守恒检查", () => {
@@ -230,5 +276,18 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('id="btn-set-room-password"');
     expect(html).not.toContain('id="input-password"');
     expect(html).not.toContain('id="input-join-password"');
+  });
+
+  test("技能播报保留本人私有结果，情报看到的牌写入本机 feed", () => {
+    expect(client).toContain("function rememberPrivateSkillFeed");
+    expect(client).toContain("skillSelfLog");
+    expect(client).toContain("等待技能事件");
+    expect(client).not.toContain("等待公开技能事件");
+    expect(client).toContain('time + " · 我 · " + skillName');
+    expect(client).toContain("rememberPrivateSkillFeed({");
+    expect(client).toContain("isGenericSecretSummary");
+    expect(tableV2).toContain(".skill-feed-entry.is-self");
+    expect(client).toMatch(/applyAuthoritativeSkillLog[\s\S]*state\.skillRecentLog = \[\];[\s\S]*entries\.forEach\(rememberSkillFeedEntry\)/);
+    expect(client).not.toMatch(/function applyAuthoritativeSkillLog[\s\S]*skillSelfLog = \[\]/);
   });
 });

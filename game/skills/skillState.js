@@ -202,9 +202,33 @@ function getEnergyCap(player) {
     : SKILL_CONFIG.MAX_ABYSS_ENERGY;
 }
 
+function getRealEnergy(player) {
+  const value = Number(player?.skillRuntime?.abyssEnergy);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function computePublicEnergySnapshot(player) {
+  const real = getRealEnergy(player);
+  if (real < 0) return 0;
+  return Math.min(SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP, real);
+}
+
+function getPublicEnergySnapshot(player) {
+  if (!player?.skillRuntime) return 0;
+  const stored = Number(player.skillRuntime.visibleAbyssEnergy);
+  return Number.isFinite(stored) ? stored : 0;
+}
+
 function getPublicEnergyDisplay(player) {
-  const real = Number(player?.skillRuntime?.abyssEnergy) || 0;
-  return Math.max(0, Math.min(SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP, real));
+  // Mask used only when writing the end-of-hand public snapshot.
+  // Opponent payloads must read getPublicEnergySnapshot(), never live energy.
+  return computePublicEnergySnapshot(player);
+}
+
+function energyVisibleToViewer(player, viewer) {
+  if (!player?.skillRuntime) return 0;
+  if (viewer && player.playerId === viewer.playerId) return getRealEnergy(player);
+  return getPublicEnergySnapshot(player);
 }
 
 function resetPlayerSkillsForGame(player) {
@@ -356,7 +380,7 @@ function getEffectiveEnergyCost(_player, skill, target = {}) {
 
 function syncVisibleEnergy(player) {
   if (!player?.skillRuntime) return;
-  player.skillRuntime.visibleAbyssEnergy = getPublicEnergyDisplay(player);
+  player.skillRuntime.visibleAbyssEnergy = computePublicEnergySnapshot(player);
 }
 
 function hasEquipped(player, skillId) {
@@ -376,7 +400,7 @@ function getPublicSkillSummary(player) {
   const runtime = player?.skillRuntime || createEmptySkillRuntime();
   return {
     loadoutConfirmed: Boolean(runtime.loadoutConfirmed),
-    abyssEnergy: getPublicEnergyDisplay(player),
+    abyssEnergy: getPublicEnergySnapshot(player),
     energyCap: SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP,
     buildHidden: true,
     knownSkills: [...(runtime.revealedSkillIds || [])],
@@ -402,8 +426,8 @@ function getSelfSkillSummary(player) {
       : runtime.loadoutConfirmed
         ? "CONFIRMED"
         : "UNCONFIRMED",
-    abyssEnergy: Number(runtime.abyssEnergy) || 0,
-    visibleAbyssEnergy: Number(runtime.visibleAbyssEnergy) || 0,
+    abyssEnergy: getRealEnergy(player),
+    visibleAbyssEnergy: getPublicEnergySnapshot(player),
     energyCap: getEnergyCap(player),
     skillUsesThisHand: { ...(runtime.skillUsesThisHand || {}) },
     skillUsesThisGame: { ...(runtime.skillUsesThisGame || {}) },
@@ -591,6 +615,7 @@ module.exports = {
   resetPlayerSkillsForHand, resetRoomSkillsForHand,
   validateLoadout, getLoadoutLoad, pickDefaultBotLoadout, gainEnergy, spendEnergy,
   getEffectiveEnergyCost, syncVisibleEnergy, hasEquipped,
+  getRealEnergy, computePublicEnergySnapshot, getPublicEnergySnapshot, energyVisibleToViewer,
   getPublicSkillSummary, getSelfSkillSummary, getPublicRoomSkillSnapshot,
   markSkillUse, markSkillEvent, getRemainingUses, listSkillDefinitions,
   getSkillDefinition, getEnergyCap, getPublicEnergyDisplay, confirmPublicSkill,

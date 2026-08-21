@@ -15,6 +15,7 @@ const {
   getPublicSkillSummary,
   getSelfSkillSummary,
   getPublicRoomSkillSnapshot,
+  syncVisibleEnergy,
 } = require("../game/skills/skillEngine");
 const { listSkillDefinitions } = require("../game/skills/definitions");
 const { FORTUNE_CONFIG, computeFortuneChance } = require("../game/skills/fortuneConfig");
@@ -84,7 +85,7 @@ function weakHole() {
 }
 
 describe("技能目录、构筑与隐私", () => {
-  test("目录包含 24 个主体技能与 9 个协议，并提供新手/专家说明", () => {
+  test("目录包含 24 个主体技能与 9 个协议，并提供简易/详细说明", () => {
     const catalog = listSkillDefinitions();
     expect(catalog).toHaveLength(33);
     expect(catalog.map((skill) => skill.id).slice(0, 24)).toEqual([
@@ -130,13 +131,16 @@ describe("技能目录、构筑与隐私", () => {
     a.skillRuntime.abyssEnergy = 10;
     const publicSummary = getPublicSkillSummary(a);
     const selfSummary = getSelfSkillSummary(a);
-    expect(publicSummary).toMatchObject({ abyssEnergy: 8, buildHidden: true, energyCap: 8 });
+    expect(publicSummary).toMatchObject({ abyssEnergy: 4, buildHidden: true, energyCap: 8 });
     expect(publicSummary).not.toHaveProperty("equippedSkillIds");
     expect(publicSummary.knownSkills).toEqual([]);
     expect(publicSummary.publicEffects).not.toContain("???");
     expect(selfSummary.abyssEnergy).toBe(10);
     expect(selfSummary.energyCap).toBe(10);
     expect(selfSummary.equippedSkillIds).toEqual(["DESTINY", "RECYCLE"]);
+    syncVisibleEnergy(a);
+    expect(getPublicSkillSummary(a).abyssEnergy).toBe(8);
+    expect(getSelfSkillSummary(a).abyssEnergy).toBe(10);
   });
 
   test("无技能房间不会创建技能运行时", () => {

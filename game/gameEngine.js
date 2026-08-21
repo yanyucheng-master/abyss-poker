@@ -15,6 +15,9 @@ const {
   setPlayerLoadout,
   getPublicRoomSkillSnapshot,
   isChipViewHiddenFor,
+  energyVisibleToViewer,
+  getRealEnergy,
+  getPublicEnergySnapshot,
 } = require("./skills/skillEngine");
 const {
   otherIndex,
@@ -281,22 +284,103 @@ class GameEngine {
 
   emitHandResult(room, payload, { revealAll = false } = {}) {
     room.players.forEach((recipient) => {
-      let next = revealAll ? payload : this.visibleHandResultForPlayer(payload, recipient);
-      if (isChipViewHiddenFor(room, recipient)) {
-        next = {
-          ...next,
-          pot: null,
-          skillSettlement: next.skillSettlement
-            ? {
-              ...next.skillSettlement,
-              baseTransfer: null,
-              finalTransfer: null,
-            }
-            : null,
-        };
-      }
-      this.emitToPlayer(recipient, "hand_result", next);
+      this.emitToPlayer(recipient, "hand_result", this.handResultForViewer(room, payload, recipient, { revealAll }));
     });
+  }
+
+  rememberHandResult(room, handResult) {
+    if (!room || !handResult) return;
+    room.handResultHistory = Array.isArray(room.handResultHistory) ? room.handResultHistory : [];
+    const entry = JSON.parse(JSON.stringify({
+      ...handResult,
+      handNo: Number(handResult.handNo || room.handNo) || 0,
+    }));
+    const index = room.handResultHistory.findIndex((item) => Number(item.handNo) === Number(entry.handNo));
+    if (index >= 0) room.handResultHistory[index] = entry;
+    else room.handResultHistory.push(entry);
+  }
+
+  storeAndEmitHandResult(room, handResult, { revealAll = false } = {}) {
+    this.syncHandResultAfterEndHand(room, handResult);
+    this.rememberHandResult(room, handResult);
+    room.lastHandResult = handResult;
+    this.emitHandResult(room, handResult, { revealAll });
+  }
+
+  emitHandHistory(room, player) {
+    if (!room || !player) return;
+    const hands = (room.handResultHistory || []).map((entry) => this.handResultForViewer(
+      room,
+      entry,
+      player,
+      { revealAll: entry.reason === "showdown" }
+    ));
+    this.emitToPlayer(player, "hand_history", { hands });
+  }
+
+  maskSkillSettlementForViewer(settlement) {
+    if (!settlement || typeof settlement !== "object") return null;
+    return {
+      ...settlement,
+      baseTransfer: null,
+      finalTransfer: null,
+      standardTransfer: null,
+      directGain: null,
+      lossBeforeDefense: null,
+      desiredTransfer: null,
+      effects: Array.isArray(settlement.effects)
+        ? settlement.effects.map((effect) => {
+          if (!effect || typeof effect !== "object") return effect;
+          if (!Object.prototype.hasOwnProperty.call(effect, "amount")) return { ...effect };
+          return { ...effect, amount: null };
+        })
+        : [],
+    };
+  }
+
+  stampHandResultEnergy(room, handResult) {
+    if (!handResult || !isSkillEnabled(room?.skillMode)) return handResult;
+    handResult.players = (handResult.players || []).map((detail) => {
+      const source = room.players.find((player) => player.playerId === detail.playerId);
+      if (!source?.skillRuntime) return detail;
+      return {
+        ...detail,
+        abyssEnergy: getRealEnergy(source),
+        publicAbyssEnergy: getPublicEnergySnapshot(source),
+      };
+    });
+    return handResult;
+  }
+
+  handResultEnergyForViewer(detail, recipient, source) {
+    const isSelf = Boolean(recipient && detail.playerId === recipient.playerId);
+    if (isSelf && Number.isFinite(Number(detail.abyssEnergy))) return Number(detail.abyssEnergy);
+    if (!isSelf && Number.isFinite(Number(detail.publicAbyssEnergy))) return Number(detail.publicAbyssEnergy);
+    if (source?.skillRuntime) return energyVisibleToViewer(source, recipient);
+    const fallback = Number(detail.abyssEnergy);
+    return Number.isFinite(fallback) ? fallback : undefined;
+  }
+
+  handResultForViewer(room, payload, recipient, { revealAll = false } = {}) {
+    let next = revealAll ? payload : this.visibleHandResultForPlayer(payload, recipient);
+    if (isChipViewHiddenFor(room, recipient)) {
+      next = {
+        ...next,
+        pot: null,
+        skillSettlement: this.maskSkillSettlementForViewer(next.skillSettlement),
+      };
+    }
+    if (!isSkillEnabled(room.skillMode)) return next;
+    return {
+      ...next,
+      players: (next.players || []).map((detail) => {
+        const source = room.players.find((player) => player.playerId === detail.playerId);
+        const { publicAbyssEnergy, ...rest } = detail;
+        const energy = this.handResultEnergyForViewer(detail, recipient, source);
+        if (energy == null) return rest;
+        return { ...rest, abyssEnergy: energy };
+      }),
+    };
   }
 
   buildPlayerHandDetail(player, communityCards, extra = {}, room = null) {
@@ -374,6 +458,8 @@ class GameEngine {
     const communityCardCount = (room.communityCards || []).length;
     return {
       reason,
+      handNo: Number(room.handNo) || 0,
+      handId: room.handId || null,
       settleMs: getHandSettlementMs(communityCardCount),
       pot,
       tie: Boolean(tie),
@@ -394,7 +480,7 @@ class GameEngine {
     // player after the initial result payload was constructed.
     handResult.isFinalHand = room.players.some((player) => player.chips <= 0);
     handResult.skillSettlement = room.skillState?.settlement || handResult.skillSettlement || null;
-    return handResult;
+    return this.stampHandResultEnergy(room, handResult);
   }
 
   getHandFinalizeDelay(room, settleMs) {
@@ -545,6 +631,7 @@ class GameEngine {
     room.lastRaiseSize = room.bigBlind;
     room.handNo = 0;
     room.history = [];
+    room.handResultHistory = [];
     room.lastActionAt = Date.now();
     room.rematch = null;
     room.handId = null;
@@ -744,6 +831,7 @@ class GameEngine {
       this.skillEngine.broadcastSkillState(room);
       this.skillEngine.restorePrivateState(room, player);
     }
+    this.emitHandHistory(room, player);
 
     if (!["waiting", "drafting", "game_over"].includes(room.phase)) {
       this.emitToPlayer(player, "your_cards", { cards: player.cards || [] });
@@ -767,7 +855,7 @@ class GameEngine {
       this.emitToPlayer(
         player,
         "hand_result",
-        this.visibleHandResultForPlayer(room.lastHandResult, player, {
+        this.handResultForViewer(room, room.lastHandResult, player, {
           revealAll: room.lastHandResult.reason === "showdown",
         })
       );
@@ -1167,8 +1255,7 @@ class GameEngine {
         this.buildPlayerHandDetail(p, room.communityCards, { folded: p.status === "folded" }, room)
       ),
     });
-    room.lastHandResult = handResult;
-    this.emitHandResult(room, handResult, { revealAll: false });
+    this.storeAndEmitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
     this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
   }
@@ -1202,9 +1289,7 @@ class GameEngine {
       ),
     });
     this.skillEngine.endHand(room, { reason: "retreat", winner: null, tie: true });
-    this.syncHandResultAfterEndHand(room, handResult);
-    room.lastHandResult = handResult;
-    this.emitHandResult(room, handResult, { revealAll: false });
+    this.storeAndEmitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
     this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
   }
@@ -1248,9 +1333,7 @@ class GameEngine {
         ),
     });
     this.skillEngine.endHand(room, { reason: "fold", winner, tie: false });
-    this.syncHandResultAfterEndHand(room, handResult);
-    room.lastHandResult = handResult;
-    this.emitHandResult(room, handResult, { revealAll: false });
+    this.storeAndEmitHandResult(room, handResult, { revealAll: false });
     this.deferHandCommitmentReveal(room);
     this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
   }
@@ -1385,9 +1468,7 @@ class GameEngine {
         ),
       });
       this.skillEngine.endHand(room, { reason: "showdown", winner: null, tie: true });
-      this.syncHandResultAfterEndHand(room, handResult);
-      room.lastHandResult = handResult;
-      this.emitHandResult(room, handResult, { revealAll: true });
+      this.storeAndEmitHandResult(room, handResult, { revealAll: true });
       this.revealHandCommitment(room);
       room.phase = "end";
       this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));
@@ -1492,9 +1573,7 @@ class GameEngine {
       winner: tie ? null : winnerPlayer,
       tie,
     });
-    this.syncHandResultAfterEndHand(room, handResult);
-    room.lastHandResult = handResult;
-    this.emitHandResult(room, handResult, { revealAll: true });
+    this.storeAndEmitHandResult(room, handResult, { revealAll: true });
     this.revealHandCommitment(room);
     room.phase = "end";
     this.finalizeHand(room, this.getHandFinalizeDelay(room, handResult.settleMs));

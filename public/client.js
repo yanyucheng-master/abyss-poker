@@ -21,6 +21,13 @@ const ENDGAME_DECLARE_MS = 2600;
 const ENDGAME_KILL_MS = 2800;
 const ENDGAME_DECLARE_VIBRATION = Object.freeze([60, 40, 110]);
 const ENDGAME_KILL_VIBRATION = Object.freeze([130, 50, 210, 60, 330]);
+const SKILL_FX_PUBLIC_MS = 980;
+const SKILL_FX_BLOOD_MS = 1180;
+const SKILL_FX_SECRET_MS = 720;
+const SKILL_FX_STALE_MS = 2500;
+const SKILL_FX_PUBLIC_HAPTICS = Object.freeze([28, 22, 46]);
+const SKILL_FX_BLOOD_HAPTICS = Object.freeze([40, 28, 72]);
+const SKILL_FX_SECRET_HAPTICS = Object.freeze([18, 16, 28]);
 const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"]);
 const PRO_FONT_STYLES = Object.freeze(["broadcast", "neonrail", "chrome", "classic"]);
 const STORAGE = Object.freeze({
@@ -28,10 +35,10 @@ const STORAGE = Object.freeze({
   reconnectToken: "abyss_reconnect_token",
   roomId: "abyss_room_id",
   playerName: "abyss_player_name",
-  revealCards: "abyss_reveal_cards",
   settings: "abyss_ui_settings_v2",
   skillLoadout: "abyss_skill_loadout_v2",
   suspectedSkills: "abyss_suspected_skills_v1",
+  inferredEnergy: "abyss_inferred_energy_v1",
   commitments: "abyss_hand_commitments_v1",
 });
 
@@ -157,9 +164,15 @@ const state = {
   savedLoadout: [],
   suspectedSkillProfiles: loadSuspectedSkillProfiles(),
   suspectedSkillIds: [],
+  inferredEnergyProfiles: loadInferredEnergyProfiles(),
+  knownOpponentEnergy: null,
+  knownOpponentEnergyHandNo: 0,
+  handSettleHistory: [],
+  settleReviewFromHistory: false,
   observedSkillIdsByPlayer: {},
   revealedSkillIdsByPlayer: {},
   skillRecentLog: [],
+  skillSelfLog: [],
   skillConfig: { minEquipped: 1, maxEquipped: 4, maxLoad: 8 },
   pendingRoomAction: null,
   pendingJoinRoomId: null,
@@ -202,7 +215,6 @@ const state = {
   atLobby: !hasPendingReconnect,
   deliberateLeave: false,
   reconnecting: hasPendingReconnect,
-  showMyCards: safeStorageGet("localStorage", STORAGE.revealCards, "1") !== "0",
   rematchDeadlineAt: 0,
   rematchAcceptedIds: new Set(),
   rematchRaf: 0,
@@ -244,6 +256,13 @@ const el = {
   flash: byId("flash-allin"),
   flashEndgameDeclare: byId("flash-endgame-declare"),
   flashEndgameKill: byId("flash-endgame-kill"),
+  skillFxPublic: byId("skill-fx-public"),
+  skillFxWho: byId("skill-fx-who"),
+  skillFxName: byId("skill-fx-name"),
+  skillFxTag: byId("skill-fx-tag"),
+  skillFxSecret: byId("skill-fx-secret"),
+  skillFxSecretName: byId("skill-fx-secret-name"),
+  skillFxSecretMsg: byId("skill-fx-secret-msg"),
   riverOverload: byId("river-overload"),
   protocolBurst: byId("protocol-burst"),
   resultBanner: byId("result-banner"),
@@ -279,6 +298,8 @@ const el = {
   handSettleModal: byId("hand-settle-modal"),
   settleVerdict: byId("settle-verdict"),
   settleCountdownNum: byId("settle-countdown-num"),
+  settleCountdown: byId("settle-countdown"),
+  btnSettleClose: byId("btn-settle-close"),
   settleDetail: byId("settle-detail"),
   settleBoard: byId("settle-board"),
   settleCommunity: byId("settle-community"),
@@ -289,6 +310,10 @@ const el = {
   settleOppCards: byId("settle-opp-cards"),
   settleOppHand: byId("settle-opp-hand"),
   settleHandName: byId("settle-hand-name"),
+  settleChipLedger: byId("settle-chip-ledger"),
+  settleChipSteps: byId("settle-chip-steps"),
+  settleChipTotal: byId("settle-chip-total"),
+  settleOppEnergy: byId("settle-opp-energy"),
   settleNext: byId("settle-next"),
   selectedModeTag: byId("selected-mode-tag"),
   protocolSummary: byId("protocol-summary"),
@@ -340,6 +365,11 @@ const el = {
   btnBackGame: byId("btn-back-game"),
   gameRoomId: byId("game-room-id"),
   gameModeBadge: byId("game-mode-badge"),
+  btnHandHistory: byId("btn-hand-history"),
+  handHistoryModal: byId("hand-history-modal"),
+  handHistoryList: byId("hand-history-list"),
+  handHistoryEmpty: byId("hand-history-empty"),
+  btnHistoryClose: byId("btn-history-close"),
   gameConnection: byId("game-connection"),
   fairnessSummary: byId("fairness-summary"),
   board: byId("board"),
@@ -349,6 +379,14 @@ const el = {
   opponentConnection: byId("opponent-connection"),
   opponentChips: byId("opponent-chips"),
   opponentBet: byId("opponent-bet"),
+  opponentVisibleEnergy: byId("opponent-visible-energy"),
+  btnOpponentEnergy: byId("btn-opponent-energy"),
+  opponentEnergyPop: byId("opponent-energy-pop"),
+  energyPopPublic: byId("energy-pop-public"),
+  energyPopClairRow: byId("energy-pop-clair-row"),
+  energyPopClair: byId("energy-pop-clair"),
+  energyPopInfer: byId("energy-pop-infer"),
+  btnEnergyPopClose: byId("btn-energy-pop-close"),
   opponentState: byId("opponent-state"),
   opponentCards: byId("opponent-cards"),
   phaseText: byId("phase-text"),
@@ -410,7 +448,6 @@ const el = {
   btnSkillPreviewExpert: byId("btn-skill-preview-expert"),
   selfCards: byId("self-cards"),
   selfArea: byId("self-area"),
-  btnToggleCards: byId("btn-toggle-cards"),
   selfHandType: byId("self-hand-type"),
   selfName: byId("self-name"),
   selfConnection: byId("self-connection"),
@@ -536,6 +573,11 @@ let allInEffectTimer = 0;
 let allInEffectEndsAt = 0;
 let endgameDeclareTimer = 0;
 let endgameKillTimer = 0;
+let skillFxTimer = 0;
+let skillFxBusy = false;
+let lastPublicSkillFxId = "";
+let lastPublicSkillFxAt = 0;
+const skillFxQueue = [];
 let delayedHandResultTimer = 0;
 let skillPreviewReturnFocus = null;
 let previewingSkill = null;
@@ -629,15 +671,20 @@ function playTone(kind) {
     lose: [180, 0.2],
     connect: [560, 0.08],
     disconnect: [140, 0.12],
+    skill: [620, 0.14],
+    blood: [78, 0.32],
+    secret: [880, 0.07],
   };
   const preset = presets[kind] || [420, 0.06];
   const oscillator = context.createOscillator();
   const gain = context.createGain();
   const now = context.currentTime;
-  oscillator.type = kind === "allin" ? "sawtooth" : "sine";
+  oscillator.type = kind === "allin" || kind === "blood" ? "sawtooth" : "sine";
   oscillator.frequency.setValueAtTime(preset[0], now);
   if (kind === "allin") {
     oscillator.frequency.exponentialRampToValueAtTime(48, now + preset[1]);
+  } else if (kind === "blood") {
+    oscillator.frequency.exponentialRampToValueAtTime(42, now + preset[1]);
   }
   gain.gain.setValueAtTime(0.0001, now);
   gain.gain.exponentialRampToValueAtTime(Math.max(0.002, Number(state.settings.sfx) / 2500), now + 0.01);
@@ -725,10 +772,11 @@ function showToast(message, tone) {
 }
 
 function showScreen(name) {
+  const target = el[name];
+  if (target?.classList.contains("active") && document.body.dataset.screen === name) return;
   [el.auth, el.wait, el.game, el.skillLab].forEach((screen) => {
     if (screen) screen.classList.remove("active");
   });
-  const target = el[name];
   if (target) target.classList.add("active");
   document.body.dataset.screen = name;
   if (name === "game") el.toastRegion.textContent = "";
@@ -768,6 +816,72 @@ function getMe() {
 
 function getOpponent() {
   return state.players.find((player) => player.playerId !== state.playerId);
+}
+
+function getPublicOpponentEnergy() {
+  const value = Number(getOpponent()?.skills?.abyssEnergy);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getKnownOpponentEnergy() {
+  if (Number(state.knownOpponentEnergyHandNo) !== Number(state.handNo)) return null;
+  if (state.knownOpponentEnergy == null) return null;
+  const value = Number(state.knownOpponentEnergy);
+  return Number.isFinite(value) ? value : null;
+}
+
+function getOpponentVisibleEnergy() {
+  return getPublicOpponentEnergy();
+}
+
+function clearKnownOpponentEnergy() {
+  state.knownOpponentEnergy = null;
+  state.knownOpponentEnergyHandNo = 0;
+}
+
+function isOpponentEnergyPopOpen() {
+  return Boolean(el.opponentEnergyPop && !el.opponentEnergyPop.classList.contains("hidden"));
+}
+
+function fillOpponentEnergyPop() {
+  if (!el.energyPopPublic) return;
+  el.energyPopPublic.textContent = String(getPublicOpponentEnergy());
+  const known = getKnownOpponentEnergy();
+  const hasKnown = known != null;
+  el.energyPopClairRow?.classList.toggle("hidden", !hasKnown);
+  if (el.energyPopClair) el.energyPopClair.textContent = hasKnown ? String(Number(known)) : "—";
+  if (el.energyPopInfer) {
+    const inferred = loadCurrentInferredEnergy();
+    el.energyPopInfer.value = inferred == null ? "" : String(inferred);
+  }
+}
+
+function closeOpponentEnergyPop() {
+  el.opponentEnergyPop?.classList.add("hidden");
+  el.btnOpponentEnergy?.setAttribute("aria-expanded", "false");
+}
+
+function openOpponentEnergyPop() {
+  if (state.skillMode !== "abyss") return;
+  fillOpponentEnergyPop();
+  el.opponentEnergyPop?.classList.remove("hidden");
+  el.btnOpponentEnergy?.setAttribute("aria-expanded", "true");
+  el.energyPopInfer?.focus();
+}
+
+function toggleOpponentEnergyPop() {
+  if (isOpponentEnergyPopOpen()) closeOpponentEnergyPop();
+  else openOpponentEnergyPop();
+}
+
+function renderOpponentEnergy() {
+  const enabled = state.skillMode === "abyss";
+  const visible = getOpponentVisibleEnergy();
+  const text = enabled ? String(visible) : "—";
+  if (el.opponentVisibleEnergy) el.opponentVisibleEnergy.textContent = text;
+  if (el.opponentEnergy) el.opponentEnergy.textContent = text;
+  el.btnOpponentEnergy?.classList.toggle("hidden", !enabled);
+  if (isOpponentEnergyPopOpen()) fillOpponentEnergyPop();
 }
 
 function suitText(suit) {
@@ -814,8 +928,18 @@ function createCard(card, options) {
 function renderCardRow(container, cards, options) {
   if (!container) return;
   const settings = options || {};
-  container.textContent = "";
   const list = Array.isArray(cards) ? cards : [];
+  const signature = [
+    list.map((card) => String(card?.code || "")).join(","),
+    Number(settings.padTo || 0),
+    settings.slot ? "slot" : "",
+    settings.back ? "back" : "",
+    settings.reveal ? "reveal" : "",
+    (settings.nullifiedCodes || []).join(","),
+  ].join("|");
+  if (container.dataset.rowSignature === signature) return;
+  container.dataset.rowSignature = signature;
+  container.textContent = "";
   list.forEach((card) =>
     container.appendChild(
       createCard(card, {
@@ -832,15 +956,6 @@ function renderCardRow(container, cards, options) {
   for (let index = list.length; index < padTo; index += 1) {
     container.appendChild(createCard(null, { slot: Boolean(settings.slot), back: !settings.slot }));
   }
-}
-
-function updateEyeButton() {
-  el.btnToggleCards.setAttribute("aria-pressed", state.showMyCards ? "true" : "false");
-  el.btnToggleCards.setAttribute("aria-label", state.showMyCards ? "隐藏我的底牌" : "显示我的底牌");
-  el.btnToggleCards.title = state.showMyCards ? "隐藏我的底牌" : "显示我的底牌";
-  el.btnToggleCards.classList.toggle("active", state.showMyCards);
-  el.btnToggleCards.querySelector(".eye-open")?.classList.toggle("hidden", !state.showMyCards);
-  el.btnToggleCards.querySelector(".eye-closed")?.classList.toggle("hidden", state.showMyCards);
 }
 
 function playerStateLabel(player) {
@@ -876,6 +991,7 @@ function renderPlayers() {
   opponentDot.className = "status-dot " + (opponent?.isConnected || opponent?.isBot ? "online" : "");
   const connectionText = opponent?.isBot ? "人机" : opponent?.isConnected ? "在线" : "连接中断";
   el.opponentConnection.append(opponentDot, document.createTextNode(connectionText));
+  renderOpponentEnergy();
   el.selfArea.classList.toggle("active-turn", state.currentTurnPlayerId === state.playerId);
   el.opponentArea.classList.toggle(
     "active-turn",
@@ -890,11 +1006,9 @@ function renderPlayers() {
 
 function renderCards() {
   const opponent = getOpponent();
-  const ownCards = state.showMyCards || state.handSettling ? state.myCards : [];
-  renderCardRow(el.selfCards, ownCards, {
+  renderCardRow(el.selfCards, state.myCards, {
     padTo: 2,
     slot: false,
-    back: !state.showMyCards && !state.handSettling,
     reveal: state.handSettling,
   });
 
@@ -1424,6 +1538,140 @@ function allowFxShake() {
   );
 }
 
+function isLiveSkillFxEvent(payload) {
+  if (!payload || payload.restored || payload.replay) return false;
+  const at = Number(payload.at);
+  if (Number.isFinite(at) && at > 0 && Date.now() - at > SKILL_FX_STALE_MS) return false;
+  return true;
+}
+
+function isPublicSkillAnnounce(payload) {
+  if (!payload?.skillId || payload.skillId === "ENDGAME") return false;
+  if (isGenericSecretSummary(payload.publicSummary)) return false;
+  const summary = String(payload.publicSummary || "");
+  if (!summary || summary.includes("隐秘") || summary.includes("秘密")) return false;
+  return true;
+}
+
+function skillFxCasterLabel(casterId) {
+  if (casterId === state.playerId) return "你";
+  return getOpponent()?.name || "对手";
+}
+
+function hideSkillFxLayers() {
+  el.skillFxPublic?.classList.add("hidden");
+  el.skillFxSecret?.classList.add("hidden");
+  document.body.classList.remove("skill-fx-public-on");
+  el.board?.classList.remove("skill-announce-hold", "skill-announce-blood");
+}
+
+function clearSkillFxQueue() {
+  if (skillFxTimer) clearTimeout(skillFxTimer);
+  skillFxTimer = 0;
+  skillFxBusy = false;
+  skillFxQueue.length = 0;
+  hideSkillFxLayers();
+}
+
+function skillFxDuration(job) {
+  const reduced = Boolean(state.settings.reduceMotion || state.settings.lowPerformance);
+  const base = job.lane === "secret"
+    ? SKILL_FX_SECRET_MS
+    : (job.payload?.skillId === "BLOOD_BATTLE" ? SKILL_FX_BLOOD_MS : SKILL_FX_PUBLIC_MS);
+  return reduced ? Math.min(420, base) : base;
+}
+
+function showPublicSkillFx(job, ms) {
+  if (!el.skillFxPublic) return;
+  const payload = job.payload || {};
+  const skill = skillDefinition(payload.skillId);
+  const mine = payload.casterId === state.playerId;
+  const blood = skill.id === "BLOOD_BATTLE";
+  const verb = blood ? "宣告" : "发动";
+  el.skillFxPublic.dataset.skill = skill.id || "";
+  el.skillFxPublic.dataset.side = mine ? "self" : "opponent";
+  el.skillFxPublic.style.setProperty("--skfx-dur", ms + "ms");
+  if (el.skillFxWho) el.skillFxWho.textContent = skillFxCasterLabel(payload.casterId) + " " + verb;
+  if (el.skillFxName) el.skillFxName.textContent = skill.name || "技能";
+  if (el.skillFxTag) {
+    el.skillFxTag.textContent = blood ? "本手结算筹码 ×2" : "公开技能已生效";
+  }
+  el.skillFxPublic.classList.add("hidden");
+  void el.skillFxPublic.offsetWidth;
+  el.skillFxPublic.classList.remove("hidden");
+  document.body.classList.add("skill-fx-public-on");
+  lastPublicSkillFxId = skill.id || "";
+  lastPublicSkillFxAt = Date.now();
+  pulseBoard(blood ? "skill-announce-blood" : "skill-announce-hold", ms);
+  playTone(blood ? "blood" : "skill");
+  playFxHaptics(blood ? SKILL_FX_BLOOD_HAPTICS : SKILL_FX_PUBLIC_HAPTICS);
+}
+
+function showSecretSkillFx(job, ms) {
+  if (!el.skillFxSecret) return;
+  const payload = job.payload || {};
+  const skill = skillDefinition(payload.skillId);
+  const message = String(job.message || payload.message || "").trim();
+  el.skillFxSecret.style.setProperty("--skfx-dur", ms + "ms");
+  if (el.skillFxSecretName) el.skillFxSecretName.textContent = skill.name || "秘密技能";
+  if (el.skillFxSecretMsg) el.skillFxSecretMsg.textContent = message || "仅你可见，技能已生效";
+  el.skillFxSecret.classList.add("hidden");
+  void el.skillFxSecret.offsetWidth;
+  el.skillFxSecret.classList.remove("hidden");
+  playTone("secret");
+  playFxHaptics(SKILL_FX_SECRET_HAPTICS);
+}
+
+function pumpSkillFx() {
+  if (skillFxBusy || !skillFxQueue.length) return;
+  if (!el.game?.classList.contains("active")) {
+    skillFxQueue.length = 0;
+    return;
+  }
+  const job = skillFxQueue.shift();
+  skillFxBusy = true;
+  hideSkillFxLayers();
+  const ms = skillFxDuration(job);
+  if (job.lane === "secret") showSecretSkillFx(job, ms);
+  else showPublicSkillFx(job, ms);
+  skillFxTimer = setTimeout(() => {
+    hideSkillFxLayers();
+    skillFxBusy = false;
+    skillFxTimer = 0;
+    pumpSkillFx();
+  }, ms);
+}
+
+function enqueueSkillFx(job) {
+  if (!job || !el.game?.classList.contains("active")) return;
+  if (job.lane === "secret") {
+    const secretCount = skillFxQueue.filter((item) => item.lane === "secret").length;
+    if (secretCount >= 3) return;
+  }
+  skillFxQueue.push(job);
+  pumpSkillFx();
+}
+
+function announceSkillResolved(payload) {
+  if (!isLiveSkillFxEvent(payload) || !payload?.skillId) return;
+  if (payload.skillId === "ENDGAME") return;
+  if (isPublicSkillAnnounce(payload)) enqueueSkillFx({ lane: "public", payload });
+}
+
+function announcePrivateSkillResult(payload) {
+  if (!isLiveSkillFxEvent(payload)) return;
+  const message = String(payload?.message || "").trim();
+  if (!message) return;
+  if (
+    payload.skillId &&
+    payload.skillId === lastPublicSkillFxId &&
+    Date.now() - lastPublicSkillFxAt < SKILL_FX_BLOOD_MS + 400
+  ) {
+    return;
+  }
+  enqueueSkillFx({ lane: "secret", payload, message });
+}
+
 function playEndgameDeclare({ execution = false } = {}) {
   if (!el.flashEndgameDeclare) return;
   if (endgameDeclareTimer) clearTimeout(endgameDeclareTimer);
@@ -1550,7 +1798,18 @@ function resetLocalRoom() {
   state.suspectedSkillIds = [];
   state.observedSkillIdsByPlayer = {};
   state.revealedSkillIdsByPlayer = {};
+  clearKnownOpponentEnergy();
   state.skillRecentLog = [];
+  state.skillSelfLog = [];
+  state.handSettleHistory = [];
+  state.settleReviewFromHistory = false;
+  syncHandHistoryButton();
+  if (el.skillBar) delete el.skillBar.dataset.signature;
+  if (el.opponentSkillBar) delete el.opponentSkillBar.dataset.intelSignature;
+  if (el.skillLog) delete el.skillLog.dataset.feedSignature;
+  [el.selfCards, el.opponentCards, el.community].forEach((node) => {
+    if (node) delete node.dataset.rowSignature;
+  });
   state.nullifiedCommunityCardIds = [];
   state.privateResultQueue = [];
   state.seenPrivateResultIds = new Set();
@@ -1590,6 +1849,7 @@ function resetTransientUi() {
   el.flash.classList.remove("is-preview");
   el.flashEndgameDeclare?.classList.add("hidden");
   el.flashEndgameKill?.classList.add("hidden");
+  clearSkillFxQueue();
   el.riverOverload.classList.add("hidden");
   el.protocolBurst.classList.add("hidden");
   el.resultBanner.classList.add("hidden");
@@ -1660,27 +1920,185 @@ function clearHandSettlement() {
   state.handSettleTimer = 0;
   el.handSettleModal.classList.add("hidden");
   el.handSettleModal.classList.remove("is-endgame-execution");
+  el.settleOppEnergy?.classList.add("hidden");
+  el.settleChipLedger?.classList.add("hidden");
+  el.btnSettleClose?.classList.add("hidden");
+  el.settleCountdown?.classList.remove("hidden");
+  el.handSettleModal.classList.remove("is-history-review");
+  state.settleReviewFromHistory = false;
+  closeOpponentEnergyPop();
   if (endgameKillTimer) clearTimeout(endgameKillTimer);
   endgameKillTimer = 0;
   el.flashEndgameKill?.classList.add("hidden");
   document.body.classList.remove("shake-hard");
   el.board.classList.remove("settle-dim");
   el.chipFx.classList.remove("settlement-flow");
+  syncHandHistoryButton();
+}
+
+function formatChipAmount(value) {
+  if (value == null || !Number.isFinite(Number(value))) return "隐藏";
+  return String(Math.trunc(Number(value)));
+}
+
+function settleActorLabel(source, viewerWon) {
+  if (source === "self") return viewerWon ? "你" : "对手";
+  if (source === "opponent") return viewerWon ? "对手" : "你";
+  return "技能";
+}
+
+function describeSettleEffect(effect, viewerWon, hideAmounts) {
+  const skillName = skillDefinition(effect.skillId).name || effect.skillId;
+  const actor = settleActorLabel(effect.source, viewerWon);
+  if (effect.skillId === "DEFENSE") {
+    return actor + "的「" + skillName + "」将本手损失减半，只结算 50% 筹码";
+  }
+  if (effect.skillId === "PROBE") {
+    return hideAmounts
+      ? actor + "的「" + skillName + "」在对手弃牌后额外加入试探奖金"
+      : actor + "的「" + skillName + "」在对手弃牌后先 +" + formatChipAmount(effect.amount) + "，再进入倍率";
+  }
+  if (Number(effect.factor) > 1) {
+    return actor + "的「" + skillName + "」将标准净收益 ×" + Number(effect.factor);
+  }
+  if (Number(effect.factor) > 0 && Number(effect.factor) < 1) {
+    return actor + "的「" + skillName + "」将筹码结算 ×" + Number(effect.factor);
+  }
+  return actor + "的「" + skillName + "」参与了本手筹码结算";
+}
+
+function renderSettleChipLedger(payload, { hideAmounts = false, viewerWon = false } = {}) {
+  if (!el.settleChipLedger || !el.settleChipSteps) return;
+  const settlement = payload?.skillSettlement;
+  const steps = [];
+  if (payload?.pot != null || hideAmounts) {
+    steps.push(hideAmounts ? "底池金额当前被伪装隐藏" : "底池 " + formatChipAmount(payload.pot));
+  }
+  if (settlement && (settlement.baseTransfer != null || (settlement.effects || []).length)) {
+    if (!hideAmounts && settlement.baseTransfer != null) {
+      steps.push("标准筹码转移 " + formatChipAmount(settlement.baseTransfer) + "（尚未叠加技能倍率）");
+    }
+    (settlement.effects || []).forEach((effect) => {
+      steps.push(describeSettleEffect(effect, viewerWon, hideAmounts));
+    });
+    if (!hideAmounts && settlement.lossBeforeDefense != null && (settlement.effects || []).some((entry) => entry.skillId === "DEFENSE")) {
+      steps.push("防守前损失 " + formatChipAmount(settlement.lossBeforeDefense)
+        + " → 防守后 " + formatChipAmount(settlement.desiredTransfer));
+    }
+    if (!hideAmounts && Number(settlement.directGain) > 0) {
+      steps.push("终局等直接筹码 " + formatChipAmount(settlement.directGain) + " 不进入防守减半");
+    }
+  } else if (state.skillMode === "abyss") {
+    steps.push("本手没有技能筹码修正，按标准底池结算");
+  }
+  el.settleChipSteps.textContent = "";
+  steps.forEach((text) => {
+    const item = document.createElement("li");
+    item.textContent = text;
+    el.settleChipSteps.appendChild(item);
+  });
+  const net = settlement?.finalTransfer;
+  if (payload?.tie) {
+    el.settleChipTotal.textContent = hideAmounts ? "平局，双方取回已投入筹码" : "平局，不发生技能倍率转移";
+  } else if (hideAmounts) {
+    el.settleChipTotal.textContent = viewerWon ? "你赢得本手，具体筹码数字被伪装隐藏" : "对手赢得本手，具体筹码数字被伪装隐藏";
+  } else if (net != null && Number.isFinite(Number(net))) {
+    el.settleChipTotal.textContent = viewerWon
+      ? "你本手实际获得 " + formatChipAmount(net)
+      : "你本手实际失去 " + formatChipAmount(net);
+  } else if (!payload?.tie && payload?.pot != null && !hideAmounts) {
+    el.settleChipTotal.textContent = viewerWon
+      ? "你赢得底池 " + formatChipAmount(payload.pot)
+      : "对手赢得底池 " + formatChipAmount(payload.pot);
+  } else {
+    el.settleChipTotal.textContent = "";
+  }
+  el.settleChipLedger.classList.toggle("hidden", steps.length === 0 && !el.settleChipTotal.textContent);
+}
+
+function rememberHandSettlement(payload) {
+  if (!payload) return;
+  const handNo = Number(payload.handNo || 0);
+  const entry = JSON.parse(JSON.stringify(payload));
+  const list = Array.isArray(state.handSettleHistory) ? state.handSettleHistory : [];
+  const index = list.findIndex((item) => Number(item.handNo) === handNo);
+  if (index >= 0) list[index] = entry;
+  else list.push(entry);
+  list.sort((a, b) => Number(a.handNo) - Number(b.handNo));
+  state.handSettleHistory = list;
+  syncHandHistoryButton();
+}
+
+function syncHandHistoryButton() {
+  const count = Array.isArray(state.handSettleHistory) ? state.handSettleHistory.length : 0;
+  if (!el.btnHandHistory) return;
+  const liveSettle = Boolean(state.handSettling && !state.settleReviewFromHistory);
+  el.btnHandHistory.dataset.count = count ? String(count) : "";
+  el.btnHandHistory.disabled = liveSettle;
+  el.btnHandHistory.setAttribute(
+    "aria-label",
+    liveSettle ? "本手结算播放中" : count ? "本局历史结算 " + count + " 手" : "本局历史结算"
+  );
+}
+
+function closeHandHistoryModal() {
+  el.handHistoryModal?.classList.add("hidden");
+}
+
+function renderHandHistoryList() {
+  if (!el.handHistoryList) return;
+  const hands = Array.isArray(state.handSettleHistory) ? state.handSettleHistory : [];
+  el.handHistoryEmpty?.classList.toggle("hidden", hands.length > 0);
+  el.handHistoryList.textContent = "";
+  hands.slice().reverse().forEach((entry) => {
+    const won = !entry.tie && entry.winner === state.playerId;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "history-item";
+    const title = document.createElement("strong");
+    title.textContent = "第 " + (entry.handNo || "?") + " 手 · " + (entry.tie ? "平局" : won ? "胜利" : "败北");
+    const detail = document.createElement("small");
+    const reason = entry.reason === "fold" ? "弃牌" : entry.reason === "showdown" ? "摊牌" : entry.reason === "retreat" ? "撤退" : "结算";
+    const potText = entry.pot == null ? "底池已隐藏" : "底池 " + entry.pot;
+    const effects = (entry.skillSettlement?.effects || []).map((item) => skillDefinition(item.skillId).name).filter(Boolean);
+    detail.textContent = [reason, potText].concat(effects.length ? ["技能 " + effects.join(" / ")] : []).join(" · ");
+    button.append(title, detail);
+    button.addEventListener("click", () => {
+      closeHandHistoryModal();
+      startHandSettlement(entry, { review: true });
+    });
+    el.handHistoryList.appendChild(button);
+  });
+}
+
+function openHandHistoryModal() {
+  if (state.handSettling && !state.settleReviewFromHistory) {
+    showToast("本手结算播放中，结束后可回看", "info");
+    return;
+  }
+  renderHandHistoryList();
+  el.handHistoryModal?.classList.remove("hidden");
 }
 
 function updateHandSettleCountdown() {
-  if (!state.handSettling) return;
+  if (!state.handSettling || state.settleReviewFromHistory) return;
   const remaining = Math.max(0, state.handSettleEndAt - Date.now());
   el.settleCountdownNum.textContent = String(Math.ceil(remaining / 1000));
   if (remaining > 0) state.handSettleRaf = requestAnimationFrame(updateHandSettleCountdown);
 }
 
-function startHandSettlement(payload) {
+function startHandSettlement(payload, { review = false } = {}) {
+  if (review) {
+    showHandSettlementReview(payload);
+    return;
+  }
   if (shouldIgnoreSyncEvent(payload)) return;
   invalidateSkillChoiceIfStale({ force: true, includeDossier: true });
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
   state.handSettling = true;
+  state.settleReviewFromHistory = false;
+  rememberHandSettlement(payload);
   state.phase = payload.reason === "showdown" ? "showdown" : "end";
   state.validActions = [];
   state.endgameWindow = false;
@@ -1695,6 +2113,53 @@ function startHandSettlement(payload) {
     if (player.cards?.length) state.showdownCards[player.playerId] = player.cards;
     (player.bestFive || []).forEach((card) => state.bestFiveCodes.add(card.code));
   });
+  clearKnownOpponentEnergy();
+  (payload.players || []).forEach((detail) => {
+    if (detail.abyssEnergy == null || !Number.isFinite(Number(detail.abyssEnergy))) return;
+    const energy = Number(detail.abyssEnergy);
+    if (detail.playerId === state.playerId) {
+      state.skillSelf = { ...(state.skillSelf || {}), abyssEnergy: energy };
+      return;
+    }
+    const player = state.players.find((entry) => entry.playerId === detail.playerId);
+    if (!player) return;
+    player.skills = { ...(player.skills || {}), abyssEnergy: energy };
+  });
+  const opponent = getOpponent();
+  const won = fillHandSettleModal(payload, { review: false });
+  const executionKill = Boolean(payload.endgameExecutionOverride);
+  el.handSettleModal.classList.toggle("is-endgame-execution", executionKill);
+  if (executionKill) playEndgameExecution();
+  el.handSettleModal.classList.remove("hidden");
+  el.board.classList.add("settle-dim");
+  el.chipFx.classList.add("settlement-flow");
+  syncHandHistoryButton();
+  if (payload.tie) {
+    awardPot(state.playerId);
+    if (opponent?.playerId) awardPot(opponent.playerId);
+  } else if (payload.winner) {
+    awardPot(payload.winner);
+  }
+  updateHandSettleCountdown();
+  renderState();
+  setBanner(payload.tie ? "平局" : won ? "胜利" : "败北", payload.tie || won);
+  playTone(payload.tie || won ? "win" : "lose");
+  state.handSettleTimer = setTimeout(clearHandSettlement, Number(payload.settleMs || HAND_SETTLE_MS) + 700);
+}
+
+function showHandSettlementReview(payload) {
+  if (!payload) return;
+  closeHandHistoryModal();
+  el.leaveConfirmModal.classList.add("hidden");
+  state.settleReviewFromHistory = true;
+  fillHandSettleModal(payload, { review: true });
+  el.handSettleModal.classList.remove("is-endgame-execution");
+  el.board.classList.remove("settle-dim");
+  el.chipFx.classList.remove("settlement-flow");
+  el.handSettleModal.classList.remove("hidden");
+}
+
+function fillHandSettleModal(payload, { review = false } = {}) {
   const me = getMe();
   const opponent = getOpponent();
   const meDetail = (payload.players || []).find((player) => player.playerId === state.playerId);
@@ -1713,8 +2178,11 @@ function startHandSettlement(payload) {
   }
   el.settleSelfLabel.textContent = me?.name || "你";
   el.settleOppLabel.textContent = opponent?.name || "对手";
+  if (el.settleCommunity) delete el.settleCommunity.dataset.rowSignature;
+  if (el.settleSelfCards) delete el.settleSelfCards.dataset.rowSignature;
+  if (el.settleOppCards) delete el.settleOppCards.dataset.rowSignature;
   renderCardRow(el.settleCommunity, payload.communityCards || [], { padTo: 5, slot: true, reveal: true });
-  renderCardRow(el.settleSelfCards, meDetail?.cards || state.myCards, { reveal: true });
+  renderCardRow(el.settleSelfCards, meDetail?.cards || (review ? [] : state.myCards), { reveal: true });
   renderCardRow(el.settleOppCards, opponentDetail?.cards || [], { reveal: true });
   el.settleSelfHand.textContent = meDetail?.handName || "—";
   el.settleOppHand.textContent = opponentDetail?.handName || (opponentDetail?.folded ? "已弃牌" : "未公开");
@@ -1722,24 +2190,25 @@ function startHandSettlement(payload) {
   if (meDetail?.handName) types.push("你：" + meDetail.handName);
   if (opponentDetail?.handName) types.push((opponent?.name || "对手") + "：" + opponentDetail.handName);
   el.settleHandName.textContent = types.join(" ｜ ");
-  el.settleNext.textContent = payload.isFinalHand ? "整场对局即将结束" : "下一手即将开始";
-  const executionKill = Boolean(payload.endgameExecutionOverride);
-  el.handSettleModal.classList.toggle("is-endgame-execution", executionKill);
-  if (executionKill) playEndgameExecution();
-  el.handSettleModal.classList.remove("hidden");
-  el.board.classList.add("settle-dim");
-  el.chipFx.classList.add("settlement-flow");
-  if (payload.tie) {
-    awardPot(state.playerId);
-    if (opponent?.playerId) awardPot(opponent.playerId);
-  } else if (payload.winner) {
-    awardPot(payload.winner);
+  const settleEnergy = opponentDetail?.abyssEnergy;
+  if (el.settleOppEnergy) {
+    const showEnergy = state.skillMode === "abyss" && settleEnergy != null && Number.isFinite(Number(settleEnergy));
+    el.settleOppEnergy.classList.toggle("hidden", !showEnergy);
+    el.settleOppEnergy.textContent = showEnergy
+      ? "对方剩余能量 " + Number(settleEnergy)
+      : "对方剩余能量 —";
   }
-  updateHandSettleCountdown();
-  renderState();
-  setBanner(payload.tie ? "平局" : won ? "胜利" : "败北", payload.tie || won);
-  playTone(payload.tie || won ? "win" : "lose");
-  state.handSettleTimer = setTimeout(clearHandSettlement, Number(payload.settleMs || HAND_SETTLE_MS) + 700);
+  renderSettleChipLedger(payload, {
+    hideAmounts: Boolean(state.chipViewHidden) || (payload.pot == null && payload.reason !== "retreat"),
+    viewerWon: won,
+  });
+  el.settleNext.textContent = review
+    ? "历史回顾"
+    : payload.isFinalHand ? "整场对局即将结束" : "下一手即将开始";
+  el.settleCountdown?.classList.toggle("hidden", review);
+  el.btnSettleClose?.classList.toggle("hidden", !review);
+  el.handSettleModal.classList.toggle("is-history-review", review);
+  return won;
 }
 
 function clearRematch() {
@@ -1964,6 +2433,41 @@ function saveSuspectedSkillIds(ids) {
     [key]: [...state.suspectedSkillIds],
   };
   safeStorageSet("localStorage", STORAGE.suspectedSkills, JSON.stringify(state.suspectedSkillProfiles));
+}
+
+function loadInferredEnergyProfiles() {
+  try {
+    const parsed = JSON.parse(safeStorageGet("localStorage", STORAGE.inferredEnergy, "{}"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => Number.isFinite(Number(value)))
+        .map(([key, value]) => [key, Number(value)])
+    );
+  } catch (_error) {
+    return {};
+  }
+}
+
+function loadCurrentInferredEnergy() {
+  const key = opponentSkillProfileKey();
+  if (!key) return null;
+  const value = Number(state.inferredEnergyProfiles?.[key]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function saveCurrentInferredEnergy(raw) {
+  const key = opponentSkillProfileKey();
+  if (!key) return;
+  const text = String(raw ?? "").trim();
+  const next = { ...(state.inferredEnergyProfiles || {}) };
+  if (text === "") delete next[key];
+  else {
+    const value = Number(text);
+    if (!Number.isFinite(value)) return;
+    next[key] = value;
+  }
+  state.inferredEnergyProfiles = next;
+  safeStorageSet("localStorage", STORAGE.inferredEnergy, JSON.stringify(next));
 }
 
 function skillDescriptionText(skill) {
@@ -2718,12 +3222,6 @@ el.btnLeaveConfirm.addEventListener("click", () => {
   el.leaveConfirmModal.classList.add("hidden");
   completeReturnToLobby();
 });
-el.btnToggleCards.addEventListener("click", () => {
-  state.showMyCards = !state.showMyCards;
-  safeStorageSet("localStorage", STORAGE.revealCards, state.showMyCards ? "1" : "0");
-  updateEyeButton();
-  renderCards();
-});
 
 el.btnRematchYes.addEventListener("click", () => {
   if (!canSendRealtime()) return;
@@ -3003,7 +3501,11 @@ socket.on("room_state", (payload) => {
   state.gameMode = payload.gameMode || state.gameMode;
   state.skillMode = payload.skillMode || state.skillMode;
   state.phase = payload.phase || state.phase;
-  if (Object.prototype.hasOwnProperty.call(payload, "handNo")) state.handNo = Number(payload.handNo || 0);
+  if (Object.prototype.hasOwnProperty.call(payload, "handNo")) {
+    const nextHandNo = Number(payload.handNo || 0);
+    if (nextHandNo !== state.handNo && payload.phase === "pre_flop") clearKnownOpponentEnergy();
+    state.handNo = nextHandNo;
+  }
   if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
     state.hasPassword = Boolean(payload.hasPassword);
   }
@@ -3031,12 +3533,11 @@ socket.on("room_state", (payload) => {
     state.skillState = payload.skillState;
     state.endgameWindow = Boolean(payload.skillState.endgameWindow);
     if (Array.isArray(payload.skillState.recentLog)) {
-      state.skillRecentLog = payload.skillState.recentLog.slice(-8).map((entry) => ({ ...entry }));
-      state.skillRecentLog.forEach(rememberPublicSkillIntel);
+      applyAuthoritativeSkillLog(payload.skillState.recentLog);
+      payload.skillState.recentLog.forEach(rememberPublicSkillIntel);
     }
   }
   state.players = payload.players || state.players;
-  if (!state.skillSelf) state.skillSelf = getMe()?.skills || null;
   if (Object.prototype.hasOwnProperty.call(payload, "actionDeadline")) {
     state.actionDeadline = payload.actionDeadline;
   }
@@ -3187,6 +3688,14 @@ socket.on("action_made", (payload) => {
   renderState();
 });
 socket.on("hand_result", queueHandSettlement);
+socket.on("hand_history", (payload) => {
+  if (shouldIgnoreSyncEvent(payload)) return;
+  const hands = Array.isArray(payload.hands) ? payload.hands : [];
+  state.handSettleHistory = hands
+    .filter((entry) => entry && Number.isFinite(Number(entry.handNo)))
+    .sort((a, b) => Number(a.handNo) - Number(b.handNo));
+  syncHandHistoryButton();
+});
 socket.on("game_over", showGameOver);
 socket.on("rematch_update", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
@@ -3200,6 +3709,10 @@ socket.on("rematch_started", (payload) => {
   state.gameOver = false;
   state.phase = "waiting";
   state.handNo = 0;
+  state.handSettleHistory = [];
+  state.settleReviewFromHistory = false;
+  closeHandHistoryModal();
+  clearHandSettlement();
   state.commitments = new Map();
   state.fairnessChecks = new Map();
   state.activeCommitment = null;
@@ -3320,7 +3833,6 @@ state.selectedLoadout = [...state.savedLoadout];
 setMode(GAME_MODE.STANDARD);
 setSkillMode("off");
 applySettings();
-updateEyeButton();
 updateSkillPrepUi();
 ensureSkillCatalog().then(() => {
   const validation = validateLoadoutIds(state.savedLoadout);
@@ -3513,6 +4025,19 @@ function renderOpponentSkillIntel() {
     .filter((id) => !known.ids.includes(id))
     .slice(0, Math.max(0, 4 - known.ids.length));
   const visibleCount = Math.min(4, known.ids.length + suspected.length);
+  const intelSignature = [
+    opponent?.playerId || "",
+    known.complete ? "1" : "0",
+    known.ids.join(","),
+    suspected.join(","),
+  ].join("|");
+  if (el.opponentSkillBar.dataset.intelSignature === intelSignature) {
+    el.opponentSkillField?.classList.toggle("has-complete-build", known.complete);
+    el.opponentSkillField?.classList.toggle("has-intel", visibleCount > 0);
+    if (el.opponentIntelCount) el.opponentIntelCount.textContent = visibleCount + " / 4";
+    return;
+  }
+  el.opponentSkillBar.dataset.intelSignature = intelSignature;
 
   el.opponentSkillBar.textContent = "";
   el.opponentSkillField?.classList.toggle("has-complete-build", known.complete);
@@ -3564,42 +4089,104 @@ function renderOpponentSkillIntel() {
 }
 
 function skillFeedIdentity(entry) {
-  return [entry?.at || 0, entry?.casterId || "", entry?.skillId || "", entry?.status || "", entry?.publicSummary || ""].join("|");
+  return [
+    entry?.scope || "public",
+    entry?.resultId || "",
+    entry?.casterId || "",
+    entry?.skillId || "",
+    entry?.status || "",
+    entry?.publicSummary || "",
+  ].join("|");
+}
+
+function isGenericSecretSummary(summary) {
+  return String(summary || "").trim() === "秘密技能已结算";
 }
 
 function rememberSkillFeedEntry(entry) {
   if (!entry?.publicSummary && !entry?.skillId) return;
+  if (isGenericSecretSummary(entry.publicSummary)) return;
   const normalized = {
     at: Number(entry.at || Date.now()),
     casterId: entry.casterId || null,
     skillId: entry.skillId || null,
     status: entry.status || "SUCCESS",
     publicSummary: entry.publicSummary || skillDefinition(entry.skillId).name + " 已结算",
+    scope: "public",
   };
   const key = skillFeedIdentity(normalized);
+  const existing = (state.skillRecentLog || []).find((item) => skillFeedIdentity(item) === key);
+  if (existing && (!normalized.at || existing.at <= normalized.at)) {
+    existing.publicSummary = normalized.publicSummary;
+    existing.status = normalized.status;
+    return;
+  }
   state.skillRecentLog = [
     ...(state.skillRecentLog || []).filter((item) => skillFeedIdentity(item) !== key),
     normalized,
   ].slice(-8);
 }
 
+function rememberPrivateSkillFeed(payload) {
+  const message = String(payload?.message || "").trim();
+  if (!message) return;
+  const resultId = payload.resultId ? String(payload.resultId) : "";
+  const normalized = {
+    at: Number(payload.at || Date.now()),
+    casterId: payload.casterId || state.playerId || null,
+    skillId: payload.skillId || null,
+    status: payload.status || "SELF",
+    publicSummary: message,
+    scope: "self",
+    resultId,
+  };
+  const list = state.skillSelfLog || [];
+  if (resultId && list.some((item) => item.resultId === resultId)) return;
+  const key = skillFeedIdentity(normalized);
+  state.skillSelfLog = [
+    ...list.filter((item) => skillFeedIdentity(item) !== key),
+    normalized,
+  ].slice(-16);
+}
+
+function applyAuthoritativeSkillLog(entries) {
+  if (!Array.isArray(entries)) return;
+  state.skillRecentLog = [];
+  entries.forEach(rememberSkillFeedEntry);
+}
+
+function applySkillRuntimeUi() {
+  renderPlayers();
+  renderActions();
+  renderSkillHud();
+}
+
 function renderSkillFeed() {
   if (!el.skillLog) return;
-  const entries = (state.skillRecentLog || []).slice(-5).reverse();
+  const merged = [...(state.skillRecentLog || []), ...(state.skillSelfLog || [])]
+    .sort((left, right) => Number(left.at || 0) - Number(right.at || 0));
+  const entries = merged.slice(-12).reverse();
+  const feedSignature = merged.map((entry) => skillFeedIdentity(entry) + "@" + Number(entry.at || 0)).join(";");
+  if (el.skillLog.dataset.feedSignature === feedSignature) {
+    if (el.skillFeedCount) el.skillFeedCount.textContent = String(merged.length);
+    return;
+  }
+  el.skillLog.dataset.feedSignature = feedSignature;
   el.skillLog.textContent = "";
-  if (el.skillFeedCount) el.skillFeedCount.textContent = String(entries.length);
+  if (el.skillFeedCount) el.skillFeedCount.textContent = String(merged.length);
   if (!entries.length) {
     const empty = document.createElement("div");
     empty.className = "skill-feed-empty";
-    empty.innerHTML = "<span>NO SIGNAL</span><strong>等待公开技能事件</strong>";
+    empty.innerHTML = "<span>NO SIGNAL</span><strong>等待技能事件</strong>";
     el.skillLog.appendChild(empty);
     return;
   }
 
   entries.forEach((entry, index) => {
     const line = document.createElement("article");
+    const mine = entry.scope === "self" || entry.casterId === state.playerId;
     const status = String(entry.status || "SUCCESS").toLowerCase();
-    line.className = "skill-feed-entry is-" + status;
+    line.className = "skill-feed-entry is-" + status + (mine ? " is-self" : "");
     const marker = document.createElement("span");
     marker.className = "skill-feed-marker";
     marker.textContent = String(entries.length - index).padStart(2, "0");
@@ -3609,7 +4196,10 @@ function renderSkillFeed() {
     const time = Number(entry.at) > 0
       ? new Date(Number(entry.at)).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })
       : "LIVE";
-    label.textContent = time + " · " + (entry.skillId ? skillDefinition(entry.skillId).name : "技能协议");
+    const skillName = entry.skillId ? skillDefinition(entry.skillId).name : "技能协议";
+    label.textContent = mine
+      ? time + " · 我 · " + skillName
+      : time + " · " + skillName;
     const summary = document.createElement("strong");
     summary.textContent = entry.publicSummary || "技能事件已结算";
     copy.append(label, summary);
@@ -3632,13 +4222,19 @@ function renderSkillHud() {
   syncTableRailAccessibility();
   renderOpponentSkillIntel();
   renderSkillFeed();
-  if (!enabled) return;
+  if (!enabled) {
+    if (el.skillBar) {
+      el.skillBar.textContent = "";
+      delete el.skillBar.dataset.signature;
+    }
+    renderOpponentEnergy();
+    return;
+  }
   const me = getMe();
-  const opponent = getOpponent();
-  const selfSkills = state.skillSelf || me?.skills || {};
+  const selfSkills = state.skillSelf || {};
   el.selfEnergy.textContent = String(selfSkills.abyssEnergy ?? 0);
   if (el.selfEnergyCap) el.selfEnergyCap.textContent = String(selfSkills.energyCap || 8);
-  el.opponentEnergy.textContent = String(opponent?.skills?.abyssEnergy ?? 0);
+  renderOpponentEnergy();
   const controlLabel = state.skillState?.fairnessActive
     ? "公平封锁"
     : state.skillState?.noFoldActive
@@ -3648,9 +4244,20 @@ function renderSkillHud() {
         : "";
   el.skillSilenceFlag.textContent = controlLabel;
   el.skillSilenceFlag.classList.toggle("hidden", !controlLabel);
-  el.skillBar.textContent = "";
   const equippedSkillIds = selfSkills.equippedSkillIds || [];
   el.skillBar.dataset.count = String(equippedSkillIds.length);
+  const hudSignature = equippedSkillIds.map((skillId) => {
+    const def = state.skillCatalog.find((skill) => skill.id === skillId) || {
+      id: skillId,
+      energyCost: 0,
+      tags: [],
+    };
+    const availability = skillAvailability(def, selfSkills, me);
+    return [skillId, availability.kind, availability.ready ? "1" : "0", availability.reason, availability.cost].join(":");
+  }).join("|");
+  if (el.skillBar.dataset.signature === hudSignature) return;
+  el.skillBar.dataset.signature = hudSignature;
+  el.skillBar.textContent = "";
   equippedSkillIds.forEach((skillId) => {
     const def = state.skillCatalog.find((skill) => skill.id === skillId) || {
       id: skillId,
@@ -4216,6 +4823,35 @@ el.btnSkillChoiceConfirm?.addEventListener("click", () => {
   }
 });
 el.btnMarkOpponentSkills?.addEventListener("click", openSuspectPicker);
+el.btnHandHistory?.addEventListener("click", openHandHistoryModal);
+el.btnHistoryClose?.addEventListener("click", closeHandHistoryModal);
+el.btnSettleClose?.addEventListener("click", () => {
+  const fromHistory = state.settleReviewFromHistory;
+  clearHandSettlement();
+  if (fromHistory) openHandHistoryModal();
+});
+el.btnOpponentEnergy?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleOpponentEnergyPop();
+});
+el.settleOppEnergy?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  openOpponentEnergyPop();
+});
+el.btnEnergyPopClose?.addEventListener("click", closeOpponentEnergyPop);
+el.energyPopInfer?.addEventListener("input", () => {
+  saveCurrentInferredEnergy(el.energyPopInfer.value);
+});
+document.addEventListener("click", (event) => {
+  if (!isOpponentEnergyPopOpen()) return;
+  if (el.opponentEnergyPop?.contains(event.target)) return;
+  if (el.btnOpponentEnergy?.contains(event.target)) return;
+  if (el.settleOppEnergy?.contains(event.target)) return;
+  closeOpponentEnergyPop();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && isOpponentEnergyPopOpen()) closeOpponentEnergyPop();
+});
 el.btnToggleOpponentIntel?.addEventListener("click", () => toggleTableRail("intel"));
 el.btnToggleSkillFeed?.addEventListener("click", () => toggleTableRail("feed"));
 el.btnSkillPrivateClose?.addEventListener("click", () => {
@@ -4242,9 +4878,15 @@ socket.on("skill:state", (payload) => {
       if (player) player.skills = summary;
     });
   }
-  const recentLog = payload.room?.recentLog || [];
-  state.skillRecentLog = recentLog.slice(-8).map((entry) => ({ ...entry }));
-  state.skillRecentLog.forEach(rememberPublicSkillIntel);
+  const recentLog = payload.room?.recentLog;
+  if (Array.isArray(recentLog)) {
+    applyAuthoritativeSkillLog(recentLog);
+    recentLog.forEach(rememberPublicSkillIntel);
+  }
+  if (el.game?.classList.contains("active")) {
+    applySkillRuntimeUi();
+    return;
+  }
   renderSkillDraft();
   renderState();
 });
@@ -4267,7 +4909,16 @@ socket.on("skill:resolved", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
   endUiRequest("skill");
   endUiRequest("choice");
-  if (payload.publicSummary) {
+  if (isGenericSecretSummary(payload.publicSummary) && payload.casterId === state.playerId) {
+    rememberPrivateSkillFeed({
+      at: payload.at || Date.now(),
+      casterId: payload.casterId,
+      skillId: payload.skillId,
+      message: "你发动了「" + skillDefinition(payload.skillId).name + "」",
+      resultId: payload.requestId ? "resolved:" + payload.requestId : "",
+      status: "SELF",
+    });
+  } else if (payload.publicSummary) {
     logAction(payload.publicSummary);
     rememberPublicSkillIntel(payload);
     rememberSkillFeedEntry(payload);
@@ -4277,8 +4928,11 @@ socket.on("skill:resolved", (payload) => {
   }
   if (payload.skillId === "ENDGAME" && payload.publicData?.endgame) {
     playEndgameDeclare({ execution: Boolean(payload.publicData.execution) });
+  } else {
+    announceSkillResolved(payload);
   }
-  renderState();
+  applySkillRuntimeUi();
+  if (payload.publicData?.nullifiedCommunityCardIds) renderCards();
 });
 
 socket.on("skill:failed", (payload) => {
@@ -4295,18 +4949,41 @@ socket.on("skill:failed", (payload) => {
 
 socket.on("skill:private-result", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
-  if (payload.resultId && state.seenPrivateResultIds.has(payload.resultId)) return;
-  if (payload.resultId) state.seenPrivateResultIds.add(payload.resultId);
-  endUiRequest("skill");
-  endUiRequest("choice");
-  if (payload.cards) state.myCards = payload.cards;
+  const seen = Boolean(payload.resultId && state.seenPrivateResultIds.has(payload.resultId));
+  const restored = Boolean(payload.restored || payload.replay);
   const message = payload.message ||
     (payload.opponentEnergy != null ? `对手真实能量：${payload.opponentEnergy}` : "私有技能结果已更新。");
-  if (el.skillPrivateModal.classList.contains("hidden")) {
-    el.skillPrivateText.textContent = message;
-    el.skillPrivateModal.classList.remove("hidden");
-  } else {
-    state.privateResultQueue.push(message);
+  rememberPrivateSkillFeed({
+    ...payload,
+    casterId: state.playerId,
+    message,
+  });
+  if (payload.resultId) state.seenPrivateResultIds.add(payload.resultId);
+  if (payload.cards) state.myCards = payload.cards;
+  if (Object.prototype.hasOwnProperty.call(payload, "opponentEnergy")) {
+    const known = Number(payload.opponentEnergy);
+    if (Number.isFinite(known)) {
+      state.knownOpponentEnergy = known;
+      state.knownOpponentEnergyHandNo = state.handNo;
+    }
   }
-  renderState();
+  if (!seen && !restored) {
+    endUiRequest("skill");
+    endUiRequest("choice");
+    announcePrivateSkillResult({ ...payload, message });
+    const needsHold =
+      Boolean(payload.card) ||
+      Boolean(payload.cards) ||
+      Object.prototype.hasOwnProperty.call(payload, "opponentEnergy");
+    if (needsHold) {
+      if (el.skillPrivateModal.classList.contains("hidden")) {
+        el.skillPrivateText.textContent = message;
+        el.skillPrivateModal.classList.remove("hidden");
+      } else {
+        state.privateResultQueue.push(message);
+      }
+    }
+  }
+  if (payload.cards) renderCards();
+  applySkillRuntimeUi();
 });

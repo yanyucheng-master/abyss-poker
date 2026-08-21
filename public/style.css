@@ -2961,6 +2961,88 @@ body.overdrive .overdrive-stage {
   color: #ff93e1;
 }
 
+.opponent-energy-metric {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.opponent-energy-metric strong {
+  margin-left: 3px;
+  color: #ff93e1;
+}
+
+.opponent-energy-pop {
+  position: fixed;
+  z-index: 280;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 3, 12, 0.52);
+}
+
+.opponent-energy-pop-card {
+  width: min(320px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 18px 18px 16px;
+}
+
+.opponent-energy-pop-card h3 {
+  margin: 0;
+  color: var(--white);
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+}
+
+.opponent-energy-pop-card p,
+.energy-pop-infer {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.opponent-energy-pop-card strong {
+  color: #ff93e1;
+  font-variant-numeric: tabular-nums;
+}
+
+.energy-pop-infer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.energy-pop-infer input {
+  width: 88px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(2, 5, 18, 0.72);
+  color: var(--white);
+  font: inherit;
+}
+
+.settle-energy {
+  display: block;
+  margin: 8px auto 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ff93e1;
+  font: inherit;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
 .player-state {
   color: var(--dim);
   font-size: 0.63rem;
@@ -3016,25 +3098,12 @@ body.overdrive .overdrive-stage {
 
 .self-cards-wrap {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  gap: 8px;
 }
 
 .self-cards {
   min-height: var(--card-h);
-}
-
-.card-visibility {
-  flex: 0 0 auto;
-  color: var(--cyan);
-  border-radius: 50%;
-}
-
-.card-visibility.active {
-  border-color: var(--cyan);
-  background: rgba(65, 232, 255, 0.13);
-  box-shadow: var(--glow-cyan);
 }
 
 .hand-hint {
@@ -4363,6 +4432,95 @@ body.river-phase .poker-board {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-align: center;
+}
+
+.settle-close {
+  min-height: 36px;
+}
+
+.settle-ledger {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(118, 145, 213, 0.2);
+  border-radius: 14px;
+  background: rgba(2, 5, 18, 0.55);
+  text-align: left;
+}
+
+.settle-chip-steps {
+  margin: 0;
+  padding-left: 1.2em;
+  color: #d5def4;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.settle-chip-total {
+  margin: 0;
+  color: #ff93e1;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.history-chip {
+  min-height: 25px;
+  padding: 3px 10px;
+  border: 1px solid rgba(109, 220, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(65, 232, 255, 0.08);
+  color: #d7f7ff;
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.history-chip[data-count]::after {
+  content: " " attr(data-count);
+  color: var(--cyan);
+}
+
+.history-panel {
+  width: min(560px, 100%);
+}
+
+.history-empty {
+  margin: 8px 0 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+}
+
+.history-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(118, 145, 213, 0.2);
+  border-radius: 12px;
+  background: rgba(2, 5, 18, 0.55);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-item strong {
+  color: var(--white);
+}
+
+.history-item small {
+  color: var(--muted);
 }
 
 #screen-game.settle-dim .poker-board,
@@ -5739,6 +5897,16 @@ body.low-performance .hand-settle-modal {
   box-shadow: 0 0 64px rgba(255, 45, 74, 0.4), inset 0 0 84px rgba(120, 4, 20, 0.3), var(--shadow);
 }
 
+.poker-board.skill-announce-hold {
+  filter: brightness(0.78) saturate(0.92);
+}
+
+.poker-board.skill-announce-blood {
+  border-color: rgba(255, 72, 88, 0.86);
+  box-shadow: 0 0 46px rgba(255, 48, 72, 0.34), inset 0 0 58px rgba(90, 4, 18, 0.28), var(--shadow);
+  filter: brightness(0.74) saturate(1.08);
+}
+
 .poker-board[class*="hand-upgrade-"] .pot-core {
   filter: saturate(1.25) brightness(1.12);
 }
@@ -6571,6 +6739,235 @@ body.reduce-motion .endgame-fx:not(.hidden) .egd-char::after,
 body.reduce-motion .endgame-fx:not(.hidden) .egk-char::before,
 body.reduce-motion .endgame-fx:not(.hidden) .egk-char::after {
   display: none;
+}
+
+/* ===== Skill announce FX (short, non-blocking) ================= */
+.skill-fx {
+  --skfx-dur: 980ms;
+  --skfx-font: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", var(--font-display), sans-serif;
+  pointer-events: none;
+}
+
+.skill-fx-public {
+  position: fixed;
+  inset: 0;
+  z-index: 185;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  contain: strict;
+  animation: skfx-public-in var(--skfx-dur) cubic-bezier(0.18, 0.84, 0.22, 1) both;
+}
+
+.skill-fx-public.hidden,
+.skill-fx-secret.hidden {
+  display: none;
+}
+
+.skill-fx-public .skfx-dim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 210, 168, 0.08), transparent 28%),
+    rgba(4, 7, 16, 0.42);
+}
+
+.skill-fx-public .skfx-vignette {
+  position: absolute;
+  inset: -8%;
+  background: radial-gradient(circle at 50% 50%, transparent 36%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.skill-fx-public .skfx-slash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 130vmax;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ffd7c2 18%, #fff 50%, #ff6b7d 82%, transparent);
+  opacity: 0;
+  transform-origin: center;
+}
+
+.skill-fx-public .skfx-slash.slash-a {
+  transform: translate(-50%, -50%) rotate(-21deg) scaleX(0.2);
+  animation: skfx-slash var(--skfx-dur) cubic-bezier(0.16, 0.84, 0.22, 1) both;
+}
+
+.skill-fx-public .skfx-slash.slash-b {
+  transform: translate(-50%, -50%) rotate(18deg) scaleX(0.2);
+  animation: skfx-slash var(--skfx-dur) cubic-bezier(0.16, 0.84, 0.22, 1) both;
+  animation-delay: 40ms;
+}
+
+.skill-fx-public .skfx-spark {
+  position: absolute;
+  width: 18vmin;
+  height: 18vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.45), transparent 68%);
+  opacity: 0;
+  animation: skfx-spark var(--skfx-dur) ease-out both;
+}
+
+.skill-fx-public .skfx-lockup {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  text-align: center;
+  font-family: var(--skfx-font);
+}
+
+.skill-fx-public .skfx-who {
+  color: rgba(232, 238, 248, 0.78);
+  font-size: clamp(0.72rem, 1.4vw, 0.92rem);
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+}
+
+.skill-fx-public .skfx-name {
+  color: #fff7ed;
+  font-size: clamp(2.1rem, 6vw, 4.2rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  line-height: 0.95;
+  text-shadow: 0 0 24px rgba(255, 196, 140, 0.35);
+}
+
+.skill-fx-public .skfx-tag {
+  display: -webkit-box;
+  max-width: min(92vw, 640px);
+  overflow: hidden;
+  color: rgba(255, 214, 170, 0.88);
+  font-size: clamp(0.72rem, 1.5vw, 0.94rem);
+  font-style: normal;
+  letter-spacing: 0.12em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.skill-fx-public[data-skill="BLOOD_BATTLE"] .skfx-dim {
+  background:
+    radial-gradient(circle at 50% 44%, rgba(255, 64, 86, 0.28), transparent 34%),
+    rgba(18, 0, 6, 0.52);
+}
+
+.skill-fx-public[data-skill="BLOOD_BATTLE"] .skfx-name {
+  color: #ffe4e8;
+  text-shadow: 0 0 28px rgba(255, 64, 86, 0.55);
+}
+
+.skill-fx-public[data-skill="BLOOD_BATTLE"] .skfx-tag {
+  color: #ffb4bc;
+}
+
+.skill-fx-public:not([data-skill="BLOOD_BATTLE"]) .skfx-slash {
+  display: none;
+}
+
+.skill-fx-public:not([data-skill="BLOOD_BATTLE"]) .skfx-spark {
+  background: radial-gradient(circle, rgba(120, 232, 255, 0.4), transparent 70%);
+}
+
+.skill-fx-secret {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 84px));
+  z-index: 166;
+  display: grid;
+  gap: 3px;
+  width: min(280px, calc(100vw - 24px));
+  padding: 10px 12px 11px;
+  border: 1px solid rgba(255, 168, 214, 0.28);
+  border-radius: 12px;
+  background: rgba(8, 10, 22, 0.82);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), inset 2px 0 0 rgba(255, 147, 225, 0.55);
+  animation: skfx-secret-in var(--skfx-dur) cubic-bezier(0.18, 0.84, 0.22, 1) both;
+}
+
+.skill-fx-secret .skfx-secret-kicker {
+  color: rgba(255, 176, 220, 0.7);
+  font-family: "Rajdhani", "Segoe UI", sans-serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.18em;
+}
+
+.skill-fx-secret .skfx-secret-name {
+  color: #ffe8f6;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.skill-fx-secret .skfx-secret-msg {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(226, 232, 248, 0.88);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+@keyframes skfx-public-in {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes skfx-slash {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--skfx-rot, -21deg)) scaleX(0.12); }
+  16% { opacity: 1; }
+  38% { opacity: 0.95; transform: translate(-50%, -50%) rotate(var(--skfx-rot, -21deg)) scaleX(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--skfx-rot, -21deg)) scaleX(1.05); }
+}
+
+.skill-fx-public .skfx-slash.slash-a { --skfx-rot: -21deg; }
+.skill-fx-public .skfx-slash.slash-b { --skfx-rot: 18deg; }
+
+@keyframes skfx-spark {
+  0% { opacity: 0; transform: scale(0.4); }
+  12% { opacity: 0.8; transform: scale(1); }
+  40% { opacity: 0; transform: scale(1.6); }
+  100% { opacity: 0; }
+}
+
+@keyframes skfx-secret-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  10% { opacity: 1; transform: translateY(0); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+body.reduce-motion .skill-fx-public .skfx-slash,
+body.reduce-motion .skill-fx-public .skfx-spark,
+body.low-performance .skill-fx-public .skfx-slash,
+body.low-performance .skill-fx-public .skfx-spark {
+  display: none !important;
+}
+
+body.reduce-motion .skill-fx-public:not(.hidden),
+body.reduce-motion .skill-fx-secret:not(.hidden) {
+  animation: none !important;
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .skill-fx-public .skfx-name {
+    font-size: clamp(1.7rem, 12vw, 2.6rem);
+  }
+
+  .skill-fx-secret {
+    left: 10px;
+    right: auto;
+    bottom: max(118px, calc(env(safe-area-inset-bottom) + 104px));
+    width: min(240px, calc(100vw - 86px));
+  }
 }
 
 @media (max-width: 640px) {

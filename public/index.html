@@ -117,6 +117,25 @@
       <strong>高爆协议已启用</strong>
     </div>
 
+    <div id="skill-fx-public" class="skill-fx skill-fx-public hidden" data-skill="" aria-hidden="true">
+      <div class="skfx-dim"></div>
+      <div class="skfx-vignette"></div>
+      <div class="skfx-slash slash-a"></div>
+      <div class="skfx-slash slash-b"></div>
+      <div class="skfx-spark"></div>
+      <div class="skfx-lockup">
+        <span id="skill-fx-who" class="skfx-who"></span>
+        <strong id="skill-fx-name" class="skfx-name"></strong>
+        <em id="skill-fx-tag" class="skfx-tag"></em>
+      </div>
+    </div>
+
+    <div id="skill-fx-secret" class="skill-fx skill-fx-secret hidden" role="status" aria-live="polite">
+      <span class="skfx-secret-kicker">SELF ONLY</span>
+      <strong id="skill-fx-secret-name" class="skfx-secret-name"></strong>
+      <span id="skill-fx-secret-msg" class="skfx-secret-msg"></span>
+    </div>
+
     <div id="result-banner" class="result-banner hidden" role="status"></div>
 
     <button
@@ -348,6 +367,7 @@
           <div id="settle-countdown" class="settle-countdown" aria-label="结算剩余时间">
             <span id="settle-countdown-num">2</span>
           </div>
+          <button id="btn-settle-close" class="button button-ghost settle-close hidden" type="button">关闭</button>
         </div>
         <p id="settle-detail" class="settle-detail"></p>
 
@@ -368,8 +388,44 @@
           </div>
         </div>
         <p id="settle-hand-name" class="settle-hand-name"></p>
+        <div id="settle-chip-ledger" class="settle-ledger hidden">
+          <span class="settle-label">筹码结算</span>
+          <ol id="settle-chip-steps" class="settle-chip-steps"></ol>
+          <p id="settle-chip-total" class="settle-chip-total"></p>
+        </div>
+        <button id="settle-opp-energy" class="settle-energy hidden" type="button" aria-controls="opponent-energy-pop">
+          对方剩余能量 —
+        </button>
         <p id="settle-next" class="settle-next">下一手即将开始</p>
       </section>
+    </div>
+
+    <div id="hand-history-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="hand-history-title">
+      <section class="modal-panel glass-panel history-panel" tabindex="-1">
+        <div class="settle-header">
+          <div>
+            <p class="eyebrow">MATCH ARCHIVE</p>
+            <h2 id="hand-history-title">本局结算</h2>
+          </div>
+          <button id="btn-history-close" class="button button-ghost" type="button">关闭</button>
+        </div>
+        <p id="hand-history-empty" class="history-empty">还没有本局结算记录。</p>
+        <div id="hand-history-list" class="history-list" role="list"></div>
+      </section>
+    </div>
+
+    <div id="opponent-energy-pop" class="opponent-energy-pop hidden" role="dialog" aria-labelledby="opponent-energy-pop-title">
+      <div class="opponent-energy-pop-card glass-panel">
+        <h3 id="opponent-energy-pop-title">对手能量</h3>
+        <p>公开 <strong id="energy-pop-public">0</strong></p>
+        <p id="energy-pop-clair-row" class="hidden">灵视 <strong id="energy-pop-clair">—</strong></p>
+        <label class="energy-pop-infer">
+          <span>推测</span>
+          <input id="energy-pop-infer" type="number" inputmode="numeric" step="1" />
+        </label>
+        <p class="intel-privacy">标记只保存在本机，不会同步或影响结算。</p>
+        <button id="btn-energy-pop-close" type="button" class="button button-ghost">关闭</button>
+      </div>
     </div>
 
     <main id="main-content" class="app-shell">
@@ -613,6 +669,9 @@
               <span id="game-room-id">——</span>
               <span class="identity-sep" aria-hidden="true">·</span>
               <span id="game-mode-badge" class="mode-pill standard">标准局</span>
+              <button id="btn-hand-history" class="history-chip" type="button" title="查看本局历史结算">
+                历史
+              </button>
             </div>
             <div class="fairness-detail compact" aria-live="polite">
               <span id="fairness-hand-id">HAND —</span>
@@ -648,6 +707,16 @@
                 <div class="player-metrics">
                   <span>筹码 <strong id="opponent-chips">—</strong></span>
                   <span>下注 <strong id="opponent-bet">0</strong></span>
+                  <button
+                    id="btn-opponent-energy"
+                    class="opponent-energy-metric hidden"
+                    type="button"
+                    aria-controls="opponent-energy-pop"
+                    aria-expanded="false"
+                    title="查看并推测对手能量"
+                  >
+                    能量 <strong id="opponent-visible-energy">—</strong>
+                  </button>
                 </div>
               </div>
               <div id="opponent-state" class="player-state">等待</div>
@@ -760,17 +829,6 @@
             <div class="self-stage">
               <div class="self-cards-wrap">
                 <div id="self-cards" class="cards-row self-cards" aria-label="你的底牌"></div>
-                <button
-                  type="button"
-                  id="btn-toggle-cards"
-                  class="icon-button card-visibility"
-                  title="显示我的底牌"
-                  aria-label="显示我的底牌"
-                  aria-pressed="false"
-                >
-                  <span class="eye-open" aria-hidden="true">显</span>
-                  <span class="eye-closed hidden" aria-hidden="true">隐</span>
-                </button>
               </div>
               <div class="player-console">
                 <div id="self-avatar" class="player-avatar"><span>我</span><i></i></div>
@@ -799,7 +857,7 @@
             <div class="skill-energy-row">
               <span class="skill-hud-label">深渊战术</span>
               <span>能量 <strong id="self-energy">0</strong>/<span id="self-energy-cap">8</span></span>
-              <span>对手公开 <strong id="opponent-energy">0</strong></span>
+              <span>对手 <strong id="opponent-energy">0</strong></span>
               <span id="skill-silence-flag" class="hidden">技能封锁</span>
             </div>
             <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
@@ -880,9 +938,9 @@
             <h2 id="skill-preview-title">技能档案</h2>
           </div>
           <div class="skill-preview-header-actions">
-            <div class="skill-preview-mode" role="group" aria-label="技能说明模式">
-              <button id="btn-skill-preview-novice" class="skill-preview-mode-btn is-active" type="button">新手</button>
-              <button id="btn-skill-preview-expert" class="skill-preview-mode-btn" type="button">专家规则</button>
+            <div class="skill-preview-mode" role="group" aria-label="技能说明详细程度">
+              <button id="btn-skill-preview-novice" class="skill-preview-mode-btn is-active" type="button">简易</button>
+              <button id="btn-skill-preview-expert" class="skill-preview-mode-btn" type="button">详细</button>
             </div>
             <button id="btn-close-skill-preview" class="icon-button" type="button" aria-label="关闭技能详情">×</button>
           </div>
