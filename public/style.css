@@ -2977,6 +2977,13 @@ body.overdrive .overdrive-stage {
   color: #ff93e1;
 }
 
+.opponent-energy-metric.is-inferred strong,
+#opponent-visible-energy.is-inferred,
+#screen-game .skill-energy-row #opponent-energy.is-inferred {
+  color: #ffe14a;
+  text-shadow: 0 0 12px rgba(255, 214, 64, 0.95), 0 0 2px rgba(255, 240, 160, 0.9);
+}
+
 .opponent-energy-pop {
   position: fixed;
   z-index: 280;
@@ -3028,6 +3035,17 @@ body.overdrive .overdrive-stage {
   background: rgba(2, 5, 18, 0.72);
   color: var(--white);
   font: inherit;
+}
+
+.energy-pop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.energy-pop-actions .button {
+  min-width: 84px;
 }
 
 .settle-energy {

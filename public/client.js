@@ -39,6 +39,7 @@ const STORAGE = Object.freeze({
   skillLoadout: "abyss_skill_loadout_v2",
   suspectedSkills: "abyss_suspected_skills_v1",
   inferredEnergy: "abyss_inferred_energy_v1",
+  inferredEnergyHand: "abyss_inferred_energy_hand_v1",
   commitments: "abyss_hand_commitments_v1",
 });
 
@@ -167,6 +168,8 @@ const state = {
   inferredEnergyProfiles: loadInferredEnergyProfiles(),
   knownOpponentEnergy: null,
   knownOpponentEnergyHandNo: 0,
+  confirmedInferredEnergy: null,
+  confirmedInferredEnergyHandNo: 0,
   handSettleHistory: [],
   settleReviewFromHistory: false,
   observedSkillIdsByPlayer: {},
@@ -387,6 +390,7 @@ const el = {
   energyPopClair: byId("energy-pop-clair"),
   energyPopInfer: byId("energy-pop-infer"),
   btnEnergyPopClose: byId("btn-energy-pop-close"),
+  btnEnergyPopConfirm: byId("btn-energy-pop-confirm"),
   opponentState: byId("opponent-state"),
   opponentCards: byId("opponent-cards"),
   phaseText: byId("phase-text"),
@@ -834,24 +838,69 @@ function getOpponentVisibleEnergy() {
   return getPublicOpponentEnergy();
 }
 
+function getConfirmedInferredEnergy() {
+  if (Number(state.confirmedInferredEnergyHandNo) !== Number(state.handNo)) return null;
+  if (state.confirmedInferredEnergy == null) return null;
+  const value = Number(state.confirmedInferredEnergy);
+  return Number.isFinite(value) ? value : null;
+}
+
+function persistConfirmedInferredEnergy() {
+  const inferred = getConfirmedInferredEnergy();
+  if (inferred == null || !state.roomId) {
+    safeStorageRemove("sessionStorage", STORAGE.inferredEnergyHand);
+    return;
+  }
+  safeStorageSet("sessionStorage", STORAGE.inferredEnergyHand, JSON.stringify({
+    roomId: state.roomId,
+    handNo: Number(state.handNo) || 0,
+    opponentId: getOpponent()?.playerId || "",
+    value: inferred,
+  }));
+}
+
+function clearConfirmedInferredEnergy() {
+  state.confirmedInferredEnergy = null;
+  state.confirmedInferredEnergyHandNo = 0;
+  safeStorageRemove("sessionStorage", STORAGE.inferredEnergyHand);
+}
+
+function restoreConfirmedInferredEnergy() {
+  try {
+    const parsed = JSON.parse(safeStorageGet("sessionStorage", STORAGE.inferredEnergyHand, ""));
+    if (!parsed || typeof parsed !== "object") return;
+    if (parsed.roomId !== state.roomId) return;
+    if (Number(parsed.handNo) !== Number(state.handNo)) return;
+    const opponentId = getOpponent()?.playerId || "";
+    if (parsed.opponentId && opponentId && parsed.opponentId !== opponentId) return;
+    const value = Number(parsed.value);
+    if (!Number.isFinite(value)) return;
+    state.confirmedInferredEnergy = value;
+    state.confirmedInferredEnergyHandNo = Number(state.handNo) || 0;
+  } catch (_error) {
+    // Corrupted local draft should not block the public frozen energy.
+  }
+}
+
 function clearKnownOpponentEnergy() {
   state.knownOpponentEnergy = null;
   state.knownOpponentEnergyHandNo = 0;
+  clearConfirmedInferredEnergy();
 }
 
 function isOpponentEnergyPopOpen() {
   return Boolean(el.opponentEnergyPop && !el.opponentEnergyPop.classList.contains("hidden"));
 }
 
-function fillOpponentEnergyPop() {
+function fillOpponentEnergyPop({ resetInput = false } = {}) {
   if (!el.energyPopPublic) return;
   el.energyPopPublic.textContent = String(getPublicOpponentEnergy());
   const known = getKnownOpponentEnergy();
   const hasKnown = known != null;
   el.energyPopClairRow?.classList.toggle("hidden", !hasKnown);
   if (el.energyPopClair) el.energyPopClair.textContent = hasKnown ? String(Number(known)) : "—";
-  if (el.energyPopInfer) {
-    const inferred = loadCurrentInferredEnergy();
+  if (resetInput && el.energyPopInfer) {
+    const inferred = getConfirmedInferredEnergy();
     el.energyPopInfer.value = inferred == null ? "" : String(inferred);
   }
 }
@@ -863,7 +912,7 @@ function closeOpponentEnergyPop() {
 
 function openOpponentEnergyPop() {
   if (state.skillMode !== "abyss") return;
-  fillOpponentEnergyPop();
+  fillOpponentEnergyPop({ resetInput: true });
   el.opponentEnergyPop?.classList.remove("hidden");
   el.btnOpponentEnergy?.setAttribute("aria-expanded", "true");
   el.energyPopInfer?.focus();
@@ -876,12 +925,43 @@ function toggleOpponentEnergyPop() {
 
 function renderOpponentEnergy() {
   const enabled = state.skillMode === "abyss";
-  const visible = getOpponentVisibleEnergy();
+  const inferred = getConfirmedInferredEnergy();
+  const visible = inferred != null ? inferred : getOpponentVisibleEnergy();
   const text = enabled ? String(visible) : "—";
-  if (el.opponentVisibleEnergy) el.opponentVisibleEnergy.textContent = text;
-  if (el.opponentEnergy) el.opponentEnergy.textContent = text;
+  if (el.opponentVisibleEnergy) {
+    el.opponentVisibleEnergy.textContent = text;
+    el.opponentVisibleEnergy.classList.toggle("is-inferred", Boolean(enabled && inferred != null));
+  }
+  if (el.opponentEnergy) {
+    el.opponentEnergy.textContent = text;
+    el.opponentEnergy.classList.toggle("is-inferred", Boolean(enabled && inferred != null));
+  }
   el.btnOpponentEnergy?.classList.toggle("hidden", !enabled);
+  el.btnOpponentEnergy?.classList.toggle("is-inferred", Boolean(enabled && inferred != null));
+  if (el.btnOpponentEnergy) {
+    el.btnOpponentEnergy.title = inferred != null ? "本地推测能量，点击修改" : "查看并推测对手能量";
+  }
   if (isOpponentEnergyPopOpen()) fillOpponentEnergyPop();
+}
+
+function confirmOpponentEnergyInference() {
+  const raw = String(el.energyPopInfer?.value || "").trim();
+  if (raw === "") {
+    clearConfirmedInferredEnergy();
+    renderOpponentEnergy();
+    closeOpponentEnergyPop();
+    return;
+  }
+  const value = Math.trunc(Number(raw));
+  if (!Number.isFinite(value)) {
+    showToast("请输入有效的能量推测值", "error");
+    return;
+  }
+  state.confirmedInferredEnergy = value;
+  state.confirmedInferredEnergyHandNo = Number(state.handNo) || 0;
+  persistConfirmedInferredEnergy();
+  renderOpponentEnergy();
+  closeOpponentEnergyPop();
 }
 
 function suitText(suit) {
@@ -3448,6 +3528,9 @@ function applyRoomJoinedPayload(payload, { fromLobby = false } = {}) {
   }
   if (Array.isArray(payload.players)) state.players = payload.players;
   persistSession();
+  if (state.phase !== "showdown" && state.phase !== "end") {
+    restoreConfirmedInferredEnergy();
+  }
 }
 
 function resolveLobbyScreenAfterJoin() {
@@ -3506,6 +3589,9 @@ socket.on("room_state", (payload) => {
     if (nextHandNo !== state.handNo && payload.phase === "pre_flop") clearKnownOpponentEnergy();
     state.handNo = nextHandNo;
   }
+  if (payload.phase === "showdown" || payload.phase === "end") {
+    clearConfirmedInferredEnergy();
+  }
   if (Object.prototype.hasOwnProperty.call(payload, "hasPassword")) {
     state.hasPassword = Boolean(payload.hasPassword);
   }
@@ -3538,6 +3624,9 @@ socket.on("room_state", (payload) => {
     }
   }
   state.players = payload.players || state.players;
+  if (payload.phase !== "showdown" && payload.phase !== "end") {
+    restoreConfirmedInferredEnergy();
+  }
   if (Object.prototype.hasOwnProperty.call(payload, "actionDeadline")) {
     state.actionDeadline = payload.actionDeadline;
   }
@@ -4839,8 +4928,12 @@ el.settleOppEnergy?.addEventListener("click", (event) => {
   openOpponentEnergyPop();
 });
 el.btnEnergyPopClose?.addEventListener("click", closeOpponentEnergyPop);
-el.energyPopInfer?.addEventListener("input", () => {
-  saveCurrentInferredEnergy(el.energyPopInfer.value);
+el.btnEnergyPopConfirm?.addEventListener("click", confirmOpponentEnergyInference);
+el.energyPopInfer?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    confirmOpponentEnergyInference();
+  }
 });
 document.addEventListener("click", (event) => {
   if (!isOpponentEnergyPopOpen()) return;

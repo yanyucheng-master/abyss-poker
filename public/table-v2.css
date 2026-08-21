@@ -292,25 +292,23 @@ body.salon-ui:has(#screen-game.game-screen.active) .app-shell {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  min-height: calc(var(--card-h, 80px) + 6px);
+  flex-shrink: 0;
+  --card-w: 64px;
+  --card-h: calc(var(--card-w) * 1.42);
+  min-width: calc(var(--card-w) * 2 + 8px);
+  min-height: calc(var(--card-h) + 6px);
 }
 
 .salon-ui #screen-game .self-cards {
   --card-w: 64px;
   --card-h: calc(var(--card-w) * 1.42);
   align-items: flex-end;
-  gap: 0;
+  gap: 8px;
+  min-width: calc(var(--card-w) * 2 + 8px);
 }
 
-.salon-ui #screen-game .self-cards .card:nth-child(1) {
-  position: relative;
-  z-index: 1;
-}
-
-.salon-ui #screen-game .self-cards .card:nth-child(2) {
-  position: relative;
-  z-index: 2;
-  margin-left: -18px;
+.salon-ui #screen-game .self-cards .card {
+  flex: 0 0 var(--card-w);
 }
 
 .salon-ui #screen-game .self-stage > .player-console {
@@ -970,13 +968,10 @@ html[data-allin-style="singularity"] {
     border-radius: 11px;
   }
 
+  .salon-ui #screen-game .self-cards-wrap,
   .salon-ui #screen-game .self-cards {
     --card-w: 46px;
     --card-h: calc(var(--card-w) * 1.42);
-  }
-
-  .salon-ui #screen-game .self-cards .card:nth-child(2) {
-    margin-left: -12px;
   }
 
   .salon-ui #screen-game .self-stage > .player-console {
@@ -1306,6 +1301,7 @@ html[data-allin-style="singularity"] {
     padding-block: 3px;
   }
 
+  .salon-ui #screen-game .self-cards-wrap,
   .salon-ui #screen-game .self-cards {
     --card-w: 36px;
   }
@@ -1571,12 +1567,9 @@ html[data-allin-style="singularity"] {
     padding: 2px 8px 4px;
   }
 
+  .salon-ui #screen-game .self-cards-wrap,
   .salon-ui #screen-game .self-cards {
     --card-w: 34px;
-  }
-
-  .salon-ui #screen-game .self-cards .card:nth-child(2) {
-    margin-left: -10px;
   }
 
   .salon-ui #screen-game .self-stage > .player-console {

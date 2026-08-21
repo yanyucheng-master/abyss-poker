@@ -95,6 +95,9 @@ describe("frontend DOM contract", () => {
     );
     expect(tableV2).toContain('font-size: clamp(0.92rem, 1.09vw, 1.16rem)');
     expect(tableV2).toContain('grid-template-rows: auto auto 0.85em');
+    expect(tableV2).not.toMatch(/\.self-cards \.card:nth-child\(2\)[^{]*\{[^}]*margin-left:\s*-/s);
+    expect(tableV2).toMatch(/\.salon-ui #screen-game \.self-cards\s*\{[^}]*gap:\s*8px/s);
+    expect(tableV2).toContain("min-width: calc(var(--card-w) * 2 + 8px)");
   });
 
   test("storage failures and modal focus are handled defensively", () => {
@@ -179,9 +182,19 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("只结算 50% 筹码");
     expect(client).toContain("function openHandHistoryModal()");
     expect(html).toContain('id="opponent-energy-pop"');
+    expect(html).toContain('id="btn-energy-pop-confirm"');
+    expect(html).toContain('id="btn-energy-pop-close"');
     expect(client).toContain("function getOpponentVisibleEnergy()");
     expect(client).toContain("function getKnownOpponentEnergy()");
+    expect(client).toContain("function getConfirmedInferredEnergy()");
+    expect(client).toContain("function confirmOpponentEnergyInference()");
+    expect(client).toContain("function clearConfirmedInferredEnergy()");
     expect(client).toMatch(/function getOpponentVisibleEnergy\(\) \{\s*return getPublicOpponentEnergy\(\);\s*\}/);
+    expect(client).toContain("state.confirmedInferredEnergy");
+    expect(client).toContain("is-inferred");
+    expect(client).toContain("clearConfirmedInferredEnergy()");
+    expect(style).toContain("#opponent-visible-energy.is-inferred");
+    expect(style).toContain("#opponent-energy.is-inferred");
     expect(client).toContain("state.knownOpponentEnergy");
     expect(client).toContain("function showHandSettlementReview");
     expect(client).toContain("function fillHandSettleModal");
