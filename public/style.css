@@ -2064,8 +2064,9 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
 }
 
 #skill-lab-catalog .skill-card {
-  align-self: start;
-  height: auto;
+  align-self: stretch;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 #skill-lab-catalog .skill-card strong {

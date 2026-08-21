@@ -155,7 +155,11 @@ const state = {
   skillCatalogStatus: "idle",
   selectedLoadout: [],
   savedLoadout: [],
-  suspectedSkillIds: loadSuspectedSkillIds(),
+  suspectedSkillProfiles: loadSuspectedSkillProfiles(),
+  suspectedSkillIds: [],
+  observedSkillIdsByPlayer: {},
+  revealedSkillIdsByPlayer: {},
+  skillRecentLog: [],
   skillConfig: { minEquipped: 1, maxEquipped: 4, maxLoad: 8 },
   pendingRoomAction: null,
   pendingJoinRoomId: null,
@@ -373,10 +377,22 @@ const el = {
   skillSilenceFlag: byId("skill-silence-flag"),
   skillBar: byId("skill-bar"),
   opponentSkillBar: byId("opponent-skill-bar"),
+  opponentSkillField: byId("opponent-skill-field"),
+  opponentBuildStatus: byId("opponent-build-status"),
+  opponentIntelCount: byId("opponent-intel-count"),
+  btnMarkOpponentSkills: byId("btn-mark-opponent-skills"),
+  btnToggleOpponentIntel: byId("btn-toggle-opponent-intel"),
   skillLog: byId("skill-log"),
+  skillBroadcast: byId("skill-broadcast"),
+  skillFeedCount: byId("skill-feed-count"),
+  btnToggleSkillFeed: byId("btn-toggle-skill-feed"),
+  tableTelemetry: byId("table-telemetry"),
   skillChoiceModal: byId("skill-choice-modal"),
+  skillChoiceEyebrow: byId("skill-choice-eyebrow"),
+  skillChoiceStep: byId("skill-choice-step"),
   skillChoiceTitle: byId("skill-choice-title"),
   skillChoiceText: byId("skill-choice-text"),
+  skillChoiceSelection: byId("skill-choice-selection"),
   skillChoiceBody: byId("skill-choice-body"),
   btnSkillChoiceCancel: byId("btn-skill-choice-cancel"),
   btnSkillChoiceConfirm: byId("btn-skill-choice-confirm"),
@@ -443,9 +459,15 @@ function modalFocusables(modal) {
 function syncModalIsolation() {
   const visible = visibleModalLayers();
   const hasModal = visible.length > 0;
+  const top = visible.at(-1);
   if (mainContent) mainContent.inert = hasModal;
   if (el.btnSettings) el.btnSettings.inert = hasModal;
-  const top = visible.at(-1);
+  modalLayers.forEach((modal) => {
+    const hidden = modal.classList.contains("hidden");
+    const covered = !hidden && modal !== top;
+    modal.inert = covered;
+    modal.setAttribute("aria-hidden", hidden || covered ? "true" : "false");
+  });
   if (top && !top.contains(document.activeElement)) {
     requestAnimationFrame(() => {
       if (top.classList.contains("hidden") || top.contains(document.activeElement)) return;
@@ -1525,6 +1547,10 @@ function resetLocalRoom() {
   state.gameOver = false;
   state.skillState = null;
   state.skillSelf = null;
+  state.suspectedSkillIds = [];
+  state.observedSkillIdsByPlayer = {};
+  state.revealedSkillIdsByPlayer = {};
+  state.skillRecentLog = [];
   state.nullifiedCommunityCardIds = [];
   state.privateResultQueue = [];
   state.seenPrivateResultIds = new Set();
@@ -1538,6 +1564,11 @@ function resetLocalRoom() {
 
 function resetTransientUi() {
   state.pendingChoice = null;
+  el.opponentSkillField?.classList.remove("is-mobile-open");
+  el.tableTelemetry?.classList.remove("is-feed-open");
+  el.btnToggleOpponentIntel?.setAttribute("aria-expanded", "false");
+  el.btnToggleSkillFeed?.setAttribute("aria-expanded", "false");
+  syncTableRailAccessibility();
   if (allInEffectTimer) clearTimeout(allInEffectTimer);
   allInEffectTimer = 0;
   allInEffectEndsAt = 0;
@@ -1646,6 +1677,7 @@ function updateHandSettleCountdown() {
 
 function startHandSettlement(payload) {
   if (shouldIgnoreSyncEvent(payload)) return;
+  invalidateSkillChoiceIfStale({ force: true, includeDossier: true });
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
   state.handSettling = true;
@@ -1747,6 +1779,7 @@ function updateRematch(payload) {
 
 function showGameOver(payload) {
   if (shouldIgnoreSyncEvent(payload)) return;
+  invalidateSkillChoiceIfStale({ force: true, includeDossier: true });
   clearHandSettlement();
   el.leaveConfirmModal.classList.add("hidden");
   state.gameOver = true;
@@ -1769,6 +1802,9 @@ function showGameOver(payload) {
         ? (payload.loserName || opponent?.name || "对手") + " 筹码耗尽"
         : (payload.winnerName || opponent?.name || "对手") + " 赢得整场对局";
   if (Array.isArray(payload.loadouts) && payload.loadouts.length) {
+    payload.loadouts.forEach((entry) => {
+      state.revealedSkillIdsByPlayer[entry.playerId] = uniqueSkillIds(entry.skillIds).slice(0, 4);
+    });
     const lines = payload.loadouts.map((entry) => {
       const owner = state.players.find((player) => player.playerId === entry.playerId);
       const names = (entry.skillIds || []).map((skillId) =>
@@ -1854,12 +1890,14 @@ async function verifyHandReveal(payload) {
     logAction(`技能审计 · ${name} · ${entry.status || "SUCCESS"}`);
   });
   (payload.equippedSkills || []).forEach((entry) => {
+    state.revealedSkillIdsByPlayer[entry.playerId] = uniqueSkillIds(entry.skillIds).slice(0, 4);
     const owner = state.players.find((player) => player.playerId === entry.playerId);
     const names = (entry.skillIds || []).map((skillId) =>
       state.skillCatalog.find((skill) => skill.id === skillId)?.name || skillId
     );
     if (names.length) logAction(`构筑审计 · ${owner?.name || entry.playerId} · ${names.join(" / ")}`);
   });
+  renderSkillHud();
 }
 
 function syncPlayers(players) {
@@ -1886,18 +1924,46 @@ function protocolSummaryText(gameMode, skillMode) {
   return deal + " · " + skill;
 }
 
-function loadSuspectedSkillIds() {
+function loadSuspectedSkillProfiles() {
   try {
-    const parsed = JSON.parse(safeStorageGet("localStorage", STORAGE.suspectedSkills, "[]"));
-    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+    const parsed = JSON.parse(safeStorageGet("localStorage", STORAGE.suspectedSkills, "{}"));
+    if (Array.isArray(parsed)) {
+      return { legacy: parsed.filter((id) => typeof id === "string") };
+    }
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, ids]) => [
+        key,
+        Array.isArray(ids) ? ids.filter((id) => typeof id === "string").slice(0, 4) : [],
+      ])
+    );
   } catch (_error) {
-    return [];
+    return {};
   }
 }
 
+function opponentSkillProfileKey() {
+  const opponent = getOpponent();
+  if (!state.roomId || !opponent?.playerId) return "";
+  return state.roomId + ":" + opponent.playerId;
+}
+
+function loadCurrentSuspectedSkillIds() {
+  const key = opponentSkillProfileKey();
+  if (!key) return [];
+  const stored = state.suspectedSkillProfiles?.[key];
+  return Array.isArray(stored) ? [...stored] : [];
+}
+
 function saveSuspectedSkillIds(ids) {
-  state.suspectedSkillIds = [...new Set(ids)];
-  safeStorageSet("localStorage", STORAGE.suspectedSkills, JSON.stringify(state.suspectedSkillIds));
+  const key = opponentSkillProfileKey();
+  state.suspectedSkillIds = [...new Set(ids)].slice(0, 4);
+  if (!key) return;
+  state.suspectedSkillProfiles = {
+    ...(state.suspectedSkillProfiles || {}),
+    [key]: [...state.suspectedSkillIds],
+  };
+  safeStorageSet("localStorage", STORAGE.suspectedSkills, JSON.stringify(state.suspectedSkillProfiles));
 }
 
 function skillDescriptionText(skill) {
@@ -2037,6 +2103,9 @@ async function ensureSkillCatalog() {
 
 function queueHandSettlement(payload) {
   if (shouldIgnoreSyncEvent(payload)) return;
+  // Settlement is authoritative and must never sit underneath an obsolete
+  // target/dossier surface while an ALL IN presentation finishes.
+  closeSkillChoiceModal({ render: false, restoreFocus: false });
   const remainingEffectMs = Math.max(0, allInEffectEndsAt - Date.now());
   if (remainingEffectMs < 120) {
     startHandSettlement(payload);
@@ -2764,6 +2833,8 @@ document.addEventListener("keydown", (event) => {
   } else if (top === el.joinPasswordModal) {
     closeJoinPasswordModal();
     el.inputRoom.focus();
+  } else if (top === el.skillChoiceModal) {
+    closeSkillChoiceModal();
   } else if (top === el.skillPrivateModal) {
     top.classList.add("hidden");
   }
@@ -2907,6 +2978,7 @@ socket.on("room_joined", (payload) => {
   if (shouldIgnoreSyncEvent(payload, { allowPendingJoin: true })) return;
   endUiRequest("room");
   const enteringFromLobby = state.atLobby || !state.roomId || state.roomId !== payload.roomId;
+  if (enteringFromLobby) invalidateSkillChoiceIfStale({ force: true, includeDossier: true });
   state.atLobby = false;
   state.reconnecting = false;
   state.deliberateLeave = false;
@@ -2958,6 +3030,10 @@ socket.on("room_state", (payload) => {
   if (payload.skillState) {
     state.skillState = payload.skillState;
     state.endgameWindow = Boolean(payload.skillState.endgameWindow);
+    if (Array.isArray(payload.skillState.recentLog)) {
+      state.skillRecentLog = payload.skillState.recentLog.slice(-8).map((entry) => ({ ...entry }));
+      state.skillRecentLog.forEach(rememberPublicSkillIntel);
+    }
   }
   state.players = payload.players || state.players;
   if (!state.skillSelf) state.skillSelf = getMe()?.skills || null;
@@ -2967,6 +3043,7 @@ socket.on("room_state", (payload) => {
   if (Object.prototype.hasOwnProperty.call(payload, "turnId")) {
     state.turnId = payload.turnId || null;
   }
+  invalidateSkillChoiceIfStale();
   if (payload.handId && payload.deckCommitment) {
     let record = state.commitments.get(payload.handId);
     if (!record) {
@@ -3005,6 +3082,7 @@ socket.on("room_state", (payload) => {
 });
 socket.on("game_started", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  invalidateSkillChoiceIfStale({ force: true, includeDossier: true });
   state.gameMode = payload.gameMode || state.gameMode;
   if (payload.skillMode) state.skillMode = payload.skillMode;
   state.phase = "pre_flop";
@@ -3018,6 +3096,7 @@ socket.on("game_started", (payload) => {
 });
 socket.on("your_cards", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  invalidateSkillChoiceIfStale({ force: true });
   clearHandSettlement();
   state.gameOver = false;
   state.myCards = payload.cards || [];
@@ -3057,6 +3136,7 @@ socket.on("community_cards", (payload) => {
     state.actionDeadline = null;
     state.turnId = null;
   }
+  invalidateSkillChoiceIfStale();
   renderState();
   if (state.communityCards.length > previousCount) triggerStreetEffect(state.phase);
 });
@@ -3071,6 +3151,7 @@ socket.on("player_turn", (payload) => {
   state.toCall = payload.toCall == null ? null : Number(payload.toCall || 0);
   state.actionDeadline = payload.actionDeadline || null;
   state.turnId = payload.turnId || null;
+  invalidateSkillChoiceIfStale();
   if (payload.handId && state.commitments.has(payload.handId)) {
     state.activeCommitment = state.commitments.get(payload.handId);
   }
@@ -3085,6 +3166,7 @@ socket.on("action_made", (payload) => {
   state.endgameWindow = false;
   state.actionDeadline = null;
   state.turnId = null;
+  invalidateSkillChoiceIfStale({ force: true });
   if (Array.isArray(payload.playerChips)) state.players = payload.playerChips;
   if (payload.pot === null && state.chipViewHidden) state.pot = null;
   else if (typeof payload.pot === "number") state.pot = payload.pot;
@@ -3112,6 +3194,7 @@ socket.on("rematch_update", (payload) => {
 });
 socket.on("rematch_started", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
+  invalidateSkillChoiceIfStale({ force: true, includeDossier: true });
   clearRematch();
   el.gameOverModal.classList.add("hidden");
   state.gameOver = false;
@@ -3252,6 +3335,8 @@ ensureSkillCatalog().then(() => {
 });
 if (hasPendingReconnect) showScreen("wait");
 renderState();
+syncTableRailAccessibility();
+window.addEventListener("resize", syncTableRailAccessibility, { passive: true });
 
 /* ========== 深渊技能 UI ========== */
 function setSkillMode(mode) {
@@ -3353,10 +3438,200 @@ function skillAvailability(def, skills, me) {
   return { ready: reason === "可发动", kind: "active", reason, cost };
 }
 
+function skillDefinition(skillId) {
+  return state.skillCatalog.find((skill) => skill.id === skillId) || {
+    id: skillId,
+    name: skillId,
+    load: "—",
+    energyCost: "—",
+    tags: [],
+    description: "该技能已由服务器确认，但本地档案暂未同步。",
+  };
+}
+
+function uniqueSkillIds(ids) {
+  return [...new Set((Array.isArray(ids) ? ids : []).filter((id) => typeof id === "string"))];
+}
+
+function rememberPublicSkillIntel(entry) {
+  if (!entry?.casterId || !entry?.skillId || entry.casterId === state.playerId) return;
+  const current = uniqueSkillIds(state.observedSkillIdsByPlayer?.[entry.casterId]);
+  if (current.includes(entry.skillId)) return;
+  state.observedSkillIdsByPlayer = {
+    ...(state.observedSkillIdsByPlayer || {}),
+    [entry.casterId]: [...current, entry.skillId].slice(0, 4),
+  };
+}
+
+function knownOpponentSkillIntel(opponent) {
+  if (!opponent) return { ids: [], complete: false };
+  const revealed = uniqueSkillIds(state.revealedSkillIdsByPlayer?.[opponent.playerId]);
+  if (revealed.length) return { ids: revealed.slice(0, 4), complete: true };
+  return {
+    ids: uniqueSkillIds([
+      ...(Array.isArray(opponent.skills?.knownSkills) ? opponent.skills.knownSkills : []),
+      ...(Array.isArray(state.observedSkillIdsByPlayer?.[opponent.playerId])
+        ? state.observedSkillIdsByPlayer[opponent.playerId]
+        : []),
+      ...(Array.isArray(opponent.skills?.publicEffects) ? opponent.skills.publicEffects : []),
+    ]).slice(0, 4),
+    complete: false,
+  };
+}
+
+function createIntelSkillCard(skillId, certainty) {
+  const def = skillDefinition(skillId);
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "intel-skill-card is-" + certainty;
+  card.dataset.skillId = skillId;
+  card.setAttribute(
+    "aria-label",
+    (certainty === "known" ? "系统确认技能：" : "本地推测技能：") + def.name + "，点击查看档案"
+  );
+
+  const source = document.createElement("span");
+  source.className = "intel-card-source";
+  source.textContent = certainty === "known" ? "CONFIRMED" : "SUSPECTED";
+  const name = document.createElement("strong");
+  name.className = "intel-card-name";
+  name.textContent = def.name;
+  const meta = document.createElement("small");
+  meta.className = "intel-card-meta";
+  meta.textContent = "负载 " + String(def.load ?? "—") + " · 能量 " + String(def.energyCost ?? 0);
+  card.append(source, name, meta);
+  card.addEventListener("click", () => showSkillPreview(def, card));
+  return card;
+}
+
+function renderOpponentSkillIntel() {
+  if (!el.opponentSkillBar) return;
+  const opponent = getOpponent();
+  const known = knownOpponentSkillIntel(opponent);
+  state.suspectedSkillIds = opponent ? loadCurrentSuspectedSkillIds() : [];
+  const suspected = uniqueSkillIds(state.suspectedSkillIds)
+    .filter((id) => !known.ids.includes(id))
+    .slice(0, Math.max(0, 4 - known.ids.length));
+  const visibleCount = Math.min(4, known.ids.length + suspected.length);
+
+  el.opponentSkillBar.textContent = "";
+  el.opponentSkillField?.classList.toggle("has-complete-build", known.complete);
+  el.opponentSkillField?.classList.toggle("has-intel", visibleCount > 0);
+  if (el.opponentIntelCount) el.opponentIntelCount.textContent = visibleCount + " / 4";
+
+  if (!opponent) {
+    const empty = document.createElement("div");
+    empty.className = "intel-empty-state";
+    empty.innerHTML = "<span>NO TARGET</span><strong>等待对手接入</strong>";
+    el.opponentSkillBar.appendChild(empty);
+    if (el.opponentBuildStatus) el.opponentBuildStatus.textContent = "无目标";
+    if (el.btnMarkOpponentSkills) el.btnMarkOpponentSkills.disabled = true;
+    return;
+  }
+
+  const combined = [
+    ...known.ids.map((id) => ({ id, certainty: "known" })),
+    ...suspected.map((id) => ({ id, certainty: "suspected" })),
+  ];
+  combined.forEach((entry) => {
+    el.opponentSkillBar.appendChild(createIntelSkillCard(entry.id, entry.certainty));
+  });
+  for (let index = combined.length; index < 4; index += 1) {
+    const unknown = document.createElement("div");
+    unknown.className = "intel-skill-card is-unknown";
+    unknown.setAttribute("aria-label", "未知技能槽位 " + String(index + 1));
+    unknown.innerHTML = "<span class=\"intel-card-source\">UNKNOWN</span><strong class=\"intel-card-name\">?</strong><small class=\"intel-card-meta\">等待情报</small>";
+    el.opponentSkillBar.appendChild(unknown);
+  }
+
+  if (el.opponentBuildStatus) {
+    el.opponentBuildStatus.textContent = known.complete
+      ? "构筑已公开"
+      : known.ids.length
+        ? "已确认 " + known.ids.length
+        : suspected.length
+          ? "本地研判"
+          : "完全未知";
+  }
+  if (el.btnMarkOpponentSkills) {
+    el.btnMarkOpponentSkills.disabled = known.complete || !state.skillCatalog.length;
+    el.btnMarkOpponentSkills.querySelector("span:last-child").textContent = known.complete
+      ? "构筑已公开"
+      : suspected.length
+        ? "编辑推测"
+        : "标记推测";
+  }
+}
+
+function skillFeedIdentity(entry) {
+  return [entry?.at || 0, entry?.casterId || "", entry?.skillId || "", entry?.status || "", entry?.publicSummary || ""].join("|");
+}
+
+function rememberSkillFeedEntry(entry) {
+  if (!entry?.publicSummary && !entry?.skillId) return;
+  const normalized = {
+    at: Number(entry.at || Date.now()),
+    casterId: entry.casterId || null,
+    skillId: entry.skillId || null,
+    status: entry.status || "SUCCESS",
+    publicSummary: entry.publicSummary || skillDefinition(entry.skillId).name + " 已结算",
+  };
+  const key = skillFeedIdentity(normalized);
+  state.skillRecentLog = [
+    ...(state.skillRecentLog || []).filter((item) => skillFeedIdentity(item) !== key),
+    normalized,
+  ].slice(-8);
+}
+
+function renderSkillFeed() {
+  if (!el.skillLog) return;
+  const entries = (state.skillRecentLog || []).slice(-5).reverse();
+  el.skillLog.textContent = "";
+  if (el.skillFeedCount) el.skillFeedCount.textContent = String(entries.length);
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "skill-feed-empty";
+    empty.innerHTML = "<span>NO SIGNAL</span><strong>等待公开技能事件</strong>";
+    el.skillLog.appendChild(empty);
+    return;
+  }
+
+  entries.forEach((entry, index) => {
+    const line = document.createElement("article");
+    const status = String(entry.status || "SUCCESS").toLowerCase();
+    line.className = "skill-feed-entry is-" + status;
+    const marker = document.createElement("span");
+    marker.className = "skill-feed-marker";
+    marker.textContent = String(entries.length - index).padStart(2, "0");
+    const copy = document.createElement("div");
+    const label = document.createElement("span");
+    label.className = "skill-feed-label";
+    const time = Number(entry.at) > 0
+      ? new Date(Number(entry.at)).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" })
+      : "LIVE";
+    label.textContent = time + " · " + (entry.skillId ? skillDefinition(entry.skillId).name : "技能协议");
+    const summary = document.createElement("strong");
+    summary.textContent = entry.publicSummary || "技能事件已结算";
+    copy.append(label, summary);
+    line.append(marker, copy);
+    el.skillLog.appendChild(line);
+  });
+}
+
 function renderSkillHud() {
   if (!el.skillHud) return;
   const enabled = state.skillMode === "abyss";
   el.skillHud.classList.toggle("hidden", !enabled);
+  el.board?.classList.toggle("skills-disabled", !enabled);
+  if (!enabled) {
+    el.opponentSkillField?.classList.remove("is-mobile-open");
+    el.tableTelemetry?.classList.remove("is-feed-open");
+    el.btnToggleOpponentIntel?.setAttribute("aria-expanded", "false");
+    el.btnToggleSkillFeed?.setAttribute("aria-expanded", "false");
+  }
+  syncTableRailAccessibility();
+  renderOpponentSkillIntel();
+  renderSkillFeed();
   if (!enabled) return;
   const me = getMe();
   const opponent = getOpponent();
@@ -3389,6 +3664,7 @@ function renderSkillHud() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "skill-use-btn is-" + availability.kind;
+    btn.dataset.skillUseId = skillId;
     btn.classList.toggle("is-ready", availability.ready);
     btn.disabled = !availability.ready;
     btn.dataset.reason = availability.reason;
@@ -3405,22 +3681,6 @@ function renderSkillHud() {
     el.skillBar.appendChild(slot);
   });
 
-  if (el.opponentSkillBar) {
-    const publicEffects = opponent?.skills?.publicEffects || [];
-    const effectNames = publicEffects.map((id) =>
-      state.skillCatalog.find((skill) => skill.id === id)?.name || id
-    );
-    const suspectedNames = (state.suspectedSkillIds || []).map((id) =>
-      state.skillCatalog.find((skill) => skill.id === id)?.name || id
-    );
-    const parts = ["对手构筑已隐藏"];
-    if (effectNames.length) parts.push("已确认：" + effectNames.join(" / "));
-    if (suspectedNames.length) parts.push("本地怀疑：" + suspectedNames.join(" / "));
-    el.opponentSkillBar.textContent = opponent ? parts.join(" · ") : "";
-    el.opponentSkillBar.title = opponent
-      ? el.opponentSkillBar.textContent + "（点击可标记怀疑技能，仅自己可见）"
-      : "";
-  }
 }
 
 function emitSkillUse(skillId, target = {}) {
@@ -3452,30 +3712,185 @@ function futureBoardIndexes() {
   return Array.from({ length: Math.max(0, 5 - start) }, (_unused, index) => start + index);
 }
 
-function openSkillTargetOptions({ skillId, title, text, options }) {
+function prepareSkillChoiceModal({ variant = "default", eyebrow = "TACTICAL DECISION", step = "选择目标", confirmLabel = "确认发动" } = {}) {
+  el.skillChoiceModal.dataset.variant = variant;
+  if (el.skillChoiceEyebrow) el.skillChoiceEyebrow.textContent = eyebrow;
+  if (el.skillChoiceStep) el.skillChoiceStep.textContent = step;
+  if (el.skillChoiceSelection) el.skillChoiceSelection.textContent = "尚未选择";
+  el.btnSkillChoiceConfirm.textContent = confirmLabel;
+  el.btnSkillChoiceConfirm.disabled = true;
+  el.skillChoiceBody.textContent = "";
+}
+
+function chooseSkillTarget(button, option) {
+  el.skillChoiceBody.querySelectorAll(".is-target-selected, .selected").forEach((node) => {
+    node.classList.remove("is-target-selected", "selected");
+    if (node.matches("button")) node.setAttribute("aria-pressed", "false");
+  });
+  button.classList.add("is-target-selected", "selected");
+  button.setAttribute("aria-pressed", "true");
+  state.pendingChoice.payload.target = { ...option.target };
+  el.btnSkillChoiceConfirm.disabled = false;
+  if (el.skillChoiceSelection) el.skillChoiceSelection.textContent = option.selectionLabel || option.label;
+}
+
+function createGenericSkillChoice(option) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "skill-choice-card target-card-choice tactical-option";
+  btn.setAttribute("aria-pressed", "false");
+  if (option.tone) btn.dataset.tone = option.tone;
+  const signal = document.createElement("span");
+  signal.className = "tactical-option-signal";
+  signal.textContent = option.signal || "◇";
+  const copy = document.createElement("span");
+  copy.className = "tactical-option-copy";
+  const title = document.createElement("strong");
+  title.textContent = option.title || option.label;
+  const detail = document.createElement("small");
+  detail.textContent = option.detail || "选择后锁定目标";
+  copy.append(title, detail);
+  btn.append(signal, copy);
+  btn.addEventListener("click", () => chooseSkillTarget(btn, option));
+  return btn;
+}
+
+function renderDestinyChoices(options) {
+  const suitInfo = {
+    S: { symbol: "♠", name: "黑桃", tone: "black" },
+    H: { symbol: "♥", name: "红桃", tone: "red" },
+    C: { symbol: "♣", name: "梅花", tone: "black" },
+    D: { symbol: "♦", name: "方片", tone: "red" },
+  };
+  const matrix = document.createElement("div");
+  matrix.className = "destiny-card-matrix";
+  Object.entries(suitInfo).forEach(([suit, info]) => {
+    const row = document.createElement("section");
+    row.className = "destiny-suit-row";
+    row.dataset.tone = info.tone;
+    const label = document.createElement("header");
+    label.innerHTML = "<span>" + info.symbol + "</span><strong>" + info.name + "</strong>";
+    const grid = document.createElement("div");
+    options.filter((option) => option.target?.cardCode?.[0] === suit).forEach((option) => {
+      const code = option.target.cardCode;
+      const rank = code.slice(1) === "T" ? "10" : code.slice(1);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "destiny-card-choice";
+      btn.dataset.tone = info.tone;
+      btn.setAttribute("aria-label", "指定河牌 " + option.label);
+      btn.setAttribute("aria-pressed", "false");
+      btn.innerHTML = "<strong>" + rank + "</strong><span>" + info.symbol + "</span>";
+      btn.addEventListener("click", () => chooseSkillTarget(btn, {
+        ...option,
+        selectionLabel: "已锁定河牌 · " + option.label,
+      }));
+      grid.appendChild(btn);
+    });
+    row.append(label, grid);
+    matrix.appendChild(row);
+  });
+  el.skillChoiceBody.appendChild(matrix);
+}
+
+function cheatTargetLabel(option) {
+  const target = option.target || {};
+  if (target.zone === "opponent") return { zone: "对手底牌", label: "暗牌 #" + String(Number(target.index || 0) + 1) };
+  if (target.zone === "community") return { zone: "公共牌", label: "牌位 #" + String(Number(target.index || 0) + 1) + " · " + cardChoiceLabel(state.communityCards[target.index]) };
+  if (target.zone === "future") return { zone: "未来公共牌", label: "牌位 #" + String(Number(target.index || 0) + 1) };
+  if (target.zone === "next") return { zone: "发牌序列", label: "下一张有效发牌" };
+  return { zone: "牌堆", label: "非顶部暗抽" };
+}
+
+function renderCheatChoices(options) {
+  const sourceIndexes = [...new Set(options.map((option) => Number(option.target?.ownIndex || 0)))];
+  const shell = document.createElement("div");
+  shell.className = "cheat-exchange-console";
+  const sourceRail = document.createElement("div");
+  sourceRail.className = "cheat-source-rail";
+  const targetPanels = document.createElement("div");
+  targetPanels.className = "cheat-target-panels";
+
+  const activateSource = (ownIndex) => {
+    sourceRail.querySelectorAll("button").forEach((button) => {
+      const active = Number(button.dataset.ownIndex) === ownIndex;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    targetPanels.querySelectorAll(".cheat-target-panel").forEach((panel) => {
+      panel.classList.toggle("is-active", Number(panel.dataset.ownIndex) === ownIndex);
+    });
+    targetPanels.querySelectorAll(".is-target-selected, .selected").forEach((node) => node.classList.remove("is-target-selected", "selected"));
+    state.pendingChoice.payload.target = {};
+    el.btnSkillChoiceConfirm.disabled = true;
+    if (el.skillChoiceSelection) el.skillChoiceSelection.textContent = "已选择交换牌，请指定目标";
+  };
+
+  sourceIndexes.forEach((ownIndex, sourcePosition) => {
+    const ownCard = state.myCards[ownIndex];
+    const source = document.createElement("button");
+    source.type = "button";
+    source.className = "cheat-source-tab";
+    source.dataset.ownIndex = String(ownIndex);
+    source.setAttribute("role", "tab");
+    source.setAttribute("aria-selected", sourcePosition === 0 ? "true" : "false");
+    const miniCard = createCard(ownCard, { reveal: true });
+    miniCard.classList.add("skill-source-card");
+    const sourceCopy = document.createElement("span");
+    sourceCopy.innerHTML = "<small>交换手牌</small><strong>" + cardChoiceLabel(ownCard) + "</strong>";
+    source.append(miniCard, sourceCopy);
+    source.addEventListener("click", () => activateSource(ownIndex));
+    sourceRail.appendChild(source);
+
+    const panel = document.createElement("section");
+    panel.className = "cheat-target-panel" + (sourcePosition === 0 ? " is-active" : "");
+    panel.dataset.ownIndex = String(ownIndex);
+    options.filter((option) => Number(option.target?.ownIndex || 0) === ownIndex).forEach((option) => {
+      const targetInfo = cheatTargetLabel(option);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cheat-target-choice";
+      btn.setAttribute("aria-pressed", "false");
+      btn.innerHTML = "<span>" + targetInfo.zone + "</span><strong>" + targetInfo.label + "</strong><small>执行精确交换</small>";
+      btn.addEventListener("click", () => chooseSkillTarget(btn, {
+        ...option,
+        selectionLabel: cardChoiceLabel(ownCard) + " ↔ " + targetInfo.label,
+      }));
+      panel.appendChild(btn);
+    });
+    targetPanels.appendChild(panel);
+  });
+
+  shell.append(sourceRail, targetPanels);
+  el.skillChoiceBody.appendChild(shell);
+  if (sourceIndexes.length) activateSource(sourceIndexes[0]);
+}
+
+function openSkillTargetOptions({ skillId, title, text, options, variant = "default" }) {
   if (!options.length) {
     showToast("当前没有可选择的牌", "error");
     return;
   }
-  state.pendingChoice = { type: "SKILL_TARGET", skillId, payload: { target: {} } };
+  state.pendingChoice = {
+    type: "SKILL_TARGET",
+    skillId,
+    payload: { target: {} },
+    context: {
+      handId: state.activeCommitment?.handId || null,
+      turnId: state.turnId || null,
+      phase: state.phase || null,
+    },
+  };
   el.skillChoiceTitle.textContent = title;
   el.skillChoiceText.textContent = text;
-  el.skillChoiceBody.textContent = "";
-  el.btnSkillChoiceConfirm.disabled = true;
-  options.forEach((option) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "skill-choice-card target-card-choice";
-    btn.textContent = option.label;
-    if (option.tone) btn.dataset.tone = option.tone;
-    btn.addEventListener("click", () => {
-      [...el.skillChoiceBody.children].forEach((node) => node.classList.remove("selected"));
-      btn.classList.add("selected");
-      state.pendingChoice.payload.target = { ...option.target };
-      el.btnSkillChoiceConfirm.disabled = false;
-    });
-    el.skillChoiceBody.appendChild(btn);
+  prepareSkillChoiceModal({
+    variant,
+    eyebrow: variant === "destiny" ? "RIVER OVERRIDE PROTOCOL" : variant === "cheat" ? "CARD EXCHANGE PROTOCOL" : "TACTICAL DECISION",
+    step: variant === "cheat" ? "1 选择手牌 · 2 锁定目标" : variant === "destiny" ? "指定唯一河牌" : "选择目标",
   });
+  if (variant === "destiny") renderDestinyChoices(options);
+  else if (variant === "cheat") renderCheatChoices(options);
+  else options.forEach((option) => el.skillChoiceBody.appendChild(createGenericSkillChoice(option)));
   el.skillChoiceModal.classList.remove("hidden");
   el.skillChoiceBody.querySelector("button")?.focus();
 }
@@ -3489,7 +3904,7 @@ function useSkill(skillId) {
       target: { zone: "future", boardIndex },
       tone: "intel",
     }));
-    return openSkillTargetOptions({ skillId, title: "情报", text: "先选择模式。扣费后不能改目标。", options });
+    return openSkillTargetOptions({ skillId, title: "情报", text: "先选择信息来源。确认后立即扣费，目标不可变更。", options, variant: "intel" });
   }
   if (skillId === "CHEAT") {
     const options = [];
@@ -3515,7 +3930,13 @@ function useSkill(skillId) {
         target: { ownIndex, zone: "deck_random" },
       });
     });
-    return openSkillTargetOptions({ skillId, title: "千术", text: "选择自己的底牌与精确交换目标", options });
+    return openSkillTargetOptions({
+      skillId,
+      title: "千术换牌",
+      text: "先选择要交出的手牌，再锁定精确交换目标。确认后立即执行。",
+      options,
+      variant: "cheat",
+    });
   }
   if (skillId === "NULLIFICATION") {
     const energy = Number((state.skillSelf || getMe()?.skills || {}).abyssEnergy || 0);
@@ -3536,7 +3957,7 @@ function useSkill(skillId) {
       label: `零化未来公共牌 #${boardIndex + 1}（6 能量）`,
       target: { mode: "board", boardIndex },
     }));
-    return openSkillTargetOptions({ skillId, title: "零化", text: "选择模式与目标。双方可以点同一张公共牌。", options });
+    return openSkillTargetOptions({ skillId, title: "零化", text: "选择零化模式与目标。双方可以锁定同一张公共牌。", options, variant: "nullification" });
   }
   if (skillId === "LOAN") {
     const self = state.skillSelf || getMe()?.skills || {};
@@ -3578,6 +3999,7 @@ function useSkill(skillId) {
       title: "贷款",
       text: hint,
       options,
+      variant: "loan",
     });
   }
   if (skillId === "DESTINY") {
@@ -3592,33 +4014,183 @@ function useSkill(skillId) {
         });
       });
     });
-    return openSkillTargetOptions({ skillId, title: "天命", text: "转牌后指定一张牌立刻成为未来河牌；若不在可操作牌堆中，7 能量照付且失败", options });
+    return openSkillTargetOptions({
+      skillId,
+      title: "天命选牌",
+      text: "从完整牌面矩阵中指定唯一河牌。若目标不在可操作牌堆中，7 能量仍会支付且发动失败。",
+      options,
+      variant: "destiny",
+    });
   }
   emitSkillUse(skillId);
 }
 
 function openSuspectPicker() {
-  const selected = new Set(state.suspectedSkillIds || []);
-  state.pendingChoice = { type: "SUSPECT_SKILLS", skillIds: [...selected] };
-  el.skillChoiceTitle.textContent = "怀疑技能";
-  el.skillChoiceText.textContent = "仅保存在你本地，不会同步给对手，也不影响结算。";
-  el.skillChoiceBody.textContent = "";
+  const opponent = getOpponent();
+  if (!opponent) return;
+  const known = knownOpponentSkillIntel(opponent);
+  if (known.complete) {
+    showToast("对手完整构筑已经公开，无需继续推测", "success");
+    return;
+  }
+  const limit = Math.max(0, 4 - known.ids.length);
+  const selected = new Set(
+    loadCurrentSuspectedSkillIds().filter((id) => !known.ids.includes(id)).slice(0, limit)
+  );
+  state.pendingChoice = {
+    type: "SUSPECT_SKILLS",
+    skillIds: [...selected],
+    knownSkillIds: [...known.ids],
+    limit,
+  };
+  prepareSkillChoiceModal({
+    variant: "dossier",
+    eyebrow: "OPPONENT BUILD ANALYSIS",
+    step: "本地情报 · 不会同步",
+    confirmLabel: "保存标记",
+  });
+  el.skillChoiceTitle.textContent = "标记对手技能";
+  el.skillChoiceText.textContent = known.ids.length
+    ? "系统已确认 " + known.ids.length + " 项技能；你可以在剩余槽位记录自己的判断。"
+    : "从技能档案中标记你认为对手可能携带的技能。推测不会影响规则或对手视图。";
   el.btnSkillChoiceConfirm.disabled = false;
+
+  const updateSummary = () => {
+    if (el.skillChoiceSelection) {
+      el.skillChoiceSelection.textContent = selected.size
+        ? "已标记 " + selected.size + " 项 · 剩余 " + Math.max(0, limit - selected.size) + " 个推测槽位"
+        : "尚未标记 · 可用 " + limit + " 个推测槽位";
+    }
+  };
+
+  const grid = document.createElement("div");
+  grid.className = "dossier-skill-grid";
   state.skillCatalog.forEach((skill) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "skill-choice-card target-card-choice";
-    btn.textContent = skill.name;
+    btn.className = "dossier-skill-choice";
+    btn.dataset.skillId = skill.id;
+    const confirmed = known.ids.includes(skill.id);
+    btn.disabled = confirmed;
+    btn.classList.toggle("is-confirmed", confirmed);
     btn.classList.toggle("selected", selected.has(skill.id));
+    btn.setAttribute("aria-pressed", selected.has(skill.id) ? "true" : "false");
+    const mark = document.createElement("span");
+    mark.className = "dossier-choice-mark";
+    mark.textContent = confirmed ? "✓" : selected.has(skill.id) ? "◆" : "◇";
+    const copy = document.createElement("span");
+    copy.className = "dossier-choice-copy";
+    const name = document.createElement("strong");
+    name.textContent = skill.name;
+    const meta = document.createElement("small");
+    meta.textContent = confirmed
+      ? "系统确认"
+      : "负载 " + String(skill.load ?? "—") + " · 能量 " + String(skill.energyCost ?? 0);
+    copy.append(name, meta);
+    btn.append(mark, copy);
     btn.addEventListener("click", () => {
-      if (selected.has(skill.id)) selected.delete(skill.id);
-      else selected.add(skill.id);
+      if (selected.has(skill.id)) {
+        selected.delete(skill.id);
+      } else if (selected.size >= limit) {
+        showToast("对手构筑最多 4 项；已确认技能会占用槽位", "error");
+        return;
+      } else {
+        selected.add(skill.id);
+      }
       btn.classList.toggle("selected", selected.has(skill.id));
+      btn.setAttribute("aria-pressed", selected.has(skill.id) ? "true" : "false");
+      mark.textContent = selected.has(skill.id) ? "◆" : "◇";
       state.pendingChoice.skillIds = [...selected];
+      updateSummary();
     });
-    el.skillChoiceBody.appendChild(btn);
+    grid.appendChild(btn);
   });
+  el.skillChoiceBody.appendChild(grid);
+  updateSummary();
   el.skillChoiceModal.classList.remove("hidden");
+  grid.querySelector("button:not(:disabled)")?.focus();
+}
+
+function closeSkillChoiceModal({ render = true, restoreFocus = true } = {}) {
+  const pending = state.pendingChoice;
+  const wasOpen = Boolean(el.skillChoiceModal && !el.skillChoiceModal.classList.contains("hidden"));
+  if (!pending && !wasOpen) return false;
+  state.pendingChoice = null;
+  el.skillChoiceModal.classList.add("hidden");
+  delete el.skillChoiceModal.dataset.variant;
+  el.btnSkillChoiceConfirm.disabled = false;
+  el.btnSkillChoiceConfirm.textContent = "确认发动";
+  if (render) renderSkillHud();
+  if (restoreFocus && wasOpen) {
+    requestAnimationFrame(() => {
+      let target = pending?.type === "SUSPECT_SKILLS" ? el.btnMarkOpponentSkills : null;
+      if (!target && pending?.skillId) {
+        target = [...document.querySelectorAll("#skill-bar .skill-use-btn")]
+          .find((button) => button.dataset.skillUseId === pending.skillId && !button.disabled);
+      }
+      if (!target) {
+        target = [...document.querySelectorAll("#screen-game .action-button[data-action]")]
+          .find((button) => !button.disabled && !button.classList.contains("hidden"));
+      }
+      target?.focus();
+    });
+  }
+  return true;
+}
+
+function invalidateSkillChoiceIfStale({ force = false, includeDossier = false } = {}) {
+  const pending = state.pendingChoice;
+  if (!pending) return false;
+  if (pending.type === "SUSPECT_SKILLS") {
+    return force && includeDossier
+      ? closeSkillChoiceModal({ render: false, restoreFocus: false })
+      : false;
+  }
+  if (pending.type !== "SKILL_TARGET") return false;
+  const context = pending.context || {};
+  const currentHandId = state.activeCommitment?.handId || null;
+  const stale = force
+    || state.currentTurnPlayerId !== state.playerId
+    || !state.validActions.length
+    || context.turnId !== (state.turnId || null)
+    || context.phase !== (state.phase || null)
+    || (context.handId && currentHandId && context.handId !== currentHandId);
+  return stale
+    ? closeSkillChoiceModal({ render: false, restoreFocus: false })
+    : false;
+}
+
+function syncTableRailAccessibility() {
+  const compact = typeof window.matchMedia === "function"
+    && window.matchMedia("(max-width: 760px), (max-height: 560px)").matches;
+  const skillsEnabled = state.skillMode === "abyss";
+  const intelOpen = Boolean(el.opponentSkillField?.classList.contains("is-mobile-open"));
+  const feedOpen = Boolean(el.tableTelemetry?.classList.contains("is-feed-open"));
+  const intelHidden = !skillsEnabled || (compact && !intelOpen);
+  const feedHidden = !skillsEnabled || (compact && !feedOpen);
+  if (el.opponentSkillField) {
+    el.opponentSkillField.inert = intelHidden;
+    el.opponentSkillField.setAttribute("aria-hidden", intelHidden ? "true" : "false");
+  }
+  if (el.skillBroadcast) {
+    el.skillBroadcast.setAttribute("aria-hidden", feedHidden ? "true" : "false");
+  }
+  [el.btnToggleOpponentIntel, el.btnToggleSkillFeed].forEach((button) => {
+    if (!button) return;
+    button.setAttribute("aria-hidden", skillsEnabled ? "false" : "true");
+    button.tabIndex = skillsEnabled ? 0 : -1;
+  });
+}
+
+function toggleTableRail(target) {
+  if (state.skillMode !== "abyss") return;
+  const openingIntel = target === "intel" && !el.opponentSkillField?.classList.contains("is-mobile-open");
+  const openingFeed = target === "feed" && !el.tableTelemetry?.classList.contains("is-feed-open");
+  el.opponentSkillField?.classList.toggle("is-mobile-open", openingIntel);
+  el.tableTelemetry?.classList.toggle("is-feed-open", openingFeed);
+  el.btnToggleOpponentIntel?.setAttribute("aria-expanded", openingIntel ? "true" : "false");
+  el.btnToggleSkillFeed?.setAttribute("aria-expanded", openingFeed ? "true" : "false");
+  syncTableRailAccessibility();
 }
 
 el.skillModeInputs?.forEach((input) =>
@@ -3629,30 +4201,23 @@ el.btnConfirmLoadout?.addEventListener("click", () => {
   socket.emit("skill:loadout:set", { skillIds: state.selectedLoadout });
 });
 el.btnSkillChoiceCancel?.addEventListener("click", () => {
-  state.pendingChoice = null;
-  el.skillChoiceModal.classList.add("hidden");
-  renderSkillHud();
+  closeSkillChoiceModal();
 });
 el.btnSkillChoiceConfirm?.addEventListener("click", () => {
   if (!state.pendingChoice) return;
   if (state.pendingChoice.type === "SKILL_TARGET") {
     if (!emitSkillUse(state.pendingChoice.skillId, state.pendingChoice.payload.target)) return;
-    el.skillChoiceModal.classList.add("hidden");
-    el.btnSkillChoiceConfirm.disabled = false;
-    state.pendingChoice = null;
+    closeSkillChoiceModal();
     return;
   }
   if (state.pendingChoice.type === "SUSPECT_SKILLS") {
     saveSuspectedSkillIds(state.pendingChoice.skillIds || []);
-    el.skillChoiceModal.classList.add("hidden");
-    state.pendingChoice = null;
-    renderSkillHud();
+    closeSkillChoiceModal();
   }
 });
-el.opponentSkillBar?.addEventListener("click", () => {
-  if (state.skillMode !== "abyss" || !getOpponent()) return;
-  openSuspectPicker();
-});
+el.btnMarkOpponentSkills?.addEventListener("click", openSuspectPicker);
+el.btnToggleOpponentIntel?.addEventListener("click", () => toggleTableRail("intel"));
+el.btnToggleSkillFeed?.addEventListener("click", () => toggleTableRail("feed"));
 el.btnSkillPrivateClose?.addEventListener("click", () => {
   el.skillPrivateModal.classList.add("hidden");
   const next = state.privateResultQueue.shift();
@@ -3678,14 +4243,8 @@ socket.on("skill:state", (payload) => {
     });
   }
   const recentLog = payload.room?.recentLog || [];
-  if (el.skillLog) {
-    el.skillLog.textContent = "";
-    recentLog.slice().reverse().forEach((entry) => {
-      const line = document.createElement("div");
-      line.textContent = entry.publicSummary || entry.skillId;
-      el.skillLog.appendChild(line);
-    });
-  }
+  state.skillRecentLog = recentLog.slice(-8).map((entry) => ({ ...entry }));
+  state.skillRecentLog.forEach(rememberPublicSkillIntel);
   renderSkillDraft();
   renderState();
 });
@@ -3701,7 +4260,7 @@ socket.on("skill:loadout:confirmed", (payload) => {
 
 socket.on("skill:pending", (payload) => {
   if (shouldIgnoreSyncEvent(payload)) return;
-  logAction("技能发动：" + payload.skillId);
+  logAction(payload.publicSummary || "技能请求处理中");
 });
 
 socket.on("skill:resolved", (payload) => {
@@ -3710,11 +4269,8 @@ socket.on("skill:resolved", (payload) => {
   endUiRequest("choice");
   if (payload.publicSummary) {
     logAction(payload.publicSummary);
-    if (el.skillLog) {
-      const line = document.createElement("div");
-      line.textContent = payload.publicSummary;
-      el.skillLog.prepend(line);
-    }
+    rememberPublicSkillIntel(payload);
+    rememberSkillFeedEntry(payload);
   }
   if (payload.publicData?.nullifiedCommunityCardIds) {
     state.nullifiedCommunityCardIds = payload.publicData.nullifiedCommunityCardIds;

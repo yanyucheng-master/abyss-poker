@@ -61,6 +61,12 @@ function byCode() {
   return Object.fromEntries(createDeck().map((card) => [card.code, card]));
 }
 
+function playerCardLabel(card) {
+  const suitSymbols = { S: "♠", H: "♥", C: "♣", D: "♦" };
+  const rank = card.rank === "T" ? "10" : card.rank;
+  return `${rank}${suitSymbols[card.suit]}`;
+}
+
 function goToStreet(engine, room, street, actorIndex = 0) {
   const order = ["pre_flop", "flop", "turn", "river"];
   const target = order.indexOf(street);
@@ -126,6 +132,7 @@ describe("技能目录、构筑与隐私", () => {
     const selfSummary = getSelfSkillSummary(a);
     expect(publicSummary).toMatchObject({ abyssEnergy: 8, buildHidden: true, energyCap: 8 });
     expect(publicSummary).not.toHaveProperty("equippedSkillIds");
+    expect(publicSummary.knownSkills).toEqual([]);
     expect(publicSummary.publicEffects).not.toContain("???");
     expect(selfSummary.abyssEnergy).toBe(10);
     expect(selfSummary.energyCap).toBe(10);
@@ -244,6 +251,7 @@ describe("能量、深呼吸、回收与公平", () => {
     b.skillRuntime.defenseActive = true;
     a.skillRuntime.bloodBattleActive = true;
     a.skillRuntime.confirmedPublicSkills.push("BLOOD_BATTLE");
+    a.skillRuntime.revealedSkillIds.push("BLOOD_BATTLE");
     room.skillState.nullifications.push({ type: "board", boardIndex: 0, cardCode: "SA", revealed: false });
     engine.finishStreetDeal(room, "flop");
     engine.clearActionTimer(room);
@@ -265,6 +273,18 @@ describe("能量、深呼吸、回收与公平", () => {
     expect(getPublicSkillSummary(b).publicEffects).toContain("FAIRNESS");
     expect(getPublicSkillSummary(a).publicEffects).not.toContain("BLOOD_BATTLE");
     expect(getPublicSkillSummary(a).publicEffects).not.toContain("INTIMIDATION");
+    expect(getPublicSkillSummary(a).knownSkills).toEqual(expect.arrayContaining(["BLOOD_BATTLE", "CHEAT"]));
+    expect(getPublicSkillSummary(b).knownSkills).toContain("FAIRNESS");
+  });
+
+  test("自然公开的技能会进入已知构筑并跨手保留", () => {
+    const { engine, room, a } = setupRoom({ loadoutA: ["DEEP_BREATH", "RECYCLE"] });
+    expect(use(engine, room, a, "DEEP_BREATH", {}, "reveal-breath")).toMatchObject({ status: "SUCCESS" });
+    expect(getPublicSkillSummary(a).knownSkills).toContain("DEEP_BREATH");
+
+    beginHandSkills(room);
+    expect(getPublicSkillSummary(a).knownSkills).toContain("DEEP_BREATH");
+    expect(getPublicSkillSummary(a)).not.toHaveProperty("equippedSkillIds");
   });
 
   test("重复请求只结算一次", () => {
@@ -444,7 +464,7 @@ describe("情报、绝密、千术、零化、感知、灵视", () => {
     expect(use(future.engine, future.room, future.a, "INTEL_ONE", { zone: "future", boardIndex: 4 }, "intel-river")).toMatchObject({
       status: "SUCCESS",
     });
-    expect(future.a.skillRuntime.privateResults.at(-1).message).toContain(river.card.code);
+    expect(future.a.skillRuntime.privateResults.at(-1).message).toContain(playerCardLabel(river.card));
     expect(future.b.skillRuntime.topSecretActive).toBe(false);
     expect(future.b.skillRuntime.abyssEnergy).toBe(4);
   });
@@ -471,6 +491,7 @@ describe("情报、绝密、千术、零化、感知、灵视", () => {
     });
     expect(a.cards[0].code).toBe(board.code);
     expect(room.communityCards[0].code).toBe(own.code);
+    expect(a.skillRuntime.privateResults.at(-1).message).toContain(playerCardLabel(board));
     const after = [...a.cards, ...room.communityCards, ...room.deck, ...room.skillState.burnedCards].map((card) => card.code).sort();
     expect(after).toEqual(before);
   });
@@ -659,6 +680,7 @@ describe("强运、天命与协议", () => {
     a.skillRuntime.abyssEnergy = 10;
     expect(room.deck.some((card) => card.code === "S2")).toBe(true);
     expect(use(engine, room, a, "DESTINY", { cardCode: "S2" }, "destiny-s2")).toMatchObject({ status: "SUCCESS" });
+    expect(a.skillRuntime.privateResults.at(-1).message).toContain("2♠");
     expect(getFutureCommunitySlots(room).find((slot) => slot.boardIndex === 4).card.code).toBe("S2");
     room.currentPlayerIndex = 1;
     b.skillRuntime.abyssEnergy = 8;

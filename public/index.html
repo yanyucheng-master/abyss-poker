@@ -655,15 +655,80 @@
             <div id="opponent-cards" class="cards-row opponent-cards" aria-label="对手底牌"></div>
           </section>
 
-          <section class="table-center" aria-label="公共牌与底池">
-            <div class="street-header">
-              <span id="phase-text">等待</span>
-              <div class="street-line"><i></i></div>
+          <button
+            id="btn-toggle-opponent-intel"
+            class="table-rail-tab intel-tab"
+            type="button"
+            aria-controls="opponent-skill-field"
+            aria-expanded="false"
+          >
+            <span aria-hidden="true">◇</span>
+            <strong>构筑情报</strong>
+            <small id="opponent-intel-count">0 / 4</small>
+          </button>
+
+          <aside id="opponent-skill-field" class="table-side-rail opponent-skill-field" aria-labelledby="opponent-skill-title">
+            <header class="rail-heading">
+              <div>
+                <span class="rail-eyebrow">OPPONENT DOSSIER</span>
+                <h2 id="opponent-skill-title">对手构筑</h2>
+              </div>
+              <span id="opponent-build-status" class="intel-status">未确认</span>
+            </header>
+            <div class="intel-legend" aria-label="技能情报图例">
+              <span><i class="known"></i>系统确认</span>
+              <span><i class="suspected"></i>本地推测</span>
+            </div>
+            <div id="opponent-skill-bar" class="opponent-skill-bar" aria-label="对手已知与推测技能"></div>
+            <button id="btn-mark-opponent-skills" class="intel-edit-button" type="button">
+              <span aria-hidden="true">＋</span>
+              <span>标记推测</span>
+            </button>
+            <p class="intel-privacy">标记只保存在本机，不会同步或影响结算。</p>
+          </aside>
+
+          <section class="table-center" aria-label="公共牌">
+            <div class="board-midline">
+              <div id="community-cards" class="community-row" aria-label="公共牌"></div>
+            </div>
+          </section>
+
+          <button
+            id="btn-toggle-skill-feed"
+            class="table-rail-tab feed-tab"
+            type="button"
+            aria-controls="skill-broadcast"
+            aria-expanded="false"
+          >
+            <span aria-hidden="true">≋</span>
+            <strong>战术播报</strong>
+            <small id="skill-feed-count">0</small>
+          </button>
+
+          <aside id="table-telemetry" class="table-side-rail table-telemetry" aria-label="牌局遥测与技能播报">
+            <div class="street-telemetry">
+              <div>
+                <span class="rail-eyebrow">STREET</span>
+                <strong id="phase-text">等待</strong>
+              </div>
               <span id="action-log" class="action-log" aria-live="polite">同步中</span>
             </div>
 
-            <div class="board-midline">
-              <div id="community-cards" class="community-row" aria-label="公共牌"></div>
+            <div class="round-instruments">
+              <div class="turn-clock-block">
+                <span class="instrument-label">ACTION</span>
+                <div id="action-countdown" class="action-countdown" aria-label="行动倒计时">
+                  <span id="action-countdown-value">—</span>
+                </div>
+              </div>
+              <div id="pot-core" class="pot-core" aria-label="当前底池 0">
+                <div class="core-ring ring-outer"></div>
+                <div class="core-ring ring-inner"></div>
+                <div class="core-value">
+                  <span>底池</span>
+                  <strong id="pot-value">0</strong>
+                </div>
+              </div>
               <div id="deck-stack" class="deck-stack" aria-hidden="true">
                 <span class="deck-card"></span>
                 <span class="deck-card"></span>
@@ -671,20 +736,22 @@
               </div>
             </div>
 
-            <div id="pot-core" class="pot-core" aria-label="当前底池 0">
-              <div class="core-ring ring-outer"></div>
-              <div class="core-ring ring-inner"></div>
-              <div class="core-value">
-                <span>底池</span>
-                <strong id="pot-value">0</strong>
-              </div>
-            </div>
-
             <div id="overdrive-profile" class="overdrive-profile hidden">
               <span>高爆</span>
               <strong id="overdrive-profile-label">高能牌局</strong>
             </div>
-          </section>
+
+            <section id="skill-broadcast" class="skill-broadcast" aria-labelledby="skill-broadcast-title">
+              <header>
+                <div>
+                  <span class="rail-eyebrow">TACTICAL FEED</span>
+                  <h2 id="skill-broadcast-title">技能播报</h2>
+                </div>
+                <span class="live-indicator"><i></i>LIVE</span>
+              </header>
+              <div id="skill-log" class="skill-log" aria-live="polite"></div>
+            </section>
+          </aside>
 
           <section id="self-area" class="player-zone self-zone" aria-label="你的状态">
             <div class="self-stage">
@@ -733,13 +800,8 @@
               <span id="skill-silence-flag" class="hidden">技能封锁</span>
             </div>
             <div id="skill-bar" class="skill-bar" aria-label="已装备技能"></div>
-            <div id="opponent-skill-bar" class="opponent-skill-bar" aria-label="对手技能"></div>
-            <div id="skill-log" class="skill-log sr-only" aria-live="polite"></div>
           </div>
           <div class="turn-status">
-            <div id="action-countdown" class="action-countdown" aria-label="行动倒计时">
-              <span id="action-countdown-value">—</span>
-            </div>
             <div>
               <span id="turn-kicker">回合</span>
               <strong id="turn-message">等待行动</strong>
@@ -832,15 +894,22 @@
     </div>
 
     <div id="skill-choice-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="skill-choice-title">
-      <section class="modal-panel confirm-panel glass-panel" tabindex="-1">
-        <header class="modal-header">
-          <h2 id="skill-choice-title">技能选择</h2>
+      <section class="modal-panel confirm-panel skill-command-panel glass-panel" tabindex="-1">
+        <header class="modal-header skill-command-header">
+          <div>
+            <p id="skill-choice-eyebrow" class="eyebrow">TACTICAL DECISION</p>
+            <h2 id="skill-choice-title">技能选择</h2>
+          </div>
+          <span id="skill-choice-step" class="skill-choice-step">选择目标</span>
         </header>
-        <p id="skill-choice-text">请完成技能选择</p>
+        <div class="skill-choice-brief">
+          <p id="skill-choice-text">请完成技能选择</p>
+          <strong id="skill-choice-selection" aria-live="polite">尚未选择</strong>
+        </div>
         <div id="skill-choice-body" class="skill-choice-body"></div>
-        <div class="modal-actions">
+        <div class="modal-actions skill-command-actions">
           <button id="btn-skill-choice-cancel" class="button button-ghost" type="button">取消</button>
-          <button id="btn-skill-choice-confirm" class="button button-primary" type="button">确认</button>
+          <button id="btn-skill-choice-confirm" class="button button-primary" type="button">确认发动</button>
         </div>
       </section>
     </div>

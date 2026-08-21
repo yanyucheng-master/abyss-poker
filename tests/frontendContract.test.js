@@ -14,6 +14,7 @@ describe("frontend DOM contract", () => {
   const client = fs.readFileSync(path.join(publicDir, "client.js"), "utf8");
   const style = fs.readFileSync(path.join(publicDir, "style.css"), "utf8");
   const salon = fs.readFileSync(path.join(publicDir, "salon.css"), "utf8");
+  const tableV2 = fs.readFileSync(path.join(publicDir, "table-v2.css"), "utf8");
 
   test("HTML id 唯一", () => {
     const ids = collectMatches(html, /\bid=["']([^"']+)["']/g);
@@ -119,7 +120,8 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("function playAllInHaptics()");
     expect(client).toContain('typeof navigator.vibrate !== "function"');
     expect(client).toContain("state.settings.reduceMotion");
-    expect(client).toContain("navigator.vibrate(ALL_IN_VIBRATION_PATTERN)");
+    expect(client).toContain("navigator.vibrate(pattern)");
+    expect(client).toContain("playFxHaptics(ALL_IN_VIBRATION_PATTERN)");
     expect(client).toMatch(/playAllInHaptics\(\);\s+playTone\("allin"\)/);
     expect(client).toContain("if (!preview) playAllInHaptics()");
   });
@@ -131,7 +133,9 @@ describe("frontend DOM contract", () => {
     ["INTEL_ONE", "CHEAT", "NULLIFICATION", "DESTINY"].forEach((skillId) => {
       expect(client).toContain(`skillId === "${skillId}"`);
     });
-    expect(client).toContain("对手构筑已隐藏");
+    expect(html).toContain('id="opponent-skill-field"');
+    expect(html).toContain('id="btn-mark-opponent-skills"');
+    expect(client).toContain("function renderOpponentSkillIntel()");
     expect(client).toContain('skillLoadout: "abyss_skill_loadout_v2"');
     expect(html).toContain('id="self-energy"');
     expect(html).toContain('id="self-energy-cap"');
@@ -139,6 +143,17 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('id="btn-skill-preview-expert"');
     expect(client).toContain("shortDescription");
     expect(client).toContain("skillExpertText");
+  });
+
+  test("技能选择随权威回合失效，移动技能抽屉不会穿透或污染无技能局", () => {
+    expect(client).toContain("function invalidateSkillChoiceIfStale");
+    expect(client).toContain("context.turnId !== (state.turnId || null)");
+    expect(client).toContain("closeSkillChoiceModal({ render: false, restoreFocus: false })");
+    expect(client).toContain("function syncTableRailAccessibility");
+    expect(client).toContain("el.opponentSkillField.inert = intelHidden");
+    expect(client).toContain("rememberPublicSkillIntel(payload)");
+    expect(tableV2).toContain(".poker-board.skills-disabled .table-rail-tab");
+    expect(tableV2).toMatch(/\.poker-board\.skills-disabled \.table-rail-tab\s*\{\s*display:\s*none;/);
   });
 
   test("技能牌堆审计包含最终牌区守恒检查", () => {

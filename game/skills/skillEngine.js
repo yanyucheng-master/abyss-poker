@@ -60,6 +60,15 @@ const { shuffle } = require("../../utils/shuffle");
 
 const ACTIVE_PHASES = new Set(["pre_flop", "flop", "turn", "river"]);
 const CARD_CODE_RE = /^[SHCD](?:[2-9TJQKA])$/;
+const CARD_SUIT_SYMBOLS = Object.freeze({ S: "♠", H: "♥", C: "♣", D: "♦" });
+
+function formatCardCodeForPlayer(cardCode) {
+  const normalized = String(cardCode || "").toUpperCase();
+  if (!CARD_CODE_RE.test(normalized)) return "未知牌";
+  const rankCode = normalized.slice(1);
+  const rank = rankCode === "T" ? "10" : rankCode;
+  return `${rank}${CARD_SUIT_SYMBOLS[normalized[0]]}`;
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -333,6 +342,7 @@ function beginHandSkills(room) {
       runtime.handStartChips <= SKILL_CONFIG.DESPERATION_CHIP_THRESHOLD
     ) {
       runtime.desperationActive = true;
+      confirmPublicSkill(player, "DESPERATION");
       markSkillEvent(player, "DESPERATION");
       room.skillState.skillActionLog.push(createSkillEvent(room, player, getSkillDefinition("DESPERATION"), {
         status: "TRIGGERED",
@@ -517,6 +527,7 @@ class SkillEngine {
 
   emitResolved(room, player, skill, options = {}) {
     const secret = Boolean(options.secret);
+    if (!secret) confirmPublicSkill(player, skill.id);
     const payload = {
       requestId: options.requestId || null,
       skillId: skill.id,
@@ -565,6 +576,7 @@ class SkillEngine {
     runtime.topSecretActive = true;
     runtime.topSecretPaidThisHand = true;
     runtime.topSecretRevealed = true;
+    confirmPublicSkill(defender, "TOP_SECRET");
     markSkillEvent(defender, "TOP_SECRET");
     const skill = getSkillDefinition("TOP_SECRET");
     this.recordSkill(room, defender, skill, {
@@ -595,6 +607,7 @@ class SkillEngine {
     const best = failures.reduce((winner, entry) => (entry.cost > winner.cost ? entry : winner), failures[0]);
     const restored = gainEnergy(player, Math.floor(best.cost * SKILL_CONFIG.RECYCLE_REFUND_RATE));
     runtime.recycleUsedThisHand = true;
+    confirmPublicSkill(player, "RECYCLE");
     markSkillEvent(player, "RECYCLE");
     const recycle = getSkillDefinition("RECYCLE");
     this.recordSkill(room, player, recycle, {
@@ -864,6 +877,7 @@ class SkillEngine {
     const opponent = opponentOf(room, player);
     if (skill.canBeCountered !== false && opponent?.skillRuntime?.counterArmed) {
       opponent.skillRuntime.counterArmed = false;
+      confirmPublicSkill(opponent, "COUNTER");
       recordPaidFailure(player, { skillId: skill.id, cost, reason: "COUNTERED" });
       player.skillRuntime.lockedThisHand = true;
       player.skillRuntime.lockReason = "COUNTER";
@@ -1085,7 +1099,7 @@ class SkillEngine {
       if (!card) throw new Error("对手底牌尚未就绪");
       return {
         secret: true, publicSummary: "秘密技能已结算",
-        privateResult: { message: `情报：对手的一张底牌是 ${card.code}`, card: cloneCard(card), zone: "opponent" },
+        privateResult: { message: `情报：对手的一张底牌是 ${formatCardCodeForPlayer(card.code)}`, card: cloneCard(card), zone: "opponent" },
         audit: { zone: "opponent", cardIndex: index, cardCode: card.code },
       };
     }
@@ -1096,7 +1110,7 @@ class SkillEngine {
       if (!slot?.card) throw new Error("指定的未来公共牌不存在");
       return {
         secret: true, publicSummary: "秘密技能已结算",
-        privateResult: { message: `情报：第 ${slot.boardIndex + 1} 张公共牌将是 ${slot.card.code}`, card: cloneCard(slot.card), zone: "future", boardIndex: slot.boardIndex },
+        privateResult: { message: `情报：第 ${slot.boardIndex + 1} 张公共牌将是 ${formatCardCodeForPlayer(slot.card.code)}`, card: cloneCard(slot.card), zone: "future", boardIndex: slot.boardIndex },
         audit: { zone: "future", boardIndex: slot.boardIndex, cardCode: slot.card.code },
       };
     }
@@ -1180,7 +1194,7 @@ class SkillEngine {
     return {
       secret,
       publicSummary: secret ? "牌序受到一次隐秘干预" : `${player.name} 以「千术」交换一张公共牌`,
-      privateResult: { message: `千术完成：你的底牌变为 ${otherCard.code}` },
+      privateResult: { message: `千术完成：你的底牌变为 ${formatCardCodeForPlayer(otherCard.code)}` },
       audit: transform,
       cardsChanged: true,
       communityChanged,
@@ -1309,7 +1323,7 @@ class SkillEngine {
     room.skillState.transformations.push(transform);
     return {
       secret: true, publicSummary: "秘密技能已结算",
-      privateResult: { message: `天命已锁定：${cardCode} 将成为河牌。` },
+      privateResult: { message: `天命已锁定：${formatCardCodeForPlayer(cardCode)} 将成为河牌。` },
       audit: transform,
       cardMutationCompleted: true,
     };

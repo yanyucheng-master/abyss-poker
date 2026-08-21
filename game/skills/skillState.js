@@ -153,6 +153,7 @@ function createEmptySkillRuntime() {
     directChipGainThisHand: 0,
     privateResults: [],
     confirmedPublicSkills: [],
+    revealedSkillIds: [],
     chipLoan: null,
     chipLoans: [],
     energyLoan: null,
@@ -214,6 +215,9 @@ function resetPlayerSkillsForGame(player) {
     loadoutConfirmed: Boolean(previous.loadoutConfirmed),
     invalidBuild: Boolean(previous.invalidBuild),
     invalidBuildNotified: Boolean(previous.invalidBuildNotified),
+    // Rematches currently retain the same locked loadout. Knowledge that was
+    // naturally revealed in the previous game therefore remains valid.
+    revealedSkillIds: [...(previous.revealedSkillIds || [])],
     abyssEnergy: SKILL_CONFIG.INITIAL_ABYSS_ENERGY,
     visibleAbyssEnergy: SKILL_CONFIG.INITIAL_ABYSS_ENERGY,
   };
@@ -240,6 +244,7 @@ function resetPlayerSkillsForHand(player) {
     loanCreditMetrics: runtime.loanCreditMetrics || createLoanCreditMetrics(),
     alertChanceIndex: Math.max(0, Number(runtime.alertChanceIndex) || 0),
     alertPromptPending: Boolean(runtime.alertPromptPending),
+    revealedSkillIds: [...(runtime.revealedSkillIds || [])],
   };
   Object.assign(runtime, createEmptySkillRuntime(), persist);
   runtime.handStartChips = Number(player.chips) || 0;
@@ -361,7 +366,10 @@ function hasEquipped(player, skillId) {
 function confirmPublicSkill(player, skillId) {
   const runtime = player?.skillRuntime;
   if (!runtime || !skillId) return;
+  if (!Array.isArray(runtime.confirmedPublicSkills)) runtime.confirmedPublicSkills = [];
+  if (!Array.isArray(runtime.revealedSkillIds)) runtime.revealedSkillIds = [];
   if (!runtime.confirmedPublicSkills.includes(skillId)) runtime.confirmedPublicSkills.push(skillId);
+  if (!runtime.revealedSkillIds.includes(skillId)) runtime.revealedSkillIds.push(skillId);
 }
 
 function getPublicSkillSummary(player) {
@@ -371,6 +379,7 @@ function getPublicSkillSummary(player) {
     abyssEnergy: getPublicEnergyDisplay(player),
     energyCap: SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP,
     buildHidden: true,
+    knownSkills: [...(runtime.revealedSkillIds || [])],
     lockedThisHand: Boolean(runtime.lockedThisHand),
     publicEffects: [
       ...(runtime.confirmedPublicSkills || []),
