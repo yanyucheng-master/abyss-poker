@@ -395,14 +395,17 @@ p {
 .action-button::before {
   content: "";
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   inset: 0;
   border-radius: inherit;
   opacity: 0;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.16), transparent);
-  transform: translateX(-75%);
-  transition: opacity 150ms ease, transform 320ms ease;
+  background-image: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  background-repeat: no-repeat;
+  background-size: 55% 100%;
+  background-position: -40% 0;
+  transform: none;
+  transition: opacity 150ms ease, background-position 320ms ease;
 }
 
 .button:hover:not(:disabled),
@@ -417,7 +420,7 @@ p {
 .button:hover:not(:disabled)::before,
 .action-button:hover:not(:disabled)::before {
   opacity: 1;
-  transform: translateX(75%);
+  background-position: 140% 0;
 }
 
 .button:active:not(:disabled),

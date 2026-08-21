@@ -140,6 +140,11 @@
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
+.salon-ui .button::before,
+.salon-ui .action-button::before {
+  content: none;
+}
+
 .salon-ui .button:hover,
 .salon-ui .protocol-btn:hover {
   transform: translateY(-1px);

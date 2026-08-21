@@ -112,6 +112,9 @@ describe("frontend DOM contract", () => {
     const decorativeRule = style.match(/\.button::before,\s*\.action-button::before\s*\{[^}]+\}/s)?.[0];
     expect(decorativeRule).toBeTruthy();
     expect(decorativeRule).toContain("pointer-events: none");
+    expect(decorativeRule).toContain("transform: none");
+    expect(decorativeRule).not.toMatch(/translateX\(/);
+    expect(salon).toMatch(/\.salon-ui \.button::before,\s*\.salon-ui \.action-button::before\s*\{[^}]*content:\s*none/s);
   });
 
   test("已发出的公共牌不会继承空牌位样式", () => {
