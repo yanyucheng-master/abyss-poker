@@ -2054,9 +2054,22 @@ function renderSettleChipLedger(payload, { hideAmounts = false, viewerWon = fals
   if (payload?.pot != null || hideAmounts) {
     steps.push(hideAmounts ? "底池金额当前被伪装隐藏" : "底池 " + formatChipAmount(payload.pot));
   }
-  if (settlement && (settlement.baseTransfer != null || (settlement.effects || []).length)) {
+  if (settlement && (settlement.baseTransfer != null || (settlement.effects || []).length || settlement.handRankBonusApplied)) {
+    if (!hideAmounts && settlement.standardPokerNet != null) {
+      steps.push("标准收益 +" + formatChipAmount(settlement.standardPokerNet));
+    }
+    if (!hideAmounts && Number(settlement.handRankBonusValue) > 0) {
+      const rankName = settlement.winningHandName || "牌型";
+      steps.push(rankName + " 牌型奖励 +" + formatChipAmount(settlement.handRankBonusValue));
+    }
     if (!hideAmounts && settlement.baseTransfer != null) {
-      steps.push("标准筹码转移 " + formatChipAmount(settlement.baseTransfer) + "（尚未叠加技能倍率）");
+      const bonus = Number(settlement.handRankBonusValue) || 0;
+      const other = Number(settlement.otherBaseAdditive) || 0;
+      if (bonus > 0 || other > 0) {
+        steps.push("基础结算 " + formatChipAmount(settlement.baseTransfer) + "（进入技能倍率前）");
+      } else {
+        steps.push("标准筹码转移 " + formatChipAmount(settlement.baseTransfer) + "（尚未叠加技能倍率）");
+      }
     }
     (settlement.effects || []).forEach((effect) => {
       steps.push(describeSettleEffect(effect, viewerWon, hideAmounts));
@@ -2064,6 +2077,9 @@ function renderSettleChipLedger(payload, { hideAmounts = false, viewerWon = fals
     if (!hideAmounts && settlement.lossBeforeDefense != null && (settlement.effects || []).some((entry) => entry.skillId === "DEFENSE")) {
       steps.push("防守前损失 " + formatChipAmount(settlement.lossBeforeDefense)
         + " → 防守后 " + formatChipAmount(settlement.desiredTransfer));
+    }
+    if (!hideAmounts && settlement.lossCapApplied && settlement.preCapStandardTransfer != null) {
+      steps.push("筹码上限截断理论结算 " + formatChipAmount(settlement.preCapStandardTransfer));
     }
     if (!hideAmounts && Number(settlement.directGain) > 0) {
       steps.push("终局等直接筹码 " + formatChipAmount(settlement.directGain) + " 不进入防守减半");
@@ -2270,6 +2286,18 @@ function fillHandSettleModal(payload, { review = false } = {}) {
   if (meDetail?.handName) types.push("你：" + meDetail.handName);
   if (opponentDetail?.handName) types.push((opponent?.name || "对手") + "：" + opponentDetail.handName);
   el.settleHandName.textContent = types.join(" ｜ ");
+  if (
+    payload.reason === "showdown"
+    && !payload.tie
+    && Number(payload.skillSettlement?.handRankBonusValue) > 0
+  ) {
+    const bonusLine = (payload.skillSettlement.winningHandName || "牌型")
+      + " 牌型奖励 +"
+      + formatChipAmount(payload.skillSettlement.handRankBonusValue);
+    el.settleHandName.textContent = el.settleHandName.textContent
+      ? el.settleHandName.textContent + " ｜ " + bonusLine
+      : bonusLine;
+  }
   const settleEnergy = opponentDetail?.abyssEnergy;
   if (el.settleOppEnergy) {
     const showEnergy = state.skillMode === "abyss" && settleEnergy != null && Number.isFinite(Number(settleEnergy));

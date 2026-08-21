@@ -343,10 +343,13 @@ function pickDefaultBotLoadout() {
 
 function gainEnergy(player, amount) {
   const runtime = player?.skillRuntime;
-  const requested = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!Number.isSafeInteger(amount) || amount <= 0) return 0;
+  const requested = amount;
   if (!runtime || requested <= 0) return 0;
   let remaining = requested;
-  const debt = Math.max(0, Math.floor(Number(runtime.energyDebt) || 0));
+  const debt = Number.isSafeInteger(runtime.energyDebt) && runtime.energyDebt > 0
+    ? runtime.energyDebt
+    : 0;
   if (debt > 0) {
     const paid = Math.min(debt, remaining);
     runtime.energyDebt = debt - paid;
@@ -361,9 +364,10 @@ function gainEnergy(player, amount) {
 
 function spendEnergy(player, amount, { allowDebt = false, minimum = 0 } = {}) {
   const runtime = player?.skillRuntime;
-  const cost = Math.max(0, Math.floor(Number(amount) || 0));
+  if (!Number.isSafeInteger(amount) || amount < 0) return false;
+  const cost = amount;
   if (!runtime) return false;
-  const floor = allowDebt ? Number(minimum) : 0;
+  const floor = allowDebt && Number.isSafeInteger(minimum) ? minimum : 0;
   if (runtime.abyssEnergy - cost < floor) return false;
   runtime.abyssEnergy -= cost;
   return true;
@@ -375,7 +379,7 @@ function getEffectiveEnergyCost(_player, skill, target = {}) {
       ? SKILL_CONFIG.NULLIFY_HOLE_COST
       : SKILL_CONFIG.NULLIFY_BOARD_COST;
   }
-  return Math.max(0, Number(skill?.energyCost) || 0);
+  return Number.isSafeInteger(skill?.energyCost) && skill.energyCost > 0 ? skill.energyCost : 0;
 }
 
 function syncVisibleEnergy(player) {
@@ -511,7 +515,7 @@ function recordPaidFailure(player, { skillId, cost, reason } = {}) {
   runtime.paidFailuresThisHand = runtime.paidFailuresThisHand || [];
   runtime.paidFailuresThisHand.push({
     skillId,
-    cost: Math.max(0, Number(cost) || 0),
+    cost: Number.isSafeInteger(cost) && cost > 0 ? cost : 0,
     reason: reason || "FAILED",
   });
 }
@@ -549,8 +553,11 @@ function isChipViewHiddenFor(room, viewer) {
 
 function addDirectChipGain(player, amount) {
   if (!player?.skillRuntime) return;
-  player.skillRuntime.directChipGainThisHand =
-    (Number(player.skillRuntime.directChipGainThisHand) || 0) + Math.floor(Number(amount) || 0);
+  if (!Number.isSafeInteger(amount) || amount === 0) return;
+  const current = Number.isSafeInteger(player.skillRuntime.directChipGainThisHand)
+    ? player.skillRuntime.directChipGainThisHand
+    : 0;
+  player.skillRuntime.directChipGainThisHand = current + amount;
 }
 
 function listChipLoans(runtime) {

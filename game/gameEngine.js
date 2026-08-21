@@ -32,6 +32,19 @@ const {
   pickAutoAction,
   pickTimeoutAction,
 } = require("./pokerLogic");
+const {
+  INITIAL_STACK,
+  CHIP_REASON,
+  isLegalPlayerChipAmount,
+  beginHandEconomy,
+  isHandTerminalSettled,
+  markHandTerminalSettled,
+  awardPotTo,
+  splitPotHeadsUp,
+  releaseFromPot,
+  refundContributionsFromPot,
+  transferChips,
+} = require("./chipEconomy");
 
 const HAND_SETTLE_MS = 2000;
 const PARTIAL_BOARD_SETTLE_MS = 4000;
@@ -325,6 +338,11 @@ class GameEngine {
       baseTransfer: null,
       finalTransfer: null,
       standardTransfer: null,
+      standardPokerNet: null,
+      otherBaseAdditive: null,
+      handRankBonusValue: null,
+      handRankBonusCappedAmount: null,
+      preCapStandardTransfer: null,
       directGain: null,
       lossBeforeDefense: null,
       desiredTransfer: null,
@@ -496,15 +514,16 @@ class GameEngine {
     if (room.players.length !== 2) return 0;
     const [a, b] = room.players;
     const high = a.totalBet > b.totalBet ? a : b;
-    const excess = Math.abs(a.totalBet - b.totalBet);
+    const aBet = isLegalPlayerChipAmount(a.totalBet) ? a.totalBet : 0;
+    const bBet = isLegalPlayerChipAmount(b.totalBet) ? b.totalBet : 0;
+    const excess = Math.abs(aBet - bBet);
     if (excess <= 0) return 0;
 
     // Heads-up all-in can leave an unmatched bet in the pot. Return it before showdown.
-    high.chips += excess;
-    high.totalBet -= excess;
-    high.streetBet = Math.max(0, high.streetBet - excess);
-    room.pot = Math.max(0, room.pot - excess);
-    return excess;
+    const returned = releaseFromPot(room, high, excess, CHIP_REASON.UNMATCHED_REFUND);
+    high.totalBet = Math.max(0, (isLegalPlayerChipAmount(high.totalBet) ? high.totalBet : 0) - returned);
+    high.streetBet = Math.max(0, (isLegalPlayerChipAmount(high.streetBet) ? high.streetBet : 0) - returned);
+    return returned;
   }
 
   getRoomSnapshot(room, viewer = null) {
@@ -646,7 +665,7 @@ class GameEngine {
     room.allInPresentationEndsAt = 0;
     room.privateOverdriveProfile = null;
     room.players.forEach((player) => {
-      player.chips = 1000;
+      player.chips = INITIAL_STACK;
       player.cards = [];
       player.status = "active";
       player.totalBet = 0;
@@ -896,6 +915,8 @@ class GameEngine {
     room.handNo += 1;
     room.gameMode = normalizeGameMode(room.gameMode);
     beginHandSkills(room);
+    beginHandEconomy(room);
+    if (room.skillState) room.skillState.settlement = null;
     room.players.forEach((p) => {
       p.cards = [];
       p.totalBet = 0;
@@ -1239,10 +1260,13 @@ class GameEngine {
 
   settleLoanKill(room, winner, loser) {
     if (!room || !winner || !loser) return;
+    if (isHandTerminalSettled(room)) return;
+    markHandTerminalSettled(room);
     this.clearActionTimer(room);
-    winner.chips += room.pot;
-    room.pot = 0;
-    loser.chips = 0;
+    awardPotTo(room, winner, CHIP_REASON.LOAN_KILL_POT);
+    if (isLegalPlayerChipAmount(loser.chips) && loser.chips > 0) {
+      transferChips(room, loser, winner, loser.chips, CHIP_REASON.LOAN_KILL_REMAINDER);
+    }
     loser.status = "out";
     room.phase = "end";
     this.skillEngine.endHand(room, { reason: "loan_kill", winner, tie: false });
@@ -1261,14 +1285,10 @@ class GameEngine {
   }
 
   settleByRetreat(room, folder) {
+    if (isHandTerminalSettled(room)) return;
+    markHandTerminalSettled(room);
     this.clearActionTimer(room);
-    room.players.forEach((player) => {
-      const returned = Math.max(0, Number(player.totalBet) || 0);
-      player.chips += returned;
-      player.totalBet = 0;
-      player.streetBet = 0;
-    });
-    room.pot = 0;
+    refundContributionsFromPot(room, CHIP_REASON.RETREAT_REFUND);
     if (folder?.skillRuntime) folder.skillRuntime.retreatTriggered = true;
     room.phase = "end";
     this.emitActionMade(room, {
@@ -1277,6 +1297,7 @@ class GameEngine {
       declaredAction: "retreat",
       amount: 0,
     });
+    this.skillEngine.applySettlementModifiers(room, { reason: "retreat", winner: null, tie: true });
     const handResult = this.buildHandResultPayload(room, {
       reason: "retreat",
       winner: null,
@@ -1297,17 +1318,26 @@ class GameEngine {
   settleByFold(room, { foldOrigin = "user" } = {}) {
     const active = getActivePlayers(room);
     if (active.length !== 1) return;
+    if (isHandTerminalSettled(room)) return;
+    markHandTerminalSettled(room);
     this.clearActionTimer(room);
     const winner = active[0];
     const pot = room.pot;
-    winner.chips += room.pot;
-    room.pot = 0;
+    awardPotTo(room, winner, CHIP_REASON.STANDARD_FOLD);
+    const startChips = winner.skillRuntime?.handStartChips;
+    const directGain = Number.isSafeInteger(winner.skillRuntime?.directChipGainThisHand)
+      ? winner.skillRuntime.directChipGainThisHand
+      : 0;
+    const standardPokerNet = Number.isSafeInteger(startChips)
+      ? Math.max(0, winner.chips - startChips - directGain)
+      : pot;
     if (isSkillEnabled(room.skillMode)) {
       this.skillEngine.applySettlementModifiers(room, {
         reason: "fold",
         winner,
         tie: false,
         foldOrigin,
+        standardPokerNet,
       });
     }
     room.phase = "end";
@@ -1412,6 +1442,8 @@ class GameEngine {
   }
 
   settleShowdown(room) {
+    if (isHandTerminalSettled(room)) return;
+    markHandTerminalSettled(room);
     this.clearActionTimer(room);
     room.phase = "showdown";
     const returned = this.normalizeHeadsUpShowdownPot(room);
@@ -1430,16 +1462,8 @@ class GameEngine {
       // matched pot as a void tie instead of leaving the room stuck at showdown.
       const recipients = alive.length ? alive : room.players.filter((p) => p.status !== "folded");
       if (recipients.length && room.pot > 0) {
-        const share = Math.floor(room.pot / recipients.length);
-        recipients.forEach((p) => {
-          p.chips += share;
-        });
-        const remainder = room.pot - share * recipients.length;
-        if (remainder > 0) {
-          const bigBlind = room.players[otherIndex(room.dealerIndex)];
-          (recipients.includes(bigBlind) ? bigBlind : recipients[0]).chips += remainder;
-        }
-        room.pot = 0;
+        const bigBlind = room.players[otherIndex(room.dealerIndex)];
+        splitPotHeadsUp(room, recipients, bigBlind, CHIP_REASON.VOID_TIE);
       }
       this.logger.warn("GAME", "摊牌无有效牌型，按无效平局退还底池", {
         roomId: room.roomId,
@@ -1458,6 +1482,7 @@ class GameEngine {
         void: true,
         pot: potBefore,
       });
+      this.skillEngine.applySettlementModifiers(room, { reason: "showdown", winner: null, tie: true });
       const handResult = this.buildHandResultPayload(room, {
         reason: "showdown",
         winner: null,
@@ -1497,28 +1522,32 @@ class GameEngine {
     }
 
     if (tie) {
-      const half = Math.floor(room.pot / 2);
-      room.players.forEach((p) => {
-        if (p.playerId === first.player.playerId || p.playerId === second.player.playerId) {
-          p.chips += half;
-        }
-      });
-      const used = half * 2;
-      const oddChip = room.pot - used;
-      if (oddChip > 0) {
-        const bigBlind = room.players[otherIndex(room.dealerIndex)];
-        if (bigBlind) bigBlind.chips += oddChip;
-      }
+      const recipients = [first.player, second.player].filter(Boolean);
+      const bigBlind = room.players[otherIndex(room.dealerIndex)];
+      splitPotHeadsUp(room, recipients, bigBlind, CHIP_REASON.TIE_SPLIT);
     } else {
-      winnerPlayer.chips += room.pot;
+      awardPotTo(room, winnerPlayer, CHIP_REASON.STANDARD_SHOWDOWN);
     }
-    room.pot = 0;
-    if (isSkillEnabled(room.skillMode) && !tie) {
+    if (tie || !winnerPlayer) {
+      this.skillEngine.applySettlementModifiers(room, {
+        reason: "showdown",
+        winner: null,
+        tie: true,
+      });
+    } else {
+      const startChips = winnerPlayer.skillRuntime?.handStartChips;
+      const directGain = Number.isSafeInteger(winnerPlayer.skillRuntime?.directChipGainThisHand)
+        ? winnerPlayer.skillRuntime.directChipGainThisHand
+        : 0;
+      const standardPokerNet = Number.isSafeInteger(startChips)
+        ? Math.max(0, winnerPlayer.chips - startChips - directGain)
+        : Math.max(0, Number(room.players.find((player) => player.playerId !== winnerPlayer.playerId)?.totalBet) || 0);
       this.skillEngine.applySettlementModifiers(room, {
         reason: "showdown",
         winner: winnerPlayer,
         winnerCategory: result.find((entry) => entry.player.playerId === winnerPlayer.playerId)?.hand?.category ?? null,
         tie: false,
+        standardPokerNet,
       });
     }
 
@@ -1595,6 +1624,7 @@ class GameEngine {
       const bust = room.players.find((p) => p.chips <= 0);
       if (bust) {
         const winner = room.players.find((p) => p.chips > 0);
+        if (winner && room.pot > 0) awardPotTo(room, winner, CHIP_REASON.STANDARD_SHOWDOWN);
         bust.status = "out";
         room.phase = "game_over";
         room.pot = 0;
@@ -1687,7 +1717,7 @@ class GameEngine {
     this.abortPendingRoomWork(room);
     loser.status = "out";
     const winner = room.players.find((p) => p.playerId !== loser.playerId);
-    if (winner && room.pot > 0) winner.chips += room.pot;
+    if (winner && room.pot > 0) awardPotTo(room, winner, CHIP_REASON.DISCONNECT_FORFEIT);
     this.logger.warn("GAME", "断线超时整场判负", {
       roomId: room.roomId,
       loser: loser.playerId,
@@ -1798,16 +1828,12 @@ class GameEngine {
         if (opponent.isAllIn) {
           return { ok: false, error: "对手已All In，不能再加注" };
         }
-        const targetTotalRaw = Number(amount);
         const minRaiseTo = getMinRaiseTo(room);
-        if (!Number.isFinite(targetTotalRaw)) {
+        if (!isLegalPlayerChipAmount(amount)) {
           return { ok: false, error: hideChipView ? "下注金额格式错误" : "加注金额必须是整数" };
         }
-        if (!hideChipView && !Number.isInteger(targetTotalRaw)) {
-          return { ok: false, error: "加注金额必须是整数" };
-        }
 
-        let targetTotal = hideChipView ? Math.round(targetTotalRaw) : targetTotalRaw;
+        let targetTotal = amount;
         if (hideChipView) {
           if (player.chips <= 0 || maxTotal <= player.streetBet) {
             return { ok: false, error: "当前操作无效" };

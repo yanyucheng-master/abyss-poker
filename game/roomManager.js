@@ -6,6 +6,12 @@ const {
   initPlayerForSkillMode,
 } = require("./skills/skillEngine");
 const { createRoomSkillState } = require("./skills/skillState");
+const {
+  INITIAL_STACK,
+  SMALL_BLIND,
+  BIG_BLIND,
+  createEconomyState,
+} = require("./chipEconomy");
 
 const RECONNECT_TTL_MS = 5 * 60 * 1000;
 
@@ -28,7 +34,7 @@ function makePlayer({ playerId, name, socketId, reconnectToken }) {
     reconnectToken,
     socketId,
     name,
-    chips: 1000,
+    chips: INITIAL_STACK,
     cards: [],
     status: "active",
     totalBet: 0,
@@ -90,11 +96,12 @@ class RoomManager {
       communityCards: [],
       pot: 0,
       currentBet: 0,
-      lastRaiseSize: 50,
+      lastRaiseSize: BIG_BLIND,
       turnSeq: 0,
       turnId: null,
-      smallBlind: 25,
-      bigBlind: 50,
+      smallBlind: SMALL_BLIND,
+      bigBlind: BIG_BLIND,
+      economy: createEconomyState(),
       handNo: 0,
       history: [],
       lastActionAt: Date.now(),

@@ -126,6 +126,7 @@ describe("对手能量可见性：逐手公开、手内冻结", () => {
   test("E05 Strong Fortune -1", () => {
     const { engine, room, a, b } = setupRoom({ loadoutA: ["FORTUNE", "RECYCLE"] });
     a.skillRuntime.abyssEnergy = -1;
+    a.skillRuntime.fortuneResourceUsed = true;
     expect(getSelfSkillSummary(a).abyssEnergy).toBe(-1);
     engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
     expect(getRealEnergy(a)).toBe(-1);
@@ -135,6 +136,7 @@ describe("对手能量可见性：逐手公开、手内冻结", () => {
   test("E06 Strong Fortune -4", () => {
     const { engine, room, a, b } = setupRoom({ loadoutA: ["FORTUNE", "RECYCLE"] });
     a.skillRuntime.abyssEnergy = -4;
+    a.skillRuntime.fortuneResourceUsed = true;
     expect(getSelfSkillSummary(a).abyssEnergy).toBe(-4);
     engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
     expect(getRealEnergy(a)).toBe(-4);

@@ -1,3 +1,5 @@
+const { commitChipsToPot, isLegalPlayerChipAmount } = require("./chipEconomy");
+
 function otherIndex(idx) {
   return idx === 0 ? 1 : 0;
 }
@@ -107,19 +109,16 @@ function getValidActions(room, playerIndex) {
 }
 
 function collectBet(room, player, amount) {
+  if (!isLegalPlayerChipAmount(amount) || amount <= 0) return 0;
   const rawCap = room.skillState?.contributionCap;
   const cap = rawCap == null ? Number.NaN : Number(rawCap);
+  const chips = isLegalPlayerChipAmount(player.chips) ? player.chips : 0;
   const capLeft = Number.isFinite(cap)
     ? Math.max(0, cap - (Number(player.totalBet) || 0))
-    : player.chips;
-  const actual = Math.max(0, Math.min(amount, player.chips, capLeft));
-  if (actual <= 0) return 0;
-  player.chips -= actual;
-  player.streetBet += actual;
-  player.totalBet += actual;
-  room.pot += actual;
-  if (player.chips === 0) player.isAllIn = true;
-  return actual;
+    : chips;
+  const requested = Math.min(amount, chips, capLeft);
+  if (!isLegalPlayerChipAmount(requested) || requested <= 0) return 0;
+  return commitChipsToPot(room, player, requested);
 }
 
 function isStreetComplete(room) {

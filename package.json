@@ -10,6 +10,7 @@
     "start": "node server.js",
     "test": "jest --runInBand --coverage",
     "test:watch": "jest --watch",
+    "simulate:chip-economy": "node scripts/simulate-chip-economy.js",
     "simulate:overdrive": "node scripts/simulate-overdrive.js 1000",
     "simulate:skills": "node scripts/simulate-skills.js 1000",
     "validate:fortune-perception": "node scripts/validate-fortune-perception-v1.js",

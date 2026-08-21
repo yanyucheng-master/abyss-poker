@@ -182,6 +182,8 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('id="btn-hand-history"');
     expect(html).toContain('id="hand-history-modal"');
     expect(client).toContain("function renderSettleChipLedger");
+    expect(client).toContain("牌型奖励");
+    expect(client).toContain("handRankBonusValue");
     expect(client).toContain("只结算 50% 筹码");
     expect(client).toContain("function openHandHistoryModal()");
     expect(html).toContain('id="opponent-energy-pop"');

@@ -1,4 +1,14 @@
+"use strict";
+
 const crypto = require("crypto");
+const {
+  transferChips,
+  releaseFromPot,
+  CHIP_REASON,
+  isLegalPlayerChipAmount,
+  recycleRefund,
+  defenseProtectedLoss,
+} = require("../chipEconomy");
 const { isSkillEnabled } = require("../skillModes");
 const { SKILL_CONFIG, PERCEPTION_CONFIG } = require("../skillConfig");
 const {
@@ -60,6 +70,11 @@ const {
 } = require("./fortuneConfig");
 const { buildPerceptionFacts, pickPerceptionStatement } = require("./perceptionFacts");
 const { shuffle } = require("../../utils/shuffle");
+const {
+  HAND_RANK_BONUS_TABLE_VERSION,
+  getHandRankBonusValue,
+  getHandRankLabel,
+} = require("../handRankBonus");
 
 const ACTIVE_PHASES = new Set(["pre_flop", "flop", "turn", "river"]);
 const CARD_CODE_RE = /^[SHCD](?:[2-9TJQKA])$/;
@@ -93,7 +108,7 @@ function opponentOf(room, player) {
 }
 
 function contributionFor(player) {
-  return Math.max(0, Number(player?.totalBet) || 0);
+  return isLegalPlayerChipAmount(player?.totalBet) ? player.totalBet : 0;
 }
 
 function isHiddenActiveEvent(skill, target = {}, result = {}) {
@@ -608,7 +623,7 @@ class SkillEngine {
     const failures = runtime.paidFailuresThisHand || [];
     if (!failures.length) return 0;
     const best = failures.reduce((winner, entry) => (entry.cost > winner.cost ? entry : winner), failures[0]);
-    const restored = gainEnergy(player, Math.floor(best.cost * SKILL_CONFIG.RECYCLE_REFUND_RATE));
+    const restored = gainEnergy(player, recycleRefund(best.cost));
     runtime.recycleUsedThisHand = true;
     confirmPublicSkill(player, "RECYCLE");
     markSkillEvent(player, "RECYCLE");
@@ -1352,11 +1367,13 @@ class SkillEngine {
       };
     }
     if (!opponent) throw new Error("没有可贷款的对手");
-    const take = Math.min(SKILL_CONFIG.LOAN_CHIP_TAKE, Math.max(0, Number(opponent.chips) || 0));
-    opponent.chips -= take;
-    player.chips += take;
-    addDirectChipGain(player, take);
-    addDirectChipGain(opponent, -take);
+    const take = Math.min(
+      SKILL_CONFIG.LOAN_CHIP_TAKE,
+      Math.max(0, isLegalPlayerChipAmount(opponent.chips) ? opponent.chips : 0)
+    );
+    const transferred = transferChips(room, opponent, player, take, CHIP_REASON.LOAN_TRANSFER);
+    addDirectChipGain(player, transferred);
+    addDirectChipGain(opponent, -transferred);
     addChipLoanTranche(runtime, {
       repay: SKILL_CONFIG.LOAN_CHIP_REPAY,
       lenderId: opponent.playerId,
@@ -1369,10 +1386,10 @@ class SkillEngine {
       secret: false,
       publicSummary: kill
         ? `${player.name} 发动「贷款」并完成斩杀`
-        : `${player.name} 发动「贷款」：取得 ${take} 筹码`,
-      audit: { mode: "chip", take, kill },
+        : `${player.name} 发动「贷款」：取得 ${transferred} 筹码`,
+      audit: { mode: "chip", take: transferred, kill },
       loanKill: kill,
-      publicData: { mode: "chip", take, kill },
+      publicData: { mode: "chip", take: transferred, kill },
     };
   }
 
@@ -1421,18 +1438,18 @@ class SkillEngine {
     const ownerUnmatched = Math.max(0, contributionFor(player) - matched);
     const unmatched = Math.max(0, contributionFor(opponent) - matched);
     const execution = Number(opponent?.chips || 0) <= 0;
+    let confiscated = 0;
     if (unmatched > 0) {
-      opponent.totalBet -= unmatched;
-      opponent.streetBet = Math.max(0, opponent.streetBet - unmatched);
-      room.pot = Math.max(0, room.pot - unmatched);
-      player.chips += unmatched;
-      addDirectChipGain(player, unmatched);
+      confiscated = releaseFromPot(room, player, unmatched, CHIP_REASON.ENDGAME_CONFISCATION);
+      opponent.totalBet = Math.max(0, contributionFor(opponent) - confiscated);
+      opponent.streetBet = Math.max(0, (isLegalPlayerChipAmount(opponent.streetBet) ? opponent.streetBet : 0) - confiscated);
+      addDirectChipGain(player, confiscated);
     }
     room.skillState.bettingClosed = true;
     room.skillState.endgameActive = {
       casterId: player.playerId,
       execution,
-      confiscated: unmatched,
+      confiscated,
       ownerUnmatched,
       transferKind: "DIRECT_SKILL_CHIP_TRANSFER",
     };
@@ -1448,9 +1465,9 @@ class SkillEngine {
       publicData: {
         endgame: true,
         execution,
-        confiscated: unmatched,
+        confiscated,
       },
-      audit: { matched, unmatched, execution },
+      audit: { matched, unmatched: confiscated, requestedUnmatched: unmatched, execution },
     };
   }
 
@@ -1552,17 +1569,14 @@ class SkillEngine {
     room.players.forEach((player) => {
       const runtime = player.skillRuntime;
       if (!runtime) return;
-      const due = Math.max(0, Number(runtime.chipDebt) || 0);
+      const due = isLegalPlayerChipAmount(runtime.chipDebt) ? runtime.chipDebt : 0;
       if (due <= 0) return;
-      const paid = Math.min(Math.max(0, Number(player.chips) || 0), due);
-      if (paid <= 0) return;
       const lender = room.players.find((candidate) => candidate.playerId === runtime.chipDebtLenderId)
         || opponentOf(room, player);
-      player.chips -= paid;
-      if (lender) {
-        lender.chips += paid;
-        addDirectChipGain(lender, paid);
-      }
+      if (!lender) return;
+      const paid = transferChips(room, player, lender, due, CHIP_REASON.LOAN_REPAYMENT);
+      if (paid <= 0) return;
+      addDirectChipGain(lender, paid);
       addDirectChipGain(player, -paid);
       runtime.chipDebt = due - paid;
       if (runtime.chipDebt <= 0) runtime.chipDebtLenderId = null;
@@ -1580,9 +1594,13 @@ class SkillEngine {
         if (runtime.energyLoan.skipCurrentEnd) {
           runtime.energyLoan.skipCurrentEnd = false;
         } else {
-          const due = Math.max(0, Number(runtime.energyLoan.repay) || 0);
+          const due = Number.isSafeInteger(runtime.energyLoan.repay) && runtime.energyLoan.repay > 0
+            ? runtime.energyLoan.repay
+            : 0;
           const origin = runtime.energyLoan.originCredit || LOAN_CREDIT.NORMAL;
-          const available = Math.max(0, Number(runtime.abyssEnergy) || 0);
+          const available = Number.isSafeInteger(runtime.abyssEnergy) && runtime.abyssEnergy > 0
+            ? runtime.abyssEnergy
+            : 0;
           const paid = Math.min(available, due);
           runtime.abyssEnergy -= paid;
           const remain = due - paid;
@@ -1606,14 +1624,14 @@ class SkillEngine {
         }
         const lender = room.players.find((candidate) => candidate.playerId === loan.lenderId)
           || opponentOf(room, player);
-        const due = Math.max(0, Number(loan.repay) || 0);
+        const due = isLegalPlayerChipAmount(loan.repay) ? loan.repay : 0;
         const origin = loan.originCredit || LOAN_CREDIT.NORMAL;
-        const paid = Math.min(Math.max(0, Number(player.chips) || 0), due);
-        player.chips -= paid;
-        if (lender) {
-          lender.chips += paid;
-          addDirectChipGain(lender, paid);
+        if (!lender || due <= 0) {
+          if (due > 0 && !lender) remaining.push({ ...loan, skipCurrentEnd: false });
+          return;
         }
+        const paid = transferChips(room, player, lender, due, CHIP_REASON.LOAN_REPAYMENT);
+        addDirectChipGain(lender, paid);
         addDirectChipGain(player, -paid);
         const remain = due - paid;
         ensureLoanCreditMetrics(runtime).realChipRepaid += paid;
@@ -1861,6 +1879,7 @@ class SkillEngine {
     tie = false,
     winnerCategory = null,
     foldOrigin = "user",
+    standardPokerNet = null,
   } = {}) {
     const details = {
       baseTransfer: 0,
@@ -1871,50 +1890,112 @@ class SkillEngine {
       baseRuleMultiplier: 1,
       foldOrigin: reason === "fold" ? foldOrigin : null,
       effects: [],
+      standardPokerNet: 0,
+      otherBaseAdditive: 0,
+      handRankBonusEligible: false,
+      handRankBonusValue: 0,
+      handRankBonusApplied: false,
+      handRankBonusTableVersion: HAND_RANK_BONUS_TABLE_VERSION,
+      winningHandCategory: null,
+      winningHandName: "",
+      preCapStandardTransfer: 0,
+      lossCapApplied: false,
+      handRankBonusCappedAmount: 0,
     };
-    if (!isSkillEnabled(room.skillMode) || tie || !winner) return details;
+    const persist = (payload) => {
+      if (room) {
+        room.skillState = room.skillState || {};
+        room.skillState.settlement = payload;
+      }
+      return payload;
+    };
+    if (tie || !winner) return persist(details);
     const loser = opponentOf(room, winner);
-    if (!loser) return details;
-    const directGain = Number(winner.skillRuntime?.directChipGainThisHand) || 0;
-    const actualStandardTransfer = Math.max(
-      0,
-      winner.chips - (winner.skillRuntime?.handStartChips || winner.chips) - directGain
-    );
-    let baseTransfer = actualStandardTransfer;
+    if (!loser) return persist(details);
+
+    const skillsOn = isSkillEnabled(room.skillMode);
+    const directGain = Number.isSafeInteger(winner.skillRuntime?.directChipGainThisHand)
+      ? winner.skillRuntime.directChipGainThisHand
+      : 0;
+    const startChipsRaw = winner.skillRuntime?.handStartChips;
+    const hasStartSnapshot = Number.isSafeInteger(startChipsRaw);
+    const realizedFromChips = hasStartSnapshot
+      ? Math.max(0, winner.chips - startChipsRaw - directGain)
+      : null;
+    const frozenPokerNet = isLegalPlayerChipAmount(standardPokerNet)
+      ? standardPokerNet
+      : Math.max(0, realizedFromChips == null ? 0 : realizedFromChips);
+    const currentRealized = realizedFromChips == null ? frozenPokerNet : Math.max(0, realizedFromChips);
+    const startChips = hasStartSnapshot
+      ? startChipsRaw
+      : winner.chips - currentRealized - directGain;
+
+    let otherBaseAdditive = 0;
     if (
-      reason === "fold"
+      skillsOn
+      && reason === "fold"
       && foldOrigin === "user"
       && winner.skillRuntime?.probeActive
       && !loser.skillRuntime?.retreatTriggered
     ) {
-      baseTransfer += SKILL_CONFIG.PROBE_FOLD_BONUS;
+      otherBaseAdditive += SKILL_CONFIG.PROBE_FOLD_BONUS;
       details.effects.push({ skillId: "PROBE", amount: SKILL_CONFIG.PROBE_FOLD_BONUS, source: "self" });
     }
+
+    const bonusEligible = reason === "showdown";
+    const bonusValue = bonusEligible ? getHandRankBonusValue(winnerCategory, room) : 0;
+    details.standardPokerNet = frozenPokerNet;
+    details.otherBaseAdditive = otherBaseAdditive;
+    details.handRankBonusEligible = bonusEligible;
+    details.handRankBonusValue = bonusValue;
+    details.handRankBonusApplied = bonusEligible && bonusValue > 0;
+    details.winningHandCategory = bonusEligible && winnerCategory != null ? Number(winnerCategory) : null;
+    details.winningHandName = bonusEligible ? getHandRankLabel(winnerCategory) : "";
+
+    const baseTransfer = frozenPokerNet + bonusValue + otherBaseAdditive;
     let selfSkillMultiplier = 1;
     let opponentSkillMultiplier = 1;
 
-    room.players.forEach((player) => {
-      if (!player.skillRuntime?.bloodBattleActive) return;
-      const factor = SKILL_CONFIG.BLOOD_BATTLE_MULTIPLIER;
-      if (player.playerId === winner.playerId) selfSkillMultiplier *= factor;
-      else opponentSkillMultiplier *= factor;
-      details.effects.push({ skillId: "BLOOD_BATTLE", factor, source: player.playerId === winner.playerId ? "self" : "opponent" });
-    });
-    if (winner.skillRuntime?.desperationActive) {
-      selfSkillMultiplier *= SKILL_CONFIG.DESPERATION_WIN_MULTIPLIER;
-      details.effects.push({ skillId: "DESPERATION", factor: SKILL_CONFIG.DESPERATION_WIN_MULTIPLIER, source: "self" });
-    }
-    if (reason === "fold" && winner.skillRuntime?.deadEndActive) {
-      selfSkillMultiplier *= SKILL_CONFIG.DEAD_END_FOLD_MULTIPLIER;
-      details.effects.push({ skillId: "DEAD_END", factor: SKILL_CONFIG.DEAD_END_FOLD_MULTIPLIER, source: "self" });
-    }
-
-    if (reason === "showdown" && selfSkillMultiplier === 1) {
-      equippedProtocols(winner).forEach((skill) => {
-        if (!protocolMatchesCategory(skill.protocolCategory, winnerCategory)) return;
-        selfSkillMultiplier *= SKILL_CONFIG.PROTOCOL_WIN_MULTIPLIER;
-        details.effects.push({ skillId: skill.id, factor: SKILL_CONFIG.PROTOCOL_WIN_MULTIPLIER, source: "self" });
+    if (skillsOn) {
+      room.players.forEach((player) => {
+        if (!player.skillRuntime?.bloodBattleActive) return;
+        const factor = SKILL_CONFIG.BLOOD_BATTLE_MULTIPLIER;
+        if (player.playerId === winner.playerId) selfSkillMultiplier *= factor;
+        else opponentSkillMultiplier *= factor;
+        details.effects.push({
+          skillId: "BLOOD_BATTLE",
+          factor,
+          source: player.playerId === winner.playerId ? "self" : "opponent",
+        });
       });
+      if (winner.skillRuntime?.desperationActive) {
+        selfSkillMultiplier *= SKILL_CONFIG.DESPERATION_WIN_MULTIPLIER;
+        details.effects.push({
+          skillId: "DESPERATION",
+          factor: SKILL_CONFIG.DESPERATION_WIN_MULTIPLIER,
+          source: "self",
+        });
+      }
+      if (reason === "fold" && winner.skillRuntime?.deadEndActive) {
+        selfSkillMultiplier *= SKILL_CONFIG.DEAD_END_FOLD_MULTIPLIER;
+        details.effects.push({
+          skillId: "DEAD_END",
+          factor: SKILL_CONFIG.DEAD_END_FOLD_MULTIPLIER,
+          source: "self",
+        });
+      }
+
+      if (reason === "showdown" && selfSkillMultiplier === 1) {
+        equippedProtocols(winner).forEach((skill) => {
+          if (!protocolMatchesCategory(skill.protocolCategory, winnerCategory)) return;
+          selfSkillMultiplier *= SKILL_CONFIG.PROTOCOL_WIN_MULTIPLIER;
+          details.effects.push({
+            skillId: skill.id,
+            factor: SKILL_CONFIG.PROTOCOL_WIN_MULTIPLIER,
+            source: "self",
+          });
+        });
+      }
     }
 
     const lossBeforeDefense = Math.max(
@@ -1923,10 +2004,10 @@ class SkillEngine {
     );
     let multiplier = selfSkillMultiplier * opponentSkillMultiplier;
     let desiredTransfer = lossBeforeDefense;
-    if (loser.skillRuntime?.defenseActive && !loser.skillRuntime.foldedThisHand) {
+    if (skillsOn && loser.skillRuntime?.defenseActive && !loser.skillRuntime.foldedThisHand) {
       // Chips are indivisible. Defense is resolved at its existing final-loss
       // node and always protects floor(lossBeforeDefense / 2).
-      desiredTransfer = Math.floor(lossBeforeDefense / 2);
+      desiredTransfer = defenseProtectedLoss(lossBeforeDefense);
       multiplier *= 0.5;
       details.effects.push({ skillId: "DEFENSE", factor: 0.5, source: "opponent" });
       loser.skillRuntime.defenseRevealed = true;
@@ -1939,26 +2020,30 @@ class SkillEngine {
       });
     }
 
-    if (desiredTransfer > actualStandardTransfer) {
-      const extra = Math.min(desiredTransfer - actualStandardTransfer, loser.chips);
-      loser.chips -= extra;
-      winner.chips += extra;
-    } else if (desiredTransfer < actualStandardTransfer) {
-      const refund = Math.min(actualStandardTransfer - desiredTransfer, winner.chips);
-      winner.chips -= refund;
-      loser.chips += refund;
+    const preCapStandardTransfer = desiredTransfer;
+    const adjustment = desiredTransfer - currentRealized;
+    if (adjustment > 0) {
+      transferChips(room, loser, winner, adjustment, CHIP_REASON.STANDARD_SETTLEMENT);
+    } else if (adjustment < 0) {
+      transferChips(room, winner, loser, -adjustment, CHIP_REASON.DEFENSE_REFUND);
     }
+    const finalStandardTransfer = Math.max(0, winner.chips - startChips - directGain);
     details.baseTransfer = baseTransfer;
-    details.standardTransfer = actualStandardTransfer;
+    details.standardTransfer = frozenPokerNet;
+    details.realizedStandardTransfer = currentRealized;
     details.directGain = Math.max(0, directGain);
     details.lossBeforeDefense = lossBeforeDefense;
     details.desiredTransfer = desiredTransfer;
-    details.finalTransfer = Math.max(0, winner.chips - (winner.skillRuntime?.handStartChips || winner.chips));
+    details.preCapStandardTransfer = preCapStandardTransfer;
+    details.lossCapApplied = finalStandardTransfer < preCapStandardTransfer;
+    details.handRankBonusCappedAmount = details.lossCapApplied
+      ? Math.max(0, preCapStandardTransfer - finalStandardTransfer)
+      : 0;
+    details.finalTransfer = Math.max(0, winner.chips - startChips);
     details.multiplier = multiplier;
     details.selfSkillMultiplier = selfSkillMultiplier;
     details.opponentSkillMultiplier = opponentSkillMultiplier;
-    room.skillState.settlement = details;
-    return details;
+    return persist(details);
   }
 
   getNullifiedSet(room, player = null) {
@@ -2046,4 +2131,7 @@ module.exports = {
   LOAN_CREDIT,
   getLoanCreditState,
   getLoanQuota,
+  HAND_RANK_BONUS_TABLE_VERSION,
+  getHandRankBonusValue,
+  getHandRankLabel,
 };

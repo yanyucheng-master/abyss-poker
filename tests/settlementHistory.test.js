@@ -164,6 +164,8 @@ describe("结算筹码说明与本局历史", () => {
     expect(hidden.skillSettlement.directGain).toBeNull();
     expect(hidden.skillSettlement.lossBeforeDefense).toBeNull();
     expect(hidden.skillSettlement.desiredTransfer).toBeNull();
+    expect(hidden.skillSettlement.standardPokerNet).toBeNull();
+    expect(hidden.skillSettlement.handRankBonusValue).toBeNull();
     const visible = engine.handResultForViewer(room, room.handResultHistory[0], a, { revealAll: true });
     expect(visible.skillSettlement.desiredTransfer).toBe(50);
   });
