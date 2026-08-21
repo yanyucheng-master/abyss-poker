@@ -687,9 +687,18 @@
             <p class="intel-privacy">标记只保存在本机，不会同步或影响结算。</p>
           </aside>
 
-          <section class="table-center" aria-label="公共牌">
-            <div class="board-midline">
-              <div id="community-cards" class="community-row" aria-label="公共牌"></div>
+          <section class="table-center" aria-label="行动倒计时与公共牌">
+            <div class="board-stage-line">
+              <div class="turn-clock-block board-turn-clock">
+                <span class="instrument-label">TURN TIME</span>
+                <div id="action-countdown" class="action-countdown" role="timer" aria-label="本回合剩余行动时间">
+                  <span id="action-countdown-value">—</span>
+                  <small class="turn-clock-unit" aria-hidden="true">SEC</small>
+                </div>
+              </div>
+              <div class="board-midline">
+                <div id="community-cards" class="community-row" aria-label="公共牌"></div>
+              </div>
             </div>
           </section>
 
@@ -715,12 +724,6 @@
             </div>
 
             <div class="round-instruments">
-              <div class="turn-clock-block">
-                <span class="instrument-label">ACTION</span>
-                <div id="action-countdown" class="action-countdown" aria-label="行动倒计时">
-                  <span id="action-countdown-value">—</span>
-                </div>
-              </div>
               <div id="pot-core" class="pot-core" aria-label="当前底池 0">
                 <div class="core-ring ring-outer"></div>
                 <div class="core-ring ring-inner"></div>

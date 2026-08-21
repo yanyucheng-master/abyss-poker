@@ -40,6 +40,71 @@ async function skillGeometry(page) {
   });
 }
 
+async function phoneTableLayout(page) {
+  return page.evaluate(() => {
+    const dock = document.querySelector(".action-dock")?.getBoundingClientRect();
+    const board = document.getElementById("board")?.getBoundingClientRect();
+    const self = document.getElementById("self-area")?.getBoundingClientRect();
+    const clock = document.getElementById("action-countdown")?.getBoundingClientRect();
+    const pot = document.getElementById("pot-core")?.getBoundingClientRect();
+    const community = [...document.querySelectorAll("#community-cards .card")].map((card) =>
+      card.getBoundingClientRect()
+    );
+    const overlaps = (left, right) =>
+      Boolean(
+        left &&
+        right &&
+        left.right > right.left &&
+        left.left < right.right &&
+        left.bottom > right.top &&
+        left.top < right.bottom
+      );
+    return {
+      scrolls:
+        document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 ||
+        document.documentElement.scrollHeight > document.documentElement.clientHeight + 1,
+      dockInside: Boolean(
+        dock &&
+        dock.left >= -1 &&
+        dock.right <= innerWidth + 1 &&
+        dock.top >= -1 &&
+        dock.bottom <= innerHeight + 1
+      ),
+      boardDockOverlap: Boolean(board && dock && board.bottom > dock.top + 1),
+      selfInsideBoard: Boolean(
+        board &&
+        self &&
+        self.left >= board.left - 1 &&
+        self.right <= board.right + 1 &&
+        self.top >= board.top - 1 &&
+        self.bottom <= board.bottom + 1
+      ),
+      communityInsideBoard: Boolean(
+        board &&
+        community.length === 5 &&
+        community.every(
+          (card) =>
+            card.left >= board.left - 1 &&
+            card.right <= board.right + 1 &&
+            card.top >= board.top - 1 &&
+            card.bottom <= board.bottom + 1
+        )
+      ),
+      communityInsideViewport:
+        community.length === 5 &&
+        community.every(
+          (card) =>
+            card.left >= -1 &&
+            card.right <= innerWidth + 1 &&
+            card.top >= -1 &&
+            card.bottom <= innerHeight + 1
+        ),
+      communityClearOfClock: community.length === 5 && community.every((card) => !overlaps(card, clock)),
+      communityClearOfPot: community.length === 5 && community.every((card) => !overlaps(card, pot)),
+    };
+  });
+}
+
 async function buttonHitAudit(page, scopeSelector) {
   return page.evaluate((scopeSelector) => {
     const scope = document.querySelector(scopeSelector) || document;
@@ -308,15 +373,7 @@ async function main() {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(200);
   report.mobile.skillGeometry = await skillGeometry(page);
-  report.mobile.layout = await page.evaluate(() => {
-    const dock = document.querySelector(".action-dock")?.getBoundingClientRect();
-    const board = document.getElementById("board")?.getBoundingClientRect();
-    return {
-      scrolls: document.documentElement.scrollHeight > document.documentElement.clientHeight + 1,
-      dockInside: Boolean(dock && dock.top >= -1 && dock.bottom <= innerHeight + 1),
-      boardDockOverlap: Boolean(board && dock && board.bottom > dock.top + 1),
-    };
-  });
+  report.mobile.layout = await phoneTableLayout(page);
   await page.click("#btn-settings");
   report.mobile.settings = await page.evaluate(() => {
     const panel = document.querySelector("#settings-modal .settings-panel")?.getBoundingClientRect();
@@ -345,24 +402,27 @@ async function main() {
   await page.setViewportSize({ width: 320, height: 568 });
   await page.waitForTimeout(200);
   report.compact.skillGeometry = await skillGeometry(page);
-  report.compact.layout = await page.evaluate(() => {
-    const dock = document.querySelector(".action-dock")?.getBoundingClientRect();
-    const board = document.getElementById("board")?.getBoundingClientRect();
-    return {
-      scrolls: document.documentElement.scrollHeight > document.documentElement.clientHeight + 1,
-      dockInside: Boolean(dock && dock.top >= -1 && dock.bottom <= innerHeight + 1),
-      boardDockOverlap: Boolean(board && dock && board.bottom > dock.top + 1),
-    };
-  });
+  report.compact.layout = await phoneTableLayout(page);
   report.compact.hitAudit = await buttonHitAudit(page, "#screen-game");
 
   const landscapeLayout = () => page.evaluate(() => {
     const dock = document.querySelector(".action-dock")?.getBoundingClientRect();
     const board = document.getElementById("board")?.getBoundingClientRect();
     const self = document.getElementById("self-area")?.getBoundingClientRect();
+    const clock = document.getElementById("action-countdown")?.getBoundingClientRect();
+    const pot = document.getElementById("pot-core")?.getBoundingClientRect();
     const community = [...document.querySelectorAll("#community-cards .card")].map((card) =>
       card.getBoundingClientRect()
     );
+    const overlaps = (left, right) =>
+      Boolean(
+        left &&
+        right &&
+        left.right > right.left &&
+        left.left < right.right &&
+        left.bottom > right.top &&
+        left.top < right.bottom
+      );
     return {
       scrolls:
         document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 ||
@@ -375,9 +435,16 @@ async function main() {
       ),
       communityInsideBoard: Boolean(
         board && community.length === 5 && community.every(
-          (card) => card.top >= board.top - 1 && card.bottom <= board.bottom + 1
+          (card) =>
+            card.left >= board.left - 1 &&
+            card.right <= board.right + 1 &&
+            card.top >= board.top - 1 &&
+            card.bottom <= board.bottom + 1
         )
       ),
+      communityClearOfInstruments:
+        community.length === 5 &&
+        community.every((card) => !overlaps(card, clock) && !overlaps(card, pot)),
     };
   });
 
@@ -469,7 +536,12 @@ async function main() {
     report.mobile.skillGeometry.overflows ||
     report.mobile.layout.scrolls ||
     !report.mobile.layout.dockInside ||
-    report.mobile.layout.boardDockOverlap
+    report.mobile.layout.boardDockOverlap ||
+    !report.mobile.layout.selfInsideBoard ||
+    !report.mobile.layout.communityInsideBoard ||
+    !report.mobile.layout.communityInsideViewport ||
+    !report.mobile.layout.communityClearOfClock ||
+    !report.mobile.layout.communityClearOfPot
   ) {
     failures.push("mobile four-skill layout failed");
   }
@@ -487,7 +559,12 @@ async function main() {
     report.compact.skillGeometry.overflows ||
     report.compact.layout.scrolls ||
     !report.compact.layout.dockInside ||
-    report.compact.layout.boardDockOverlap
+    report.compact.layout.boardDockOverlap ||
+    !report.compact.layout.selfInsideBoard ||
+    !report.compact.layout.communityInsideBoard ||
+    !report.compact.layout.communityInsideViewport ||
+    !report.compact.layout.communityClearOfClock ||
+    !report.compact.layout.communityClearOfPot
   ) {
     failures.push("compact four-skill layout failed");
   }
@@ -504,7 +581,8 @@ async function main() {
       current.layout.scrolls ||
       !current.layout.dockInside ||
       !current.layout.selfInsideBoard ||
-      !current.layout.communityInsideBoard
+      !current.layout.communityInsideBoard ||
+      !current.layout.communityClearOfInstruments
     ) {
       failures.push(`${label} table layout failed`);
     }

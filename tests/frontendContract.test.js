@@ -66,6 +66,36 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("socket.connected &&");
   });
 
+  test("牌桌倒计时与底池语义分离，四技能与专家操作字号具备回归契约", () => {
+    const boardStageStart = html.indexOf('<section class="table-center"');
+    const boardStageEnd = html.indexOf('id="btn-toggle-skill-feed"', boardStageStart);
+    const boardStageMarkup = html.slice(boardStageStart, boardStageEnd);
+    expect(boardStageStart).toBeGreaterThan(-1);
+    expect(boardStageMarkup).toContain('class="board-stage-line"');
+    expect(boardStageMarkup).toContain('id="action-countdown"');
+    expect(boardStageMarkup).toContain('id="community-cards"');
+    expect(boardStageMarkup.indexOf('id="action-countdown"')).toBeLessThan(
+      boardStageMarkup.indexOf('id="community-cards"')
+    );
+
+    const instrumentsStart = html.indexOf('<div class="round-instruments">');
+    const instrumentsEnd = html.indexOf('id="overdrive-profile"', instrumentsStart);
+    const instrumentsMarkup = html.slice(instrumentsStart, instrumentsEnd);
+    expect(instrumentsStart).toBeGreaterThan(-1);
+    expect(instrumentsMarkup).toContain('id="pot-core"');
+    expect(instrumentsMarkup).toContain('id="deck-stack"');
+    expect(instrumentsMarkup).not.toContain('id="action-countdown"');
+
+    expect(client).toContain('el.skillBar.dataset.count = String(equippedSkillIds.length)');
+    expect(tableV2).toMatch(
+      /\.skill-bar\[data-count="4"\][^{]*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s
+    );
+    expect(tableV2).toContain(
+      'body.pro-player-mode.salon-ui #screen-game .action-button.fold .action-en'
+    );
+    expect(tableV2).toContain('font-size: clamp(1.28rem, 1.48vw, 1.58rem)');
+  });
+
   test("storage failures and modal focus are handled defensively", () => {
     expect(client).toContain("function safeStorageGet");
     expect(client).toContain("function safeStorageSet");
