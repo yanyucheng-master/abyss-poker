@@ -33,7 +33,7 @@
   --radius-md: 14px;
   --radius-sm: 9px;
   --motion-factor: 1;
-  --allin-duration: 2200ms;
+  --allin-duration: 1800ms;
   --blur: 18px;
   --safe-top: max(18px, env(safe-area-inset-top));
   --safe-right: max(18px, env(safe-area-inset-right));

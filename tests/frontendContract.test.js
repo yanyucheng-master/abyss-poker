@@ -127,8 +127,8 @@ describe("frontend DOM contract", () => {
   });
 
   test("ALL IN 逻辑计时与视觉时长保持一致", () => {
-    expect(client).toContain("const ALL_IN_EFFECT_MS = 2200");
-    expect(style).toContain("--allin-duration: 2200ms");
+    expect(client).toContain("const ALL_IN_EFFECT_MS = 1800");
+    expect(style).toContain("--allin-duration: 1800ms");
   });
 
   test("ALL IN 提供四种可持久化样式且演出文字仅保留 ALL IN", () => {
