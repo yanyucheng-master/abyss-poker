@@ -274,6 +274,15 @@ const el = {
   btnCloseSettings: byId("btn-close-settings"),
   settingsNavigation: byId("settings-navigation"),
   btnSettingsLobby: byId("btn-settings-lobby"),
+  btnOpenRules: byId("btn-open-rules"),
+  btnSettingsRules: byId("btn-settings-rules"),
+  rulesModal: byId("rules-handbook-modal"),
+  btnCloseRules: byId("btn-close-rules"),
+  rulesSearch: byId("rules-search"),
+  rulesSearchStatus: byId("rules-search-status"),
+  rulesToc: byId("rules-toc"),
+  rulesArticle: byId("rules-article"),
+  rulesEmpty: byId("rules-empty"),
   settingAnimation: byId("setting-animation"),
   settingAllInStyles: [...document.querySelectorAll('input[name="allin-style"]')],
   btnPreviewAllIn: byId("btn-preview-allin"),
@@ -413,6 +422,8 @@ const el = {
   skillCatalog: byId("skill-catalog"),
   btnConfirmLoadout: byId("btn-confirm-loadout"),
   skillHud: byId("skill-hud"),
+  skillBoardTargetBar: byId("skill-board-target-bar"),
+  btnCancelSkillTarget: byId("btn-cancel-skill-target"),
   selfEnergy: byId("self-energy"),
   selfEnergyCap: byId("self-energy-cap"),
   opponentEnergy: byId("opponent-energy"),
@@ -585,6 +596,8 @@ const skillFxQueue = [];
 let delayedHandResultTimer = 0;
 let skillPreviewReturnFocus = null;
 let previewingSkill = null;
+let rulesHandbookReturnFocus = null;
+let rulesHandbookFromSettings = false;
 let skillCatalogPromise = null;
 const uiPendingTimers = new Map();
 const boardPulseTimers = new Map();
@@ -1009,32 +1022,67 @@ function renderCardRow(container, cards, options) {
   if (!container) return;
   const settings = options || {};
   const list = Array.isArray(cards) ? cards : [];
+  const padTo = Number(settings.padTo || 0);
   const signature = [
     list.map((card) => String(card?.code || "")).join(","),
-    Number(settings.padTo || 0),
+    padTo,
     settings.slot ? "slot" : "",
     settings.back ? "back" : "",
     settings.reveal ? "reveal" : "",
+    settings.indexed ? "indexed" : "",
+    settings.targetZone || "",
+    isNullifyTargeting() ? (currentSkillEnergy() >= 7 ? "nullify-hole" : "nullify") : "",
     (settings.nullifiedCodes || []).join(","),
   ].join("|");
   if (container.dataset.rowSignature === signature) return;
   container.dataset.rowSignature = signature;
   container.textContent = "";
-  list.forEach((card) =>
+  const stampTarget = (node, index) => {
+    if (settings.indexed) node.dataset.boardIndex = String(index);
+    if (settings.targetZone) node.dataset.nullifyZone = settings.targetZone;
+    const boardTarget = isNullifyTargeting() && settings.indexed;
+    const holeTarget = isNullifyTargeting() && settings.targetZone === "hole";
+    if (boardTarget || holeTarget) {
+      node.classList.add("is-nullify-target");
+      node.setAttribute("role", "button");
+      node.tabIndex = 0;
+      node.removeAttribute("aria-hidden");
+      if (boardTarget) {
+        const existing = node.getAttribute("aria-label");
+        node.setAttribute(
+          "aria-label",
+          existing && !node.classList.contains("card-slot")
+            ? "零化 " + existing
+            : "零化公共牌第 " + (index + 1) + " 张"
+        );
+      } else {
+        node.setAttribute("aria-label", "零化对手一张随机底牌");
+      }
+    }
+    return node;
+  };
+  list.forEach((card, index) =>
     container.appendChild(
-      createCard(card, {
-        ...settings,
-        // `slot` describes how the missing positions are padded. A real card
-        // must never inherit it, otherwise dealt community cards render as
-        // empty diamond placeholders all the way through the river.
-        slot: false,
-        nullified: (settings.nullifiedCodes || []).includes(card?.code),
-      })
+      stampTarget(
+        createCard(card, {
+          ...settings,
+          // `slot` describes how the missing positions are padded. A real card
+          // must never inherit it, otherwise dealt community cards render as
+          // empty diamond placeholders all the way through the river.
+          slot: false,
+          nullified: (settings.nullifiedCodes || []).includes(card?.code),
+        }),
+        index
+      )
     )
   );
-  const padTo = Number(settings.padTo || 0);
   for (let index = list.length; index < padTo; index += 1) {
-    container.appendChild(createCard(null, { slot: Boolean(settings.slot), back: !settings.slot }));
+    container.appendChild(
+      stampTarget(
+        createCard(null, { slot: Boolean(settings.slot), back: !settings.slot }),
+        index
+      )
+    );
   }
 }
 
@@ -1097,11 +1145,13 @@ function renderCards() {
     padTo: 2,
     slot: false,
     reveal: state.handSettling && showdown.length > 0,
+    targetZone: "hole",
   });
   renderCardRow(el.community, state.communityCards, {
     padTo: 5,
     slot: true,
     reveal: true,
+    indexed: true,
     nullifiedCodes: state.nullifiedCommunityCardIds,
   });
   renderSkillHud();
@@ -1338,7 +1388,7 @@ function renderWaitingRoom() {
       : state.phase === "waiting"
         ? "等待中"
         : PHASE_LABELS[state.phase] || state.phase;
-  if (el.waitSkillMode) el.waitSkillMode.textContent = state.skillMode === "abyss" ? "深渊技能" : "关闭";
+  if (el.waitSkillMode) el.waitSkillMode.textContent = state.skillMode === "abyss" ? "超限技能" : "关闭";
   if (el.waitInitialEnergy) el.waitInitialEnergy.textContent = state.skillMode === "abyss" ? "4" : "—";
   if (el.waitPasswordStatus) {
     el.waitPasswordStatus.textContent = state.hasPassword ? "已设置" : "未设置";
@@ -1902,6 +1952,7 @@ function resetLocalRoom() {
 }
 
 function resetTransientUi() {
+  cancelNullifyTargeting({ restoreFocus: false });
   state.pendingChoice = null;
   el.opponentSkillField?.classList.remove("is-mobile-open");
   el.tableTelemetry?.classList.remove("is-feed-open");
@@ -2497,7 +2548,7 @@ function protocolValue(gameMode, skillMode) {
 
 function protocolSummaryText(gameMode, skillMode) {
   const deal = gameMode === GAME_MODE.OVERDRIVE ? "高爆局" : "标准局";
-  const skill = skillMode === "abyss" ? "深渊技能" : "无技能";
+  const skill = skillMode === "abyss" ? "超限技能" : "无技能";
   return deal + " · " + skill;
 }
 
@@ -2963,7 +3014,7 @@ function requireLoadoutForSkillMode(skillMode, pendingAction) {
 
 function laneLabel(gameMode, skillMode) {
   const mode = gameMode === GAME_MODE.OVERDRIVE ? "高爆局" : "标准局";
-  const skill = skillMode === "abyss" ? " · 深渊技能" : " · 无技能";
+  const skill = skillMode === "abyss" ? " · 超限技能" : " · 无技能";
   return mode + skill;
 }
 
@@ -3291,6 +3342,7 @@ el.actionButtons.forEach((button) => {
     if (!beginRealtimeRequest("action", 3000)) return;
     ensureAudioContext();
     setRaiseExpanded(false);
+    if (isNullifyTargeting()) cancelNullifyTargeting({ restoreFocus: false });
     socket.emit("player_action", payload);
   });
 });
@@ -3343,6 +3395,96 @@ el.btnRematchNo.addEventListener("click", () => {
   socket.emit("rematch_response", { accepted: false });
 });
 
+function rulesSections() {
+  return [...(el.rulesArticle?.querySelectorAll("[data-rule-section]") || [])];
+}
+
+function isRulesHandbookOpen() {
+  return Boolean(el.rulesModal && !el.rulesModal.classList.contains("hidden"));
+}
+
+function setActiveRulesToc(sectionId) {
+  el.rulesToc?.querySelectorAll("button[data-rule-target]").forEach((button) => {
+    const active = button.dataset.ruleTarget === sectionId;
+    button.classList.toggle("is-active", active);
+    if (active) button.setAttribute("aria-current", "true");
+    else button.removeAttribute("aria-current");
+  });
+}
+
+function showRulesSection(sectionId, { scroll = false } = {}) {
+  const section = byId(sectionId);
+  if (!section || section.hasAttribute("hidden")) return;
+  setActiveRulesToc(sectionId);
+  if (scroll) {
+    section.scrollIntoView({ block: "start", behavior: state.settings.reduceMotion ? "auto" : "smooth" });
+  }
+}
+
+function filterRulesHandbook(rawQuery) {
+  const query = String(rawQuery || "").trim().toLowerCase();
+  const sections = rulesSections();
+  let visible = 0;
+  let firstId = "";
+  sections.forEach((section) => {
+    const haystack = (
+      (section.dataset.search || "") + " " + (section.textContent || "")
+    ).toLowerCase();
+    const match = !query || haystack.includes(query);
+    section.toggleAttribute("hidden", !match);
+    if (match) {
+      visible += 1;
+      if (!firstId) firstId = section.id;
+    }
+  });
+  el.rulesToc?.querySelectorAll("button[data-rule-target]").forEach((button) => {
+    const target = byId(button.dataset.ruleTarget);
+    const match = Boolean(target && !target.hasAttribute("hidden"));
+    button.hidden = !match;
+    if (!match) {
+      button.classList.remove("is-active");
+      button.removeAttribute("aria-current");
+    }
+  });
+  el.rulesEmpty?.classList.toggle("hidden", visible > 0);
+  if (el.rulesSearchStatus) {
+    el.rulesSearchStatus.textContent = query
+      ? visible ? "找到 " + visible + " 个章节" : "未找到匹配规则"
+      : "15 个章节";
+  }
+  if (firstId) setActiveRulesToc(firstId);
+}
+
+function openRulesHandbook({ fromSettings = false } = {}) {
+  rulesHandbookFromSettings = Boolean(fromSettings);
+  rulesHandbookReturnFocus = document.activeElement;
+  if (fromSettings) el.settingsModal?.classList.add("hidden");
+  if (el.rulesSearch) el.rulesSearch.value = "";
+  filterRulesHandbook("");
+  el.rulesModal?.classList.remove("hidden");
+  el.rulesArticle?.scrollTo(0, 0);
+  setActiveRulesToc("rule-overview");
+  el.rulesSearch?.focus();
+}
+
+function closeRulesHandbook() {
+  if (!isRulesHandbookOpen()) return false;
+  el.rulesModal.classList.add("hidden");
+  const fromSettings = rulesHandbookFromSettings;
+  const previous = rulesHandbookReturnFocus;
+  rulesHandbookFromSettings = false;
+  rulesHandbookReturnFocus = null;
+  if (fromSettings) {
+    el.settingsNavigation?.classList.toggle("hidden", el.auth.classList.contains("active"));
+    el.settingsModal.classList.remove("hidden");
+    requestAnimationFrame(() => el.btnSettingsRules?.focus());
+    return true;
+  }
+  const fallback = previous && document.contains(previous) ? previous : el.btnOpenRules || el.btnSettings;
+  requestAnimationFrame(() => fallback?.focus?.());
+  return true;
+}
+
 el.btnSettings.addEventListener("click", () => {
   el.settingsNavigation?.classList.toggle("hidden", el.auth.classList.contains("active"));
   el.settingsModal.classList.remove("hidden");
@@ -3355,6 +3497,20 @@ el.btnCloseSettings.addEventListener("click", () => {
 el.btnSettingsLobby?.addEventListener("click", () => {
   el.settingsModal.classList.add("hidden");
   returnToLobby();
+});
+el.btnOpenRules?.addEventListener("click", () => openRulesHandbook());
+el.btnSettingsRules?.addEventListener("click", () => openRulesHandbook({ fromSettings: true }));
+el.btnCloseRules?.addEventListener("click", closeRulesHandbook);
+el.rulesModal?.addEventListener("click", (event) => {
+  if (event.target === el.rulesModal) closeRulesHandbook();
+});
+el.rulesSearch?.addEventListener("input", () => {
+  filterRulesHandbook(el.rulesSearch.value);
+});
+el.rulesToc?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-rule-target]");
+  if (!button) return;
+  showRulesSection(button.dataset.ruleTarget, { scroll: true });
 });
 el.btnCloseSkillPreview?.addEventListener("click", closeSkillPreview);
 el.btnSkillPreviewDone?.addEventListener("click", closeSkillPreview);
@@ -3427,9 +3583,14 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   setRaiseExpanded(false);
   const top = visibleModalLayers().at(-1);
-  if (!top) return;
+  if (!top) {
+    if (isNullifyTargeting()) cancelNullifyTargeting();
+    return;
+  }
   if (top === el.skillPreviewModal) {
     closeSkillPreview();
+  } else if (top === el.rulesModal) {
+    closeRulesHandbook();
   } else if (top === el.settingsModal) {
     top.classList.add("hidden");
     el.btnSettings.focus();
@@ -3942,6 +4103,10 @@ socket.on("action_error", (payload) => {
   endUiRequest("password");
   showToast(payload.message || "操作失败", "error");
 });
+socket.on("room_fault", (payload) => {
+  const message = payload?.message || "牌局状态异常，本局已中止";
+  showToast(message, "error");
+});
 
 if (state.myName) el.inputName.value = state.myName;
 if (state.roomId) el.inputRoom.value = state.roomId;
@@ -3977,7 +4142,7 @@ function setSkillMode(mode) {
   el.skillModeInputs?.forEach((input) => {
     input.checked = input.value === state.skillMode;
   });
-  if (el.waitSkillMode) el.waitSkillMode.textContent = state.skillMode === "abyss" ? "深渊技能" : "关闭";
+  if (el.waitSkillMode) el.waitSkillMode.textContent = state.skillMode === "abyss" ? "超限技能" : "关闭";
   if (el.waitInitialEnergy) el.waitInitialEnergy.textContent = state.skillMode === "abyss" ? "4" : "—";
   syncProtocolUi();
 }
@@ -4372,7 +4537,10 @@ function renderSkillHud() {
     const availability = skillAvailability(def, selfSkills, me);
     return [skillId, availability.kind, availability.ready ? "1" : "0", availability.reason, availability.cost].join(":");
   }).join("|");
-  if (el.skillBar.dataset.signature === hudSignature) return;
+  if (el.skillBar.dataset.signature === hudSignature) {
+    syncNullifyTargeting();
+    return;
+  }
   el.skillBar.dataset.signature = hudSignature;
   el.skillBar.textContent = "";
   equippedSkillIds.forEach((skillId) => {
@@ -4404,7 +4572,7 @@ function renderSkillHud() {
     slot.append(btn, createSkillZoomButton(def));
     el.skillBar.appendChild(slot);
   });
-
+  syncNullifyTargeting();
 }
 
 function emitSkillUse(skillId, target = {}) {
@@ -4590,6 +4758,93 @@ function renderCheatChoices(options) {
   if (sourceIndexes.length) activateSource(sourceIndexes[0]);
 }
 
+function isNullifyTargeting() {
+  return state.pendingChoice?.type === "NULLIFY_BOARD";
+}
+
+function currentSkillEnergy() {
+  return Number((state.skillSelf || getMe()?.skills || {}).abyssEnergy || 0);
+}
+
+function syncNullifyTargeting() {
+  const on = isNullifyTargeting();
+  const canHole = on && currentSkillEnergy() >= 7;
+  el.game?.classList.toggle("is-nullify-targeting", on);
+  el.game?.classList.toggle("can-nullify-hole", canHole);
+  el.skillBoardTargetBar?.classList.toggle("hidden", !on);
+  el.skillBoardTargetBar?.setAttribute("aria-hidden", on ? "false" : "true");
+  document.querySelectorAll("#skill-bar .skill-use-btn").forEach((button) => {
+    const active = on && button.dataset.skillUseId === "NULLIFICATION";
+    button.classList.toggle("is-targeting", active);
+    if (active) button.setAttribute("aria-pressed", "true");
+    else button.removeAttribute("aria-pressed");
+  });
+}
+
+function beginNullifyTargeting() {
+  state.pendingChoice = {
+    type: "NULLIFY_BOARD",
+    skillId: "NULLIFICATION",
+    payload: { target: {} },
+    context: {
+      handId: state.activeCommitment?.handId || null,
+      turnId: state.turnId || null,
+      phase: state.phase || null,
+    },
+  };
+  if (el.community) delete el.community.dataset.rowSignature;
+  if (el.opponentCards) delete el.opponentCards.dataset.rowSignature;
+  renderCards();
+  syncNullifyTargeting();
+}
+
+function cancelNullifyTargeting({ restoreFocus = true } = {}) {
+  if (!isNullifyTargeting()) {
+    syncNullifyTargeting();
+    return false;
+  }
+  state.pendingChoice = null;
+  if (el.community) delete el.community.dataset.rowSignature;
+  if (el.opponentCards) delete el.opponentCards.dataset.rowSignature;
+  syncNullifyTargeting();
+  renderCards();
+  if (restoreFocus) {
+    requestAnimationFrame(() => {
+      const target = document.querySelector('#skill-bar .skill-use-btn[data-skill-use-id="NULLIFICATION"]');
+      target?.focus();
+    });
+  }
+  return true;
+}
+
+function commitNullifyTarget(target) {
+  if (!isNullifyTargeting()) return;
+  if (!emitSkillUse("NULLIFICATION", target)) return;
+  cancelNullifyTargeting({ restoreFocus: false });
+}
+
+function handleNullifyBoardClick(event) {
+  if (!isNullifyTargeting()) return;
+  const card = event.target.closest?.(".card");
+  if (!card || !el.community?.contains(card)) return;
+  const boardIndex = Number(card.dataset.boardIndex);
+  if (!Number.isInteger(boardIndex) || boardIndex < 0 || boardIndex > 4) return;
+  event.preventDefault();
+  commitNullifyTarget({ mode: "board", boardIndex });
+}
+
+function handleNullifyHoleClick(event) {
+  if (!isNullifyTargeting()) return;
+  const card = event.target.closest?.(".card");
+  if (!card || !el.opponentCards?.contains(card)) return;
+  event.preventDefault();
+  if (currentSkillEnergy() < 7) {
+    showToast("零化底牌需要 7 点能量", "error");
+    return;
+  }
+  commitNullifyTarget({ mode: "hole" });
+}
+
 function openSkillTargetOptions({ skillId, title, text, options, variant = "default" }) {
   if (!options.length) {
     showToast("当前没有可选择的牌", "error");
@@ -4620,6 +4875,9 @@ function openSkillTargetOptions({ skillId, title, text, options, variant = "defa
 }
 
 function useSkill(skillId) {
+  if (isNullifyTargeting() && skillId !== "NULLIFICATION") {
+    cancelNullifyTargeting({ restoreFocus: false });
+  }
   if (skillId === "INTEL_ONE") {
     const future = futureBoardIndexes();
     const options = [{ label: "随机读取一张对手底牌", target: { zone: "opponent" }, tone: "intel" }];
@@ -4663,25 +4921,12 @@ function useSkill(skillId) {
     });
   }
   if (skillId === "NULLIFICATION") {
-    const energy = Number((state.skillSelf || getMe()?.skills || {}).abyssEnergy || 0);
-    const options = [];
-    if (energy >= 7) {
-      options.push({
-        label: "零化对手一张随机底牌（7 能量）",
-        target: { mode: "hole" },
-      });
+    if (isNullifyTargeting()) {
+      cancelNullifyTargeting();
+      return;
     }
-    state.communityCards.forEach((card, boardIndex) => {
-      options.push({
-        label: `零化公共牌 #${boardIndex + 1} ${cardChoiceLabel(card)}（6 能量）`,
-        target: { mode: "board", boardIndex },
-      });
-    });
-    futureBoardIndexes().forEach((boardIndex) => options.push({
-      label: `零化未来公共牌 #${boardIndex + 1}（6 能量）`,
-      target: { mode: "board", boardIndex },
-    }));
-    return openSkillTargetOptions({ skillId, title: "零化", text: "选择零化模式与目标。双方可以锁定同一张公共牌。", options, variant: "nullification" });
+    beginNullifyTargeting();
+    return;
   }
   if (skillId === "LOAN") {
     const self = state.skillSelf || getMe()?.skills || {};
@@ -4836,6 +5081,7 @@ function openSuspectPicker() {
 }
 
 function closeSkillChoiceModal({ render = true, restoreFocus = true } = {}) {
+  if (isNullifyTargeting()) cancelNullifyTargeting({ restoreFocus: false });
   const pending = state.pendingChoice;
   const wasOpen = Boolean(el.skillChoiceModal && !el.skillChoiceModal.classList.contains("hidden"));
   if (!pending && !wasOpen) return false;
@@ -4870,7 +5116,7 @@ function invalidateSkillChoiceIfStale({ force = false, includeDossier = false } 
       ? closeSkillChoiceModal({ render: false, restoreFocus: false })
       : false;
   }
-  if (pending.type !== "SKILL_TARGET") return false;
+  if (pending.type !== "SKILL_TARGET" && pending.type !== "NULLIFY_BOARD") return false;
   const context = pending.context || {};
   const currentHandId = state.activeCommitment?.handId || null;
   const stale = force
@@ -4879,9 +5125,10 @@ function invalidateSkillChoiceIfStale({ force = false, includeDossier = false } 
     || context.turnId !== (state.turnId || null)
     || context.phase !== (state.phase || null)
     || (context.handId && currentHandId && context.handId !== currentHandId);
-  return stale
-    ? closeSkillChoiceModal({ render: false, restoreFocus: false })
-    : false;
+  if (!stale) return false;
+  return pending.type === "NULLIFY_BOARD"
+    ? cancelNullifyTargeting({ restoreFocus: false })
+    : closeSkillChoiceModal({ render: false, restoreFocus: false });
 }
 
 function syncTableRailAccessibility() {
@@ -4926,6 +5173,23 @@ el.btnConfirmLoadout?.addEventListener("click", () => {
 });
 el.btnSkillChoiceCancel?.addEventListener("click", () => {
   closeSkillChoiceModal();
+});
+el.btnCancelSkillTarget?.addEventListener("click", () => {
+  cancelNullifyTargeting();
+});
+el.community?.addEventListener("click", handleNullifyBoardClick);
+el.opponentCards?.addEventListener("click", handleNullifyHoleClick);
+el.community?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (!event.target.closest?.(".card")) return;
+  event.preventDefault();
+  handleNullifyBoardClick(event);
+});
+el.opponentCards?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (!event.target.closest?.(".card")) return;
+  event.preventDefault();
+  handleNullifyHoleClick(event);
 });
 el.btnSkillChoiceConfirm?.addEventListener("click", () => {
   if (!state.pendingChoice) return;

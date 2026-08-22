@@ -236,7 +236,7 @@ class RoomManager {
     return { ok: true, room, player, reconnected: false };
   }
 
-  addBotPlayer(room, botName = "深渊AI") {
+  addBotPlayer(room, botName = "超限AI") {
     if (!room || room.players.length >= 2) {
       return { ok: false, error: "房间已满或不存在" };
     }

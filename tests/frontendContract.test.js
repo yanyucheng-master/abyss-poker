@@ -170,6 +170,12 @@ describe("frontend DOM contract", () => {
     ["INTEL_ONE", "CHEAT", "NULLIFICATION", "DESTINY"].forEach((skillId) => {
       expect(client).toContain(`skillId === "${skillId}"`);
     });
+    expect(html).toContain('id="btn-cancel-skill-target"');
+    expect(client).toContain("function beginNullifyTargeting");
+    expect(client).toContain('type: "NULLIFY_BOARD"');
+    expect(client).not.toContain('variant: "nullification"');
+    expect(client).toContain("is-nullify-targeting");
+    expect(tableV2).toContain("is-nullify-targeting");
     expect(html).toContain('id="opponent-skill-field"');
     expect(html).toContain('id="btn-mark-opponent-skills"');
     expect(client).toContain("function renderOpponentSkillIntel()");
@@ -236,6 +242,8 @@ describe("frontend DOM contract", () => {
   test("技能选择随权威回合失效，移动技能抽屉不会穿透或污染无技能局", () => {
     expect(client).toContain("function invalidateSkillChoiceIfStale");
     expect(client).toContain("context.turnId !== (state.turnId || null)");
+    expect(client).toContain("pending.type !== \"SKILL_TARGET\" && pending.type !== \"NULLIFY_BOARD\"");
+    expect(client).toContain("cancelNullifyTargeting({ restoreFocus: false })");
     expect(client).toContain("closeSkillChoiceModal({ render: false, restoreFocus: false })");
     expect(client).toContain("function syncTableRailAccessibility");
     expect(client).toContain("el.opponentSkillField.inert = intelHidden");
@@ -284,6 +292,12 @@ describe("frontend DOM contract", () => {
     expect(html).toContain('data-room-action="solo"');
     expect(html).toContain('data-room-action="create"');
     expect(html).toContain('id="btn-open-skill-lab"');
+    expect(html).toContain('id="btn-open-rules"');
+    expect(html).toContain('id="btn-settings-rules"');
+    expect(html).toContain('id="rules-handbook-modal"');
+    expect(html).toContain('id="rules-search"');
+    expect(client).toContain("function openRulesHandbook");
+    expect(client).toContain("function filterRulesHandbook");
     expect(html).toContain('id="screen-skill-lab"');
     expect(html).toContain('id="skill-lab-catalog"');
     expect(html).toContain('data-raise-preset="max"');

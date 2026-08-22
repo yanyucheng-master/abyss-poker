@@ -1,7 +1,7 @@
 {
   "name": "超限德州",
   "short_name": "超限德州",
-  "description": "双人实时联机德州扑克，可选高爆发牌与深渊技能。",
+  "description": "双人实时联机德州扑克，可选高爆发牌与超限技能。",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#000000",

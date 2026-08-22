@@ -207,16 +207,21 @@ function getRealEnergy(player) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function computePublicEnergySnapshot(player) {
-  const real = getRealEnergy(player);
+function clampPublicEnergy(value) {
+  const real = Number(value);
+  if (!Number.isFinite(real)) return 0;
   if (real < 0) return 0;
-  return Math.min(SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP, real);
+  return Math.min(SKILL_CONFIG.PUBLIC_ENERGY_DISPLAY_CAP, Math.trunc(real));
+}
+
+function computePublicEnergySnapshot(player) {
+  return clampPublicEnergy(getRealEnergy(player));
 }
 
 function getPublicEnergySnapshot(player) {
   if (!player?.skillRuntime) return 0;
   const stored = Number(player.skillRuntime.visibleAbyssEnergy);
-  return Number.isFinite(stored) ? stored : 0;
+  return clampPublicEnergy(stored);
 }
 
 function getPublicEnergyDisplay(player) {
@@ -263,7 +268,9 @@ function resetPlayerSkillsForHand(player) {
     energyLoan: runtime.energyLoan || null,
     energyDebt: Math.max(0, Number(runtime.energyDebt) || 0),
     chipDebt: Math.max(0, Number(runtime.chipDebt) || 0),
-    chipDebtLenderId: runtime.chipDebtLenderId || null,
+    chipDebtLenderId: (Math.max(0, Number(runtime.chipDebt) || 0) > 0)
+      ? (runtime.chipDebtLenderId || null)
+      : null,
     loanCreditState: getLoanCreditState(runtime),
     loanCreditMetrics: runtime.loanCreditMetrics || createLoanCreditMetrics(),
     alertChanceIndex: Math.max(0, Number(runtime.alertChanceIndex) || 0),
@@ -607,6 +614,12 @@ function expireLoanDebts(player) {
   runtime.loanCreditState = LOAN_CREDIT.NORMAL;
 }
 
+function clearResidualChipDebt(runtime) {
+  if (!runtime) return;
+  runtime.chipDebt = 0;
+  runtime.chipDebtLenderId = null;
+}
+
 function expireLoanDebtsForRoom(room) {
   (room?.players || []).forEach(expireLoanDebts);
 }
@@ -623,12 +636,14 @@ module.exports = {
   validateLoadout, getLoadoutLoad, pickDefaultBotLoadout, gainEnergy, spendEnergy,
   getEffectiveEnergyCost, syncVisibleEnergy, hasEquipped,
   getRealEnergy, computePublicEnergySnapshot, getPublicEnergySnapshot, energyVisibleToViewer,
+  clampPublicEnergy,
   getPublicSkillSummary, getSelfSkillSummary, getPublicRoomSkillSnapshot,
   markSkillUse, markSkillEvent, getRemainingUses, listSkillDefinitions,
   getSkillDefinition, getEnergyCap, getPublicEnergyDisplay, confirmPublicSkill,
   recordPaidFailure, canTriggerNewSkillEvent, equippedProtocols,
   isChipViewHiddenFor, addDirectChipGain, loanReuseBlocked,
   expireLoanDebts, expireLoanDebtsForRoom, isMatchOverForLoan,
+  clearResidualChipDebt,
   maskLoanPublicSummary, addChipLoanTranche, listChipLoans, syncChipLoanState,
   LOAN_CREDIT, getLoanCreditState, setLoanCreditState, getLoanQuota,
   pendingLoanObligations, ensureLoanCreditMetrics, noteLoanWash,

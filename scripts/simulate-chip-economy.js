@@ -11,7 +11,9 @@ const { MATCH_TOTAL_CHIPS, chipTotal } = require("../game/chipEconomy");
 const logger = require("../utils/logger");
 const eventBus = require("../utils/eventBus");
 
-const MATCHES = Math.max(1, Number(process.env.ECON_MATCHES || 10000));
+const MATCHES = Math.max(1, Number(
+  process.argv[2] || process.env.ECON_MATCHES || 10000
+));
 const SEED = Number(process.env.ECON_SEED || 220826);
 
 function mulberry32(seed) {
@@ -85,7 +87,8 @@ function playMatch(random) {
       else if (leftover.includes("call")) engine.handlePlayerAction(room, idx, "call");
       stopTimers(engine, room);
     }
-    if (room.pot === 0 && a.chips + b.chips !== MATCH_TOTAL_CHIPS) conservationFails += 1;
+    if (room.pot !== 0) conservationFails += 1;
+    else if (a.chips + b.chips !== MATCH_TOTAL_CHIPS) conservationFails += 1;
   }
   stopTimers(engine, room);
   return { conservationFails, integerFails, negativeFails, hands };

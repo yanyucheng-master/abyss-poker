@@ -8,6 +8,7 @@ const {
   isLegalPlayerChipAmount,
   recycleRefund,
   defenseProtectedLoss,
+  isEconomyFaulted,
 } = require("../chipEconomy");
 const { isSkillEnabled } = require("../skillModes");
 const { SKILL_CONFIG, PERCEPTION_CONFIG } = require("../skillConfig");
@@ -36,6 +37,7 @@ const {
   getRealEnergy,
   getPublicEnergySnapshot,
   energyVisibleToViewer,
+  clampPublicEnergy,
   markSkillUse,
   markSkillEvent,
   getRemainingUses,
@@ -49,6 +51,7 @@ const {
   expireLoanDebtsForRoom,
   isMatchOverForLoan,
   loanReuseBlocked,
+  clearResidualChipDebt,
   maskLoanPublicSummary,
   addChipLoanTranche,
   listChipLoans,
@@ -348,6 +351,14 @@ function allLoadoutsConfirmed(room) {
   return allConfirmed;
 }
 
+function resolveHandStartChips(player) {
+  if (Number.isSafeInteger(player?.skillRuntime?.handStartChips)) {
+    return player.skillRuntime.handStartChips;
+  }
+  if (Number.isSafeInteger(player?.handStartChips)) return player.handStartChips;
+  return null;
+}
+
 function beginHandSkills(room) {
   if (!isSkillEnabled(room.skillMode)) return;
   resetRoomSkillsForHand(room);
@@ -422,7 +433,7 @@ function clearPersistentSkillState(room) {
     runtime.chipLoans = [];
     runtime.energyLoan = null;
     runtime.energyDebt = 0;
-    runtime.chipDebt = 0;
+    clearResidualChipDebt(runtime);
     runtime.confirmedPublicSkills = (runtime.confirmedPublicSkills || [])
       .filter((id) => !CLEARED_PUBLIC_EFFECTS.has(id));
   });
@@ -713,6 +724,20 @@ class SkillEngine {
       // settlement (restore, Fairness suppression, loans, Fortune) has finished.
       syncVisibleEnergy(player);
     });
+    this.refreshSettlementChipTelemetry(room, winner);
+  }
+
+  refreshSettlementChipTelemetry(room, winner) {
+    const details = room?.skillState?.settlement;
+    if (!details || !winner) return;
+    const startChips = resolveHandStartChips(winner);
+    const netDirect = Number.isSafeInteger(winner.skillRuntime?.directChipGainThisHand)
+      ? winner.skillRuntime.directChipGainThisHand
+      : 0;
+    details.netDirectChipTransfer = netDirect;
+    if (Number.isSafeInteger(startChips) && Number.isSafeInteger(winner.chips)) {
+      details.totalNetChipDelta = winner.chips - startChips;
+    }
   }
 
   validateUse(room, player, rawSkillId, target = {}) {
@@ -739,7 +764,7 @@ class SkillEngine {
     if (remaining.handLeft === 0) return { ok: false, error: "本手已使用过该技能" };
     if (remaining.gameLeft === 0) return { ok: false, error: "本场使用次数已耗尽" };
     const cost = getEffectiveEnergyCost(player, skill, target);
-    if (runtime.abyssEnergy < cost) return { ok: false, error: "深渊能量不足" };
+    if (runtime.abyssEnergy < cost) return { ok: false, error: "能量不足" };
 
     if (skill.id === "INTIMIDATION" && room.players.some((candidate) => contributionFor(candidate) > SKILL_CONFIG.FEAR_CONTRIBUTION_CAP)) {
       return { ok: false, error: "已有玩家本手投入超过 500，恐吓不能发动" };
@@ -867,6 +892,9 @@ class SkillEngine {
   }
 
   requestUse(room, player, payload = {}, options = {}) {
+    if (isEconomyFaulted(room)) {
+      return { ok: false, error: "牌局状态异常，无法继续" };
+    }
     const skillId = String(payload.skillId || "").trim().toUpperCase();
     const requestId = String(payload.requestId || crypto.randomUUID()).slice(0, 128);
     room.skillState = room.skillState || createRoomSkillState();
@@ -881,7 +909,7 @@ class SkillEngine {
     if (!validation.ok) return validation;
     const { skill, cost } = validation;
 
-    if (!spendEnergy(player, cost)) return { ok: false, error: "深渊能量不足" };
+    if (!spendEnergy(player, cost)) return { ok: false, error: "能量不足" };
     room.skillState.processedRequestIds.add(requestId);
     markSkillUse(player, skill.id);
     markSkillEvent(player, skill.id);
@@ -1570,7 +1598,11 @@ class SkillEngine {
       const runtime = player.skillRuntime;
       if (!runtime) return;
       const due = isLegalPlayerChipAmount(runtime.chipDebt) ? runtime.chipDebt : 0;
-      if (due <= 0) return;
+      if (due <= 0) {
+        runtime.chipDebt = 0;
+        runtime.chipDebtLenderId = null;
+        return;
+      }
       const lender = room.players.find((candidate) => candidate.playerId === runtime.chipDebtLenderId)
         || opponentOf(room, player);
       if (!lender) return;
@@ -1901,6 +1933,9 @@ class SkillEngine {
       preCapStandardTransfer: 0,
       lossCapApplied: false,
       handRankBonusCappedAmount: 0,
+      finalStandardTransfer: 0,
+      netDirectChipTransfer: 0,
+      totalNetChipDelta: 0,
     };
     const persist = (payload) => {
       if (room) {
@@ -1909,6 +1944,7 @@ class SkillEngine {
       }
       return payload;
     };
+    if (isEconomyFaulted(room)) return persist(details);
     if (tie || !winner) return persist(details);
     const loser = opponentOf(room, winner);
     if (!loser) return persist(details);
@@ -1917,7 +1953,7 @@ class SkillEngine {
     const directGain = Number.isSafeInteger(winner.skillRuntime?.directChipGainThisHand)
       ? winner.skillRuntime.directChipGainThisHand
       : 0;
-    const startChipsRaw = winner.skillRuntime?.handStartChips;
+    const startChipsRaw = resolveHandStartChips(winner);
     const hasStartSnapshot = Number.isSafeInteger(startChipsRaw);
     const realizedFromChips = hasStartSnapshot
       ? Math.max(0, winner.chips - startChipsRaw - directGain)
@@ -1943,6 +1979,8 @@ class SkillEngine {
     }
 
     const bonusEligible = reason === "showdown";
+    // Hand-rank bonus is a base economy rule for every mode. It is not a
+    // skill effect and must not be gated by skillsOn / skillMode=off.
     const bonusValue = bonusEligible ? getHandRankBonusValue(winnerCategory, room) : 0;
     details.standardPokerNet = frozenPokerNet;
     details.otherBaseAdditive = otherBaseAdditive;
@@ -2028,10 +2066,16 @@ class SkillEngine {
       transferChips(room, winner, loser, -adjustment, CHIP_REASON.DEFENSE_REFUND);
     }
     const finalStandardTransfer = Math.max(0, winner.chips - startChips - directGain);
+    const totalNetChipDelta = Number.isSafeInteger(startChips)
+      ? winner.chips - startChips
+      : 0;
     details.baseTransfer = baseTransfer;
     details.standardTransfer = frozenPokerNet;
     details.realizedStandardTransfer = currentRealized;
     details.directGain = Math.max(0, directGain);
+    details.netDirectChipTransfer = directGain;
+    details.finalStandardTransfer = finalStandardTransfer;
+    details.totalNetChipDelta = totalNetChipDelta;
     details.lossBeforeDefense = lossBeforeDefense;
     details.desiredTransfer = desiredTransfer;
     details.preCapStandardTransfer = preCapStandardTransfer;
@@ -2120,6 +2164,7 @@ module.exports = {
   getPublicRoomSkillSnapshot,
   getRealEnergy,
   getPublicEnergySnapshot,
+  clampPublicEnergy,
   energyVisibleToViewer,
   syncVisibleEnergy,
   validateLoadout,

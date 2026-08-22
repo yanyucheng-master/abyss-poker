@@ -230,7 +230,7 @@ def set_page(doc):
     fp = footer.paragraphs[0]
     fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
     set_paragraph_spacing(fp, before=0, after=0, line=14)
-    run = fp.add_run("实现版基线  ·  与当前代码一致  ·  2026-08-21  ·  第 ")
+    run = fp.add_run("实现版基线  ·  与当前代码一致  ·  2026-08-22  ·  第 ")
     set_run_font(run, size=8, color=MUTED)
     # PAGE field
     fldChar1 = OxmlElement("w:fldChar")
@@ -283,7 +283,7 @@ def add_cover(doc):
         ["构筑约束", "最少 1 个、最多 4 个，总负载上限 8"],
         ["冻结项", "感知 FROZEN_V1 / spec-25-50；强运 FROZEN_V1 / soft-v1；贷款信用受限 V2 正式化"],
         ["冻结日期", "感知 / 强运 2026-08-20；贷款信用 2026-08-21"],
-        ["对照代码", "definitions.js / skillConfig.js / skillEngine.js / skillState.js / gameEngine.js"],
+        ["对照代码", "definitions.js / skillConfig.js / skillEngine.js / skillState.js / gameEngine.js / chipEconomy.js / handRankBonus.js"],
     ]
     add_table(doc, ["项", "说明"], meta_rows, col_widths=[3.8, 12.6])
 
@@ -337,6 +337,39 @@ def build():
 
     # 1
     add_heading_styled(doc, "1. 全局规则", 1)
+    add_heading_styled(doc, "1.0 全模式基础经济与牌型奖励", 2)
+    add_body(
+        doc,
+        "牌型基础奖励属于《超限德州》的游戏基础经济规则，不是技能效果。无论 standard + skill off、overdrive + skill off、standard + skill on、overdrive + skill on，只要最终通过 Showdown 决出胜者，就发放 launch-v1 牌型基础奖励。关闭技能只代表不启用技能系统，并不代表完全原版 Texas Hold'em。",
+    )
+    add_table(
+        doc,
+        ["牌型", "category", "奖励"],
+        [
+            ["高牌", "1", "+0"],
+            ["一对", "2", "+0"],
+            ["两对", "3", "+0"],
+            ["三条", "4", "+25"],
+            ["顺子", "5", "+50"],
+            ["同花", "6", "+75"],
+            ["葫芦", "7", "+100"],
+            ["四条", "8", "+250"],
+            ["同花顺", "9", "+400"],
+            ["皇家同花顺", "10", "+500"],
+        ],
+        col_widths=[4.0, 2.4, 10.0],
+    )
+    for t in [
+        "Fold / Retreat / 平局：不发牌型奖励。",
+        "皇家同花顺是正式独立牌型（category 10）。协议 P09 同时覆盖 category 9 和 10，不另设皇家同花顺独立协议。",
+        "牌型奖励不是「自己的技能倍率」，因此不阻止 Protocol。Blood / Desperation / Dead End 等已有自己的技能倍率时，仍按现有规则阻止自己的 Protocol。",
+    ]:
+        add_bullet(doc, t)
+    add_callout(
+        doc,
+        "正式结算顺序：standardPokerNet + handRankBonus + 其他基础加值（例如 Probe）→ 自身合法技能倍率 → 对手产生的合法倍率 → Defense → Stack Cap → 唯一整数筹码转移",
+    )
+
     add_heading_styled(doc, "1.1 构筑", 2)
     add_table(
         doc,
@@ -375,6 +408,7 @@ def build():
             ["对手界面显示上限", "8（不直接显示 10）"],
             ["强运允许下限", "-4"],
             ["负能量限制", "除强运外，不能发动主动技能，也不能触发新的被动技能事件"],
+            ["普通公开快照", "clamp(realFinalEnergy, 0, 8)"],
         ],
         col_widths=[4.8, 11.6],
     )
@@ -391,6 +425,16 @@ def build():
         col_widths=[6.0, 10.4],
     )
     add_body(doc, "公平成功后，本手全部结束恢复都被抑制，包括败者 +1、深呼吸、绝境 +1、反制空放返还、资源型强运。")
+    add_body(doc, "对手能量规则：逐手公开、手内冻结。", bold=True, after=4)
+    for t in [
+        "每手结束：所有能量恢复、Loan 还款、债务、Fairness 抑制、Fortune 资源效果等全部处理结束后，才刷新公开快照。",
+        "下一手进行过程中：对手显示保持冻结，不实时变化。",
+        "普通对手可见值：真实 -4/-3/-1/0 → 0；真实 1~8 → 真实值；真实 9/10 → 8。",
+        "本人始终看到自己的真实当前能量，包括 Strong Fortune 负数和 Destiny 的 9/10。",
+        "灵视始终读取服务器真实当前能量（含负数、9/10 与手内实时变化），只写入私有结果，不得顶替对手信息条上的公开冻结值。",
+        "普通客户端不得通过任何其他字段区分真实 0 与被遮蔽的负数 0，也不得区分真实 8 与 Destiny 被封顶后的 8。",
+    ]:
+        add_bullet(doc, t)
 
     add_heading_styled(doc, "1.3 倍率与直接筹码", 2)
     add_body(doc, "只修正标准净筹码转移。终局没收、贷款直接拿筹不进倍率。")
@@ -673,11 +717,23 @@ def build():
     add_skill_meta(doc, "负载 2  ·  费用 2  ·  主动  ·  可见性混合")
     for t in [
         "扣费前锁定分支。",
-        "正常信用同一手：筹码贷最多 2 次，能量贷最多 1 次，合计最多 3 次。",
-        "信用受限时，同一手所有贷款模式合计最多只能发动 1 次，不能再 Energy+Chip 或 Chip+Chip。",
         "两种贷款可以同时存在。",
-        "任意偿还失败形成的筹码债务或能量债务未清偿时，进入违约，整技能封禁。",
-        "只有从玩家筹码 / 能量中真实扣除才算偿还。公平清除、比赛结束失效或其他免除都不算实际偿还。",
+        "信用状态三档，额度来自当前信用，不跨 Match。",
+    ]:
+        add_bullet(doc, t)
+    add_table(
+        doc,
+        ["信用", "筹码贷 / 手", "能量贷 / 手", "合计 / 手"],
+        [
+            ["NORMAL_CREDIT 正常", "2", "1", "3"],
+            ["RESTRICTED_CREDIT 受限", "1", "1", "1（整手只能选一个模式发动一次）"],
+            ["DEFAULTED 违约", "0", "0", "0（整技能不可发动）"],
+        ],
+        col_widths=[4.8, 2.8, 2.8, 6.0],
+    )
+    for t in [
+        "任意偿还失败形成的 chipDebt 或 energyDebt 未清偿时，进入 DEFAULTED，整技能封禁。",
+        "只有从玩家筹码 / 能量中真实扣除才算偿还。公平清除、比赛结束失效、调试重置、状态覆盖、其他技能免除都不算实际偿还。",
     ]:
         add_bullet(doc, t)
     add_body(doc, "筹码贷款（公开）", bold=True, after=2)
@@ -695,18 +751,16 @@ def build():
         "之后任何能量收入优先偿债。",
     ]:
         add_bullet(doc, t)
-    add_body(doc, "信用状态", bold=True, after=2)
+    add_body(doc, "信用转移", bold=True, after=2)
     for t in [
-        "NORMAL_CREDIT：正常额度 2+1，合计 3。",
-        "RESTRICTED_CREDIT：整手贷款合计 1 次。",
-        "DEFAULTED：整技能不可发动，直到 residual 被处理。",
-        "任何 pending / residual 金额大于 0 被公平或其他非真实偿还机制清除 → 信用受限。",
+        "任何已存在的 pending / residual 贷款债务金额 > 0 被公平或其他非真实偿还机制清除 → RESTRICTED_CREDIT。",
         "已受限时再次被公平清债 → 保持受限，不能洗回正常。",
-        "到期无法全额真实偿还并形成 residual → 违约。",
-        "受限后恢复正常，必须是受限下新借、正常到期、全部真实支付、无免除、residual 为 0。部分真实偿还后剩余被公平清除，不算恢复。",
-        "违约后 residual 被真实全部还清 → 正常信用；被公平清除 → 信用受限，不是洗白。",
-        "反制抓住贷款：费用照付，不获得资源，不生成债务，不改变信用。",
-        "信用状态不跨 Match。比赛合法结束后全部清空，下一场从正常信用开始。",
+        "到期无法全额真实偿还并形成 residual > 0 → DEFAULTED。",
+        "受限后恢复正常，必须同时满足：这笔贷款在受限状态下新产生；正常到期；到期时全部用真实资源支付；没有任何部分被免除；最终 residual == 0。部分真实偿还后剩余被公平清除，不算恢复。",
+        "违约后 residual 被真实全部还清 → NORMAL_CREDIT。",
+        "违约后 residual 被公平清除 → RESTRICTED_CREDIT，贷款重新可用，但不是洗白。",
+        "反制抓住贷款：费用照付，不获得资源，不生成偿还或 residual，不改变信用。",
+        "整场比赛合法结束后：未到期偿还、residual、信用状态全部清空；下一场从正常信用开始。",
     ]:
         add_bullet(doc, t)
     add_body(doc, "赛后", bold=True, after=2)

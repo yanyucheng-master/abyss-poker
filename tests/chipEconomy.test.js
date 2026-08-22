@@ -19,6 +19,8 @@ const {
   transferChips,
   assertIntegerEconomyState,
   assertNoNegativeChips,
+  isEconomyFaulted,
+  economyFault,
 } = require("../game/chipEconomy");
 const logger = require("../utils/logger");
 const eventBus = require("../utils/eventBus");
@@ -144,6 +146,46 @@ describe("统一 transferChips 零和", () => {
     expect(b.chips).toBe(0);
     expect(chipTotal(room)).toBe(MATCH_TOTAL_CHIPS);
     assertNoNegativeChips(room);
+  });
+});
+
+describe("Production economy fail-closed", () => {
+  test("ECON-FAULT-01 production 模式下人为守恒异常，room 被标记 faulted", () => {
+    const { room, a, b } = setupRoom();
+    room.economy.productionFailClosed = true;
+    expect(() => economyFault(room, "conservation failed during test")).not.toThrow();
+    expect(isEconomyFaulted(room)).toBe(true);
+    expect(room.economy.faultReason).toContain("conservation failed");
+    expect(Number.isSafeInteger(room.economy.faultAt)).toBe(true);
+    expect(a.chips + b.chips + room.pot).toBe(MATCH_TOTAL_CHIPS);
+  });
+
+  test("ECON-FAULT-02 faulted 后不得继续执行下一次 transfer", () => {
+    const { room, a, b } = setupRoom();
+    room.economy.productionFailClosed = true;
+    economyFault(room, "conservation failed during test");
+    const beforeA = a.chips;
+    const beforeB = b.chips;
+    const moved = transferChips(room, b, a, 100, CHIP_REASON.STANDARD_SETTLEMENT);
+    expect(moved).toBe(0);
+    expect(a.chips).toBe(beforeA);
+    expect(b.chips).toBe(beforeB);
+    expect(isEconomyFaulted(room)).toBe(true);
+  });
+
+  test("ECON-FAULT-03 正常合法 transfer 不受影响", () => {
+    const { room, a, b } = setupRoom();
+    const before = chipTotal(room);
+    const moved = transferChips(room, b, a, 50, CHIP_REASON.STANDARD_SETTLEMENT);
+    expect(moved).toBe(50);
+    expect(isEconomyFaulted(room)).toBe(false);
+    expect(chipTotal(room)).toBe(before);
+  });
+
+  test("ECON-FAULT-04 测试环境仍会快速失败/throw", () => {
+    const { room, a, b } = setupRoom();
+    expect(() => transferChips(room, b, a, 1.5, CHIP_REASON.STANDARD_SETTLEMENT)).toThrow(/CHIP_ECONOMY/);
+    expect(isEconomyFaulted(room)).toBe(true);
   });
 });
 

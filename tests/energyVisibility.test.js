@@ -24,6 +24,10 @@ const FORBIDDEN_ENERGY_KEYS = [
   "energyWasClamped",
   "actualEnergy",
   "displayEnergy",
+  "destinyCap",
+  "energyCapFlag",
+  "fortuneDebtFlag",
+  "publicEnergyWasClamped",
 ];
 
 function makeIoStub() {
@@ -267,5 +271,87 @@ describe("对手能量可见性：逐手公开、手内冻结", () => {
     const toA = latestPayload(io, "skill:state", a.socketId);
     expect(toB.players.find((player) => player.playerId === a.playerId).abyssEnergy).toBe(6);
     expect(toA.self.abyssEnergy).toBe(5);
+  });
+
+  test("EV15 Destiny 真实 9，普通对手快照为 8", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["DESTINY", "RECYCLE"],
+      loadoutB: ["DEFENSE", "RECYCLE"],
+    });
+    a.skillRuntime.abyssEnergy = 9;
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    expect(getRealEnergy(a)).toBe(9);
+    expect(getPublicEnergySnapshot(a)).toBe(8);
+    expect(publicSkillsOf(engine, room, b, a).abyssEnergy).toBe(8);
+    expect(getSelfSkillSummary(a).abyssEnergy).toBe(9);
+  });
+
+  test("EV16 Destiny 真实 10，普通对手快照为 8", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["DESTINY", "RECYCLE"],
+      loadoutB: ["DEFENSE", "RECYCLE"],
+    });
+    a.skillRuntime.abyssEnergy = 10;
+    a.skillRuntime.visibleAbyssEnergy = 10;
+    expect(getPublicEnergySnapshot(a)).toBe(8);
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    expect(getRealEnergy(a)).toBe(10);
+    expect(getPublicEnergySnapshot(a)).toBe(8);
+    expect(publicSkillsOf(engine, room, b, a).abyssEnergy).toBe(8);
+  });
+
+  test("EV17 真实 8 与真实 10 的普通对手公开能量字段不可区分", () => {
+    const eight = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });
+    eight.a.skillRuntime.abyssEnergy = 8;
+    syncVisibleEnergy(eight.a);
+    const eightPublic = getPublicSkillSummary(eight.a);
+
+    const ten = setupRoom({ loadoutA: ["DESTINY", "RECYCLE"] });
+    ten.a.skillRuntime.abyssEnergy = 10;
+    syncVisibleEnergy(ten.a);
+    const tenPublic = getPublicSkillSummary(ten.a);
+
+    expect(eightPublic.abyssEnergy).toBe(8);
+    expect(tenPublic.abyssEnergy).toBe(8);
+    expect(eightPublic.energyCap).toBe(8);
+    expect(tenPublic.energyCap).toBe(8);
+    expect(JSON.stringify(eightPublic)).toBe(JSON.stringify(tenPublic));
+    assertNoEnergyLeak(eightPublic);
+    assertNoEnergyLeak(tenPublic);
+    expect(JSON.stringify(tenPublic)).not.toMatch(/"abyssEnergy":10/);
+  });
+
+  test("EV18 Clairvoyance 面对真实 10 时读取 10，普通显示仍为 8", () => {
+    const { engine, room, a, b } = setupRoom({
+      loadoutA: ["CLAIRVOYANCE", "RECYCLE"],
+      loadoutB: ["DESTINY", "RECYCLE"],
+    });
+    b.skillRuntime.abyssEnergy = 10;
+    syncVisibleEnergy(b);
+    a.skillRuntime.abyssEnergy = 8;
+    expect(publicSkillsOf(engine, room, a, b).abyssEnergy).toBe(8);
+    expect(use(engine, room, a, "CLAIRVOYANCE", {}, "ev18")).toMatchObject({ status: "SUCCESS" });
+    expect(a.skillRuntime.privateResults.at(-1).opponentEnergy).toBe(10);
+    expect(publicSkillsOf(engine, room, a, b).abyssEnergy).toBe(8);
+  });
+
+  test("EV19 Reconnect 时真实 10 仍只能恢复为对手公开 8", () => {
+    const { engine, room, a, b, io } = setupRoom({
+      loadoutA: ["DESTINY", "RECYCLE"],
+      loadoutB: ["DEFENSE", "RECYCLE"],
+    });
+    a.skillRuntime.abyssEnergy = 10;
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    room.phase = "pre_flop";
+    engine.restorePlayerState(room, b);
+    const snapshot = engine.getRoomSnapshot(room, b);
+    const publicA = snapshot.players.find((player) => player.playerId === a.playerId);
+    expect(publicA.skills.abyssEnergy).toBe(8);
+    expect(JSON.stringify(publicA)).not.toMatch(/"abyssEnergy":10/);
+    const skillState = latestPayload(io, "skill:state", b.socketId);
+    const listed = skillState.players.find((player) => player.playerId === a.playerId);
+    expect(listed.abyssEnergy).toBe(8);
+    assertNoEnergyLeak(listed);
+    assertNoEnergyLeak(publicA);
   });
 });

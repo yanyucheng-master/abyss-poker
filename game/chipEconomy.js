@@ -57,16 +57,51 @@ function defenseProtectedLoss(lossBeforeDefense) {
   return Math.floor(lossBeforeDefense / 2);
 }
 
-function shouldThrowOnEconomyFault() {
+const SAFE_ROOM_FAULT_MESSAGE = "牌局状态异常，本局已中止";
+
+function shouldThrowOnEconomyFault(room) {
+  if (room?.economy?.productionFailClosed === true) return false;
   return process.env.NODE_ENV !== "production";
 }
 
-function economyFault(message) {
-  const error = new Error(`[CHIP_ECONOMY] ${message}`);
-  if (shouldThrowOnEconomyFault()) throw error;
-  if (typeof console !== "undefined" && typeof console.error === "function") {
-    console.error(error.message);
+function isEconomyFaulted(room) {
+  return Boolean(room?.economy?.faulted);
+}
+
+function markEconomyFault(room, message) {
+  const economy = ensureEconomy(room);
+  if (!economy) return;
+  economy.faulted = true;
+  economy.faultReason = String(message || "economy_invariant_failed");
+  economy.faultAt = Date.now();
+}
+
+function notifyEconomyFault(room, message) {
+  const economy = ensureEconomy(room);
+  if (economy?.faultNotified) return;
+  if (economy) economy.faultNotified = true;
+  if (typeof room?.onEconomyFault === "function") {
+    try {
+      room.onEconomyFault({
+        message: SAFE_ROOM_FAULT_MESSAGE,
+        reason: "economy_invariant",
+      });
+    } catch (_error) {
+      // Client notification must never crash the process.
+    }
+    return;
   }
+  if (typeof console !== "undefined" && typeof console.error === "function") {
+    console.error(`[CHIP_ECONOMY] ${message}`);
+  }
+}
+
+function economyFault(room, message) {
+  const text = message || "economy invariant failed";
+  markEconomyFault(room, text);
+  const error = new Error(`[CHIP_ECONOMY] ${text}`);
+  if (shouldThrowOnEconomyFault(room)) throw error;
+  notifyEconomyFault(room, text);
   return error;
 }
 
@@ -77,6 +112,10 @@ function createEconomyState() {
     terminalSettled: false,
     settledHandId: null,
     lastSettlement: null,
+    faulted: false,
+    faultReason: null,
+    faultAt: null,
+    faultNotified: false,
   };
 }
 
@@ -91,6 +130,7 @@ function ensureEconomy(room) {
 
 function beginHandEconomy(room) {
   if (!room) return null;
+  if (room.economy?.faulted) return room.economy;
   room.economy = createEconomyState();
   return room.economy;
 }
@@ -206,13 +246,14 @@ function assertHandCleared(room, expected = MATCH_TOTAL_CHIPS) {
 }
 
 function transferChips(room, payer, receiver, amount, reason = CHIP_REASON.STANDARD_SETTLEMENT) {
+  if (isEconomyFaulted(room)) return 0;
   if (!payer || !receiver) {
-    economyFault(`transfer missing party (${reason})`);
+    economyFault(room, `transfer missing party (${reason})`);
     return 0;
   }
   if (payer === receiver || payer.playerId === receiver.playerId) return 0;
   if (!isLegalPlayerChipAmount(amount)) {
-    economyFault(`illegal transfer amount ${String(amount)} (${reason})`);
+    economyFault(room, `illegal transfer amount ${String(amount)} (${reason})`);
     return 0;
   }
   if (amount === 0) return 0;
@@ -229,12 +270,12 @@ function transferChips(room, payer, receiver, amount, reason = CHIP_REASON.STAND
   receiver.chips += payable;
 
   if (payer.chips < 0) {
-    economyFault(`payer chips went negative (${reason})`);
+    economyFault(room, `payer chips went negative (${reason})`);
   }
 
   const totalAfter = room ? chipTotal(room) : payer.chips + receiver.chips;
   if (totalAfter !== totalBefore) {
-    economyFault(`transfer conservation ${totalBefore} -> ${totalAfter} (${reason})`);
+    economyFault(room, `transfer conservation ${totalBefore} -> ${totalAfter} (${reason})`);
   }
 
   recordLedger(room, {
@@ -257,6 +298,7 @@ function transferChips(room, payer, receiver, amount, reason = CHIP_REASON.STAND
 
 function commitChipsToPot(room, player, amount, reason = CHIP_REASON.STANDARD_BET) {
   if (!room || !player) return 0;
+  if (isEconomyFaulted(room)) return 0;
   if (!isLegalPlayerChipAmount(amount) || amount === 0) return 0;
   const actual = Math.min(amount, Math.max(0, Number.isSafeInteger(player.chips) ? player.chips : 0));
   if (!isSafeNonNegativeInteger(actual) || actual === 0) return 0;
@@ -273,7 +315,7 @@ function commitChipsToPot(room, player, amount, reason = CHIP_REASON.STANDARD_BE
 
   const totalAfter = chipTotal(room);
   if (totalAfter !== totalBefore) {
-    economyFault(`commit conservation ${totalBefore} -> ${totalAfter} (${reason})`);
+    economyFault(room, `commit conservation ${totalBefore} -> ${totalAfter} (${reason})`);
   }
 
   recordLedger(room, {
@@ -294,6 +336,7 @@ function commitChipsToPot(room, player, amount, reason = CHIP_REASON.STANDARD_BE
 
 function releaseFromPot(room, player, amount, reason = CHIP_REASON.UNMATCHED_REFUND) {
   if (!room || !player) return 0;
+  if (isEconomyFaulted(room)) return 0;
   if (!isLegalPlayerChipAmount(amount) || amount === 0) return 0;
   const pot = Number.isSafeInteger(room.pot) ? room.pot : 0;
   const actual = Math.min(amount, Math.max(0, pot));
@@ -308,7 +351,7 @@ function releaseFromPot(room, player, amount, reason = CHIP_REASON.UNMATCHED_REF
 
   const totalAfter = chipTotal(room);
   if (totalAfter !== totalBefore) {
-    economyFault(`release conservation ${totalBefore} -> ${totalAfter} (${reason})`);
+    economyFault(room, `release conservation ${totalBefore} -> ${totalAfter} (${reason})`);
   }
 
   recordLedger(room, {
@@ -386,6 +429,9 @@ module.exports = {
   isSafeIntegerEnergy,
   recycleRefund,
   defenseProtectedLoss,
+  SAFE_ROOM_FAULT_MESSAGE,
+  isEconomyFaulted,
+  economyFault,
   createEconomyState,
   ensureEconomy,
   beginHandEconomy,

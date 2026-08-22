@@ -54,6 +54,30 @@ function setupRoom({
   return { io, engine, room, a, b };
 }
 
+function setupModeRoom({
+  gameMode = GAME_MODE.STANDARD,
+  skillMode = SKILL_MODE.ABYSS,
+  loadoutA = ["RECYCLE", "DEEP_BREATH"],
+  loadoutB = ["DEFENSE", "RECYCLE"],
+  start = true,
+} = {}) {
+  const io = makeIoStub();
+  const roomManager = new RoomManager({ logger, eventBus });
+  const engine = new GameEngine({ io, roomManager, logger, eventBus, deckFactory: createDeck });
+  const room = roomManager.createRoom(null, gameMode, skillMode);
+  const a = roomManager.joinRoom({ roomId: room.roomId, playerName: "A", playerId: "PA", socketId: "s1" }).player;
+  const b = roomManager.joinRoom({ roomId: room.roomId, playerName: "B", playerId: "PB", socketId: "s2" }).player;
+  if (skillMode === SKILL_MODE.ABYSS) {
+    expect(setPlayerLoadout(a, loadoutA).ok).toBe(true);
+    expect(setPlayerLoadout(b, loadoutB).ok).toBe(true);
+  }
+  if (start) {
+    engine.startHand(room);
+    engine.clearActionTimer(room);
+  }
+  return { io, engine, room, a, b };
+}
+
 function seedShowdownChips(a, b, {
   start = 1000,
   standardNet = 500,
@@ -61,9 +85,11 @@ function seedShowdownChips(a, b, {
 } = {}) {
   a.chips = start + standardNet + directGain;
   b.chips = start - standardNet - directGain;
-  a.skillRuntime.handStartChips = start;
-  b.skillRuntime.handStartChips = start;
-  a.skillRuntime.directChipGainThisHand = directGain;
+  if (a.skillRuntime) a.skillRuntime.handStartChips = start;
+  else a.handStartChips = start;
+  if (b.skillRuntime) b.skillRuntime.handStartChips = start;
+  else b.handStartChips = start;
+  if (a.skillRuntime) a.skillRuntime.directChipGainThisHand = directGain;
   return a.chips + b.chips;
 }
 
@@ -174,6 +200,39 @@ describe("Fold / Retreat / Tie 不发牌型奖励", () => {
     expect(details.baseTransfer).toBe(0);
     expect(a.chips).toBe(1000);
     expect(b.chips).toBe(1000);
+  });
+});
+
+describe("牌型奖励属于全模式基础规则", () => {
+  test("HR-OFF-01 standard + skill off 的 Showdown 仍发 Trips +25", () => {
+    const { engine, room, a, b } = setupModeRoom({ skillMode: SKILL_MODE.OFF });
+    const total = seedShowdownChips(a, b, { standardNet: 200 });
+    const details = settle(engine, room, a, 4);
+    expect(details.handRankBonusEligible).toBe(true);
+    expect(details.handRankBonusValue).toBe(25);
+    expect(details.handRankBonusApplied).toBe(true);
+    expect(details.finalStandardTransfer).toBe(225);
+    expect(a.chips + b.chips).toBe(total);
+    expect(a.chips).toBe(1225);
+  });
+
+  test("HR-OFF-02 overdrive + skill off 的 Showdown 仍发同花 +75", () => {
+    const { engine, room, a, b } = setupModeRoom({
+      gameMode: GAME_MODE.OVERDRIVE,
+      skillMode: SKILL_MODE.OFF,
+    });
+    seedShowdownChips(a, b, { standardNet: 100 });
+    const details = settle(engine, room, a, 6);
+    expect(details.handRankBonusValue).toBe(75);
+    expect(details.finalStandardTransfer).toBe(175);
+  });
+
+  test("HR-OFF-03 skill off 的 Fold 仍不发牌型奖励", () => {
+    const { engine, room, a } = setupModeRoom({ skillMode: SKILL_MODE.OFF });
+    seedShowdownChips(a, room.players[1], { standardNet: 200 });
+    const details = settle(engine, room, a, 7, { reason: "fold" });
+    expect(details.handRankBonusValue).toBe(0);
+    expect(details.handRankBonusApplied).toBe(false);
   });
 });
 

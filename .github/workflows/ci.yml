@@ -16,4 +16,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test -- --ci
+      - run: node scripts/simulate-chip-economy.js 80
       - run: node scripts/simulate-overdrive.js 100

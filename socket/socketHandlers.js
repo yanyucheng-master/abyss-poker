@@ -334,7 +334,7 @@ function registerSocketHandlers({ io, roomManager, gameEngine, logger, matchmaki
         roomManager.destroyRoom(room.roomId);
         return emitJoinError(joined.error);
       }
-      roomManager.addBotPlayer(room, "深渊AI");
+      roomManager.addBotPlayer(room, "超限AI");
       socket.join(room.roomId);
       socket.emit("room_created", {
         roomId: room.roomId,

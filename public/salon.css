@@ -1937,6 +1937,296 @@
   }
 }
 
+.salon-ui .lobby-rules-btn {
+  min-height: 30px;
+  min-width: 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(212, 181, 106, 0.28);
+  color: var(--gold-soft, #d4b56a);
+  background: rgba(8, 10, 13, 0.35);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.salon-ui .lobby-rules-btn:hover,
+.salon-ui .lobby-rules-btn:focus-visible {
+  border-color: rgba(212, 181, 106, 0.7);
+  color: var(--bone, #f4efe4);
+  background: rgba(212, 181, 106, 0.12);
+}
+
+.salon-ui .settings-rules-entry {
+  width: 100%;
+  margin: 0;
+  appearance: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.salon-ui .settings-rules-entry:hover,
+.salon-ui .settings-rules-entry:focus-visible {
+  border-color: rgba(212, 181, 106, 0.42);
+  background: rgba(212, 181, 106, 0.08);
+}
+
+.salon-ui .settings-rules-go {
+  color: var(--gold-soft, #d4b56a);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.salon-ui .rules-handbook-panel {
+  width: min(1040px, calc(100vw - 24px));
+  max-height: min(88dvh, 860px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  padding: clamp(16px, 2.2vw, 24px);
+  overflow: hidden;
+}
+
+.salon-ui .rules-handbook-header {
+  align-items: flex-start;
+}
+
+.salon-ui .rules-handbook-lead {
+  max-width: 46em;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.salon-ui .rules-handbook-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  align-items: center;
+}
+
+.salon-ui .rules-search-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid rgba(212, 181, 106, 0.28);
+  border-radius: 10px;
+  color: var(--bone, #f4efe4);
+  background: rgba(4, 6, 10, 0.72);
+  font: inherit;
+}
+
+.salon-ui .rules-search-status {
+  margin: 0;
+  color: var(--gold-soft, #d4b56a);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.salon-ui .rules-handbook-body {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.salon-ui .rules-toc {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.salon-ui .rules-toc button {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.salon-ui .rules-toc button:hover,
+.salon-ui .rules-toc button:focus-visible {
+  color: var(--bone, #f4efe4);
+  background: rgba(212, 181, 106, 0.1);
+}
+.salon-ui .rules-toc button.is-active,
+.salon-ui .rules-toc button[aria-current="true"] {
+  color: var(--bone, #f4efe4);
+  background: rgba(212, 181, 106, 0.14);
+  box-shadow: inset 2px 0 0 rgba(212, 181, 106, 0.8);
+}
+
+.salon-ui .rules-article {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 8px 18px 4px;
+  color: rgba(236, 230, 218, 0.92);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.salon-ui .rules-section {
+  margin: 0 0 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(151, 176, 226, 0.12);
+}
+
+.salon-ui .rules-section:last-of-type {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.salon-ui .rules-section h3 {
+  margin: 0 0 10px;
+  color: var(--bone, #f4efe4);
+  font-size: 1.12rem;
+}
+
+.salon-ui .rules-section h4 {
+  margin: 16px 0 6px;
+  color: var(--gold-soft, #d4b56a);
+  font-size: 0.92rem;
+}
+
+.salon-ui .rules-section p,
+.salon-ui .rules-section ul,
+.salon-ui .rules-section ol,
+.salon-ui .rules-section dl {
+  margin: 0 0 10px;
+}
+
+.salon-ui .rules-section ul,
+.salon-ui .rules-section ol {
+  padding-left: 1.2em;
+}
+
+.salon-ui .rules-steps li + li,
+.salon-ui .rules-priority li + li {
+  margin-top: 4px;
+}
+
+.salon-ui .rules-dl {
+  display: grid;
+  gap: 10px;
+}
+
+.salon-ui .rules-dl > div {
+  padding: 10px 12px;
+  border: 1px solid rgba(151, 176, 226, 0.14);
+  border-radius: 10px;
+  background: rgba(6, 10, 20, 0.35);
+}
+
+.salon-ui .rules-dl dt {
+  margin: 0 0 4px;
+  color: var(--gold-soft, #d4b56a);
+  font-weight: 800;
+}
+
+.salon-ui .rules-dl dd {
+  margin: 0;
+}
+
+.salon-ui .rules-table {
+  width: 100%;
+  margin: 8px 0 14px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.salon-ui .rules-table caption {
+  caption-side: top;
+  margin: 0 0 8px;
+  color: var(--gold-soft, #d4b56a);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: left;
+}
+
+.salon-ui .rules-table th,
+.salon-ui .rules-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(151, 176, 226, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.salon-ui .rules-table tbody th {
+  width: 38%;
+  color: var(--bone, #f4efe4);
+  font-weight: 700;
+}
+
+.salon-ui .rules-note,
+.salon-ui .rules-formula {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid rgba(212, 181, 106, 0.72);
+  background: rgba(212, 181, 106, 0.06);
+}
+
+.salon-ui .rules-formula code {
+  display: block;
+  margin: 6px 0 10px;
+  color: #d8fff6;
+  font-size: 0.95rem;
+}
+
+.salon-ui .rules-empty {
+  margin: 24px 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.salon-ui .rules-priority {
+  padding-left: 1.3em;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .salon-ui .rules-handbook-panel {
+    width: min(100vw - 16px, 100%);
+    max-height: min(92dvh, 100%);
+    padding: 14px 12px 12px;
+  }
+
+  .salon-ui .rules-handbook-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .salon-ui .rules-handbook-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .salon-ui .rules-toc {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 0 8px;
+  }
+
+  .salon-ui .rules-toc button {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .salon-ui * {

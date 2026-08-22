@@ -283,3 +283,34 @@ describe("Loan Credit Restriction V2", () => {
     expect(room.skillState.fairnessActive).toBe(true);
   });
 });
+
+describe("Loan 债务卫生：chipDebtLenderId", () => {
+  test("LOAN-CLEAN-01 Fairness 清除 residual chip debt 后 lenderId 为 null", () => {
+    const { engine, room, a, b } = setupRoom();
+    a.skillRuntime.chipDebt = 50;
+    a.skillRuntime.chipDebtLenderId = b.playerId;
+    expect(use(engine, room, a, "FAIRNESS").status).toBe("SUCCESS");
+    expect(a.skillRuntime.chipDebt).toBe(0);
+    expect(a.skillRuntime.chipDebtLenderId).toBeNull();
+  });
+
+  test("LOAN-CLEAN-02 正常真实偿还至 0 后 lenderId 被清除", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["LOAN", "RECYCLE"] });
+    a.skillRuntime.chipDebt = 110;
+    a.skillRuntime.chipDebtLenderId = b.playerId;
+    a.chips = 200;
+    b.chips = 1800;
+    engine.skillEngine.endHand(room, { reason: "showdown", winner: a, tie: false });
+    expect(a.skillRuntime.chipDebt).toBe(0);
+    expect(a.skillRuntime.chipDebtLenderId).toBeNull();
+  });
+
+  test("LOAN-CLEAN-03 未还清 residual >0 时 lenderId 仍必须保留", () => {
+    const { engine, room, a, b } = setupRoom({ loadoutA: ["LOAN", "RECYCLE"] });
+    a.skillRuntime.chipDebt = 80;
+    a.skillRuntime.chipDebtLenderId = b.playerId;
+    nextHand(engine, room);
+    expect(a.skillRuntime.chipDebt).toBe(80);
+    expect(a.skillRuntime.chipDebtLenderId).toBe(b.playerId);
+  });
+});

@@ -4006,3 +4006,97 @@ body.pro-player-mode.salon-ui #screen-game .action-button.allin {
     animation: none;
   }
 }
+
+@keyframes nullify-target-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(80, 225, 232, 0.55), 0 0 14px rgba(80, 225, 232, 0.28);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(80, 225, 232, 0.92), 0 0 22px rgba(80, 225, 232, 0.48);
+  }
+}
+
+@keyframes nullify-hole-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(255, 147, 225, 0.55), 0 0 14px rgba(255, 147, 225, 0.26);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(255, 147, 225, 0.9), 0 0 22px rgba(255, 147, 225, 0.42);
+  }
+}
+
+.salon-ui #screen-game.is-nullify-targeting .table-center {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.salon-ui #screen-game .skill-board-target-bar {
+  position: relative;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: center;
+  margin-top: 2px;
+  padding: 5px 8px 5px 14px;
+  border: 1px solid rgba(80, 225, 232, 0.38);
+  border-radius: 999px;
+  color: rgba(220, 236, 255, 0.94);
+  background: rgba(6, 14, 32, 0.92);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+}
+
+.salon-ui #screen-game .skill-board-target-bar strong {
+  font-weight: 700;
+}
+
+.salon-ui #screen-game .skill-board-target-bar #btn-cancel-skill-target {
+  min-height: 32px;
+  padding: 4px 12px;
+  letter-spacing: 0.08em;
+}
+
+.salon-ui #screen-game.is-nullify-targeting #community-cards .card,
+.salon-ui #screen-game.is-nullify-targeting #opponent-cards .card {
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 4;
+  outline: 2px solid rgba(80, 225, 232, 0.78);
+  outline-offset: 3px;
+  animation: nullify-target-pulse calc(1.4s * var(--motion-factor, 1)) ease-in-out infinite;
+}
+
+.salon-ui #screen-game.is-nullify-targeting #community-cards .card.card-slot {
+  color: rgba(80, 225, 232, 0.86);
+  border-color: rgba(80, 225, 232, 0.72);
+  background: rgba(8, 28, 48, 0.72);
+}
+
+.salon-ui #screen-game.is-nullify-targeting #opponent-cards .card {
+  outline-color: rgba(255, 147, 225, 0.86);
+  animation-name: nullify-hole-pulse;
+}
+
+.salon-ui #screen-game.is-nullify-targeting:not(.can-nullify-hole) #opponent-cards .card {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.salon-ui #screen-game.is-nullify-targeting .self-cards .card {
+  opacity: 0.58;
+}
+
+.salon-ui #screen-game .skill-use-btn.is-targeting {
+  outline: 1px solid rgba(80, 225, 232, 0.72);
+  box-shadow:
+    inset 3px 0 0 rgba(255, 147, 225, 0.86),
+    0 0 18px rgba(80, 225, 232, 0.32);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .salon-ui #screen-game.is-nullify-targeting #community-cards .card,
+  .salon-ui #screen-game.is-nullify-targeting #opponent-cards .card {
+    animation: none;
+  }
+}

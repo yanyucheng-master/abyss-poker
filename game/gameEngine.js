@@ -18,6 +18,7 @@ const {
   energyVisibleToViewer,
   getRealEnergy,
   getPublicEnergySnapshot,
+  clampPublicEnergy,
 } = require("./skills/skillEngine");
 const {
   otherIndex,
@@ -44,6 +45,8 @@ const {
   releaseFromPot,
   refundContributionsFromPot,
   transferChips,
+  isEconomyFaulted,
+  SAFE_ROOM_FAULT_MESSAGE,
 } = require("./chipEconomy");
 
 const HAND_SETTLE_MS = 2000;
@@ -96,6 +99,27 @@ class GameEngine {
     if (!player?.socketId) return;
     const roomId = player.roomId || null;
     this.io.to(player.socketId).emit(event, roomId ? withRoomId(roomId, payload) : payload);
+  }
+
+  ensureEconomyFaultHandler(room) {
+    if (!room || typeof room.onEconomyFault === "function") return;
+    room.onEconomyFault = () => {
+      this.logger.error("ECONOMY", "房间经济状态异常，已中止后续结算", {
+        roomId: room.roomId,
+        handNo: room.handNo,
+      });
+      try {
+        this.emitToRoom(room, "room_fault", { message: SAFE_ROOM_FAULT_MESSAGE });
+      } catch (_error) {
+        // Never let notification crash the process.
+      }
+    };
+  }
+
+  refuseIfEconomyFaulted(room) {
+    if (!isEconomyFaulted(room)) return null;
+    this.ensureEconomyFaultHandler(room);
+    return { ok: false, error: SAFE_ROOM_FAULT_MESSAGE };
   }
 
   clearActionTimer(room) {
@@ -344,6 +368,10 @@ class GameEngine {
       handRankBonusCappedAmount: null,
       preCapStandardTransfer: null,
       directGain: null,
+      finalStandardTransfer: null,
+      netDirectChipTransfer: null,
+      totalNetChipDelta: null,
+      realizedStandardTransfer: null,
       lossBeforeDefense: null,
       desiredTransfer: null,
       effects: Array.isArray(settlement.effects)
@@ -373,7 +401,9 @@ class GameEngine {
   handResultEnergyForViewer(detail, recipient, source) {
     const isSelf = Boolean(recipient && detail.playerId === recipient.playerId);
     if (isSelf && Number.isFinite(Number(detail.abyssEnergy))) return Number(detail.abyssEnergy);
-    if (!isSelf && Number.isFinite(Number(detail.publicAbyssEnergy))) return Number(detail.publicAbyssEnergy);
+    if (!isSelf && Number.isFinite(Number(detail.publicAbyssEnergy))) {
+      return clampPublicEnergy(Number(detail.publicAbyssEnergy));
+    }
     if (source?.skillRuntime) return energyVisibleToViewer(source, recipient);
     const fallback = Number(detail.abyssEnergy);
     return Number.isFinite(fallback) ? fallback : undefined;
@@ -905,6 +935,8 @@ class GameEngine {
   }
 
   startHand(room) {
+    this.ensureEconomyFaultHandler(room);
+    if (isEconomyFaulted(room)) return false;
     if (isSkillEnabled(room.skillMode) && !this.ensureValidMatchLoadouts(room)) return false;
     this.clearActionTimer(room);
     if (room.nextHandTimer) {
@@ -924,6 +956,7 @@ class GameEngine {
       p.hasActed = false;
       p.isAllIn = false;
       p.status = p.chips > 0 ? "active" : "out";
+      p.handStartChips = p.chips;
     });
     room.privateOverdriveProfile = null;
     room.overdriveMetrics = null;
@@ -1260,6 +1293,7 @@ class GameEngine {
 
   settleLoanKill(room, winner, loser) {
     if (!room || !winner || !loser) return;
+    if (isEconomyFaulted(room)) return;
     if (isHandTerminalSettled(room)) return;
     markHandTerminalSettled(room);
     this.clearActionTimer(room);
@@ -1285,6 +1319,7 @@ class GameEngine {
   }
 
   settleByRetreat(room, folder) {
+    if (isEconomyFaulted(room)) return;
     if (isHandTerminalSettled(room)) return;
     markHandTerminalSettled(room);
     this.clearActionTimer(room);
@@ -1316,6 +1351,7 @@ class GameEngine {
   }
 
   settleByFold(room, { foldOrigin = "user" } = {}) {
+    if (isEconomyFaulted(room)) return;
     const active = getActivePlayers(room);
     if (active.length !== 1) return;
     if (isHandTerminalSettled(room)) return;
@@ -1324,7 +1360,9 @@ class GameEngine {
     const winner = active[0];
     const pot = room.pot;
     awardPotTo(room, winner, CHIP_REASON.STANDARD_FOLD);
-    const startChips = winner.skillRuntime?.handStartChips;
+    const startChips = Number.isSafeInteger(winner.skillRuntime?.handStartChips)
+      ? winner.skillRuntime.handStartChips
+      : (Number.isSafeInteger(winner.handStartChips) ? winner.handStartChips : null);
     const directGain = Number.isSafeInteger(winner.skillRuntime?.directChipGainThisHand)
       ? winner.skillRuntime.directChipGainThisHand
       : 0;
@@ -1442,6 +1480,7 @@ class GameEngine {
   }
 
   settleShowdown(room) {
+    if (isEconomyFaulted(room)) return;
     if (isHandTerminalSettled(room)) return;
     markHandTerminalSettled(room);
     this.clearActionTimer(room);
@@ -1535,7 +1574,9 @@ class GameEngine {
         tie: true,
       });
     } else {
-      const startChips = winnerPlayer.skillRuntime?.handStartChips;
+      const startChips = Number.isSafeInteger(winnerPlayer.skillRuntime?.handStartChips)
+        ? winnerPlayer.skillRuntime.handStartChips
+        : (Number.isSafeInteger(winnerPlayer.handStartChips) ? winnerPlayer.handStartChips : null);
       const directGain = Number.isSafeInteger(winnerPlayer.skillRuntime?.directChipGainThisHand)
         ? winnerPlayer.skillRuntime.directChipGainThisHand
         : 0;
@@ -1745,6 +1786,9 @@ class GameEngine {
     if (!room || room.players.length !== 2) {
       return { ok: false, error: "牌局席位状态异常，请重新进入房间" };
     }
+    this.ensureEconomyFaultHandler(room);
+    const economyBlock = this.refuseIfEconomyFaulted(room);
+    if (economyBlock) return economyBlock;
     if (
       options.enforceTurnToken &&
       (options.handId !== room.handId || options.turnId !== room.turnId)
