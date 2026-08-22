@@ -18,6 +18,9 @@ const BASE = process.env.BASE_URL || "http://127.0.0.1:3002";
   const page = await context.newPage();
   const notes = [];
 
+  await page.addInitScript(() => {
+    localStorage.setItem("overlimit_quickstart_v1", "seen");
+  });
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector("#screen-auth.active");
 

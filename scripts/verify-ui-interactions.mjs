@@ -178,6 +178,7 @@ async function main() {
 
   const report = {
     staticButtons: null,
+    quickstart: {},
     lobby: {},
     lab: {},
     room: {},
@@ -192,6 +193,62 @@ async function main() {
   await page.goto(BASE + "/?verify-interactions=1", { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#screen-auth.active", { timeout: 10000 });
   await page.waitForSelector("#btn-open-skill-lab:not([disabled])", { timeout: 10000 });
+
+  await page.waitForSelector("#quickstart-modal:not(.hidden)", { timeout: 5000 });
+  report.quickstart.initial = await page.evaluate(() => ({
+    pageCount: document.querySelectorAll("[data-quickstart-page]").length,
+    pageStatus: document.getElementById("quickstart-page-status")?.textContent || "",
+    activePage: document.querySelector('[data-quickstart-page][aria-hidden="false"]')?.dataset.quickstartPage || "",
+    mainInert: Boolean(document.getElementById("main-content")?.inert),
+    images: [...document.querySelectorAll("#quickstart-modal img")].map((image) => image.getAttribute("src")),
+  }));
+  await page.click("#btn-quickstart-next");
+  await page.waitForFunction(() => document.getElementById("quickstart-page-status")?.textContent === "02 / 04");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(() => document.getElementById("quickstart-page-status")?.textContent === "03 / 04");
+  const quickstartViewport = await page.locator("#quickstart-viewport").boundingBox();
+  if (quickstartViewport) {
+    const y = quickstartViewport.y + quickstartViewport.height * 0.55;
+    await page.mouse.move(quickstartViewport.x + quickstartViewport.width * 0.72, y);
+    await page.mouse.down();
+    await page.mouse.move(quickstartViewport.x + quickstartViewport.width * 0.42, y, { steps: 5 });
+    await page.mouse.up();
+  }
+  await page.waitForFunction(() => document.getElementById("quickstart-page-status")?.textContent === "04 / 04");
+  await page.waitForFunction(
+    () => [...document.querySelectorAll("#quickstart-modal img")].every(
+      (image) => image.complete && image.naturalWidth > 0
+    ),
+    null,
+    { timeout: 5000 }
+  );
+  report.quickstart.finalPage = await page.evaluate(() => ({
+    pageStatus: document.getElementById("quickstart-page-status")?.textContent || "",
+    finishLabel: document.getElementById("btn-quickstart-next")?.textContent || "",
+    nextCornerHidden: document.getElementById("btn-quickstart-corner-next")?.classList.contains("is-hidden"),
+    allImagesLoaded: [...document.querySelectorAll("#quickstart-modal img")].every(
+      (image) => image.complete && image.naturalWidth > 0
+    ),
+  }));
+  await page.click("#btn-quickstart-next");
+  await page.waitForSelector("#quickstart-modal", { state: "hidden" });
+  await page.waitForFunction(() => document.activeElement?.classList.contains("protocol-card"));
+  report.quickstart.completion = await page.evaluate(() => ({
+    stored: localStorage.getItem("overlimit_quickstart_v1"),
+    entryAction: document.getElementById("quickstart-entry-action")?.textContent || "",
+    entryState: document.getElementById("quickstart-entry-state")?.textContent || "",
+    selectedProtocolFocused: document.activeElement?.classList.contains("protocol-card") || false,
+  }));
+  await page.click("#btn-open-quickstart");
+  await page.click('#quickstart-dots [data-quickstart-target="2"]');
+  await page.click("#btn-quickstart-hands");
+  await page.waitForSelector("#rules-handbook-modal:not(.hidden)");
+  report.quickstart.rulesRoute = await page.evaluate(() => ({
+    rulesOpen: !document.getElementById("rules-handbook-modal")?.classList.contains("hidden"),
+    handsActive: document.querySelector('[data-rule-target="rule-hands"]')?.getAttribute("aria-current") === "true",
+    tutorialClosed: document.getElementById("quickstart-modal")?.classList.contains("hidden"),
+  }));
+  await page.click("#btn-close-rules");
 
   report.staticButtons = await page.evaluate(() => {
     const buttons = [...document.querySelectorAll("button")];
@@ -360,14 +417,14 @@ async function main() {
   report.allin.functionAvailable = effectFunction;
   if (effectFunction) {
     await page.evaluate(() => window.playAllInEffect("ui-audit-opponent"));
-    await page.waitForTimeout(1800);
-    report.allin.visibleAfter1800ms = await visible(page, "#flash-allin:not(.hidden)");
+    await page.waitForTimeout(1500);
+    report.allin.visibleAfter1500ms = await visible(page, "#flash-allin:not(.hidden)");
     report.allin.visibleText = (await page.locator("#flash-allin").innerText())
       .replace(/\s+/g, " ")
       .trim();
     report.allin.style = await page.locator("#flash-allin").getAttribute("data-allin-style");
-    await page.waitForTimeout(800);
-    report.allin.hiddenAfter2600ms = !(await visible(page, "#flash-allin:not(.hidden)"));
+    await page.waitForTimeout(700);
+    report.allin.hiddenAfter2200ms = !(await visible(page, "#flash-allin:not(.hidden)"));
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -463,6 +520,25 @@ async function main() {
   await browser.close();
 
   const failures = [];
+  if (
+    report.quickstart.initial.pageCount !== 4 ||
+    report.quickstart.initial.pageStatus !== "01 / 04" ||
+    report.quickstart.initial.activePage !== "1" ||
+    !report.quickstart.initial.mainInert ||
+    report.quickstart.initial.images.length !== 5 ||
+    report.quickstart.finalPage.pageStatus !== "04 / 04" ||
+    report.quickstart.finalPage.finishLabel !== "开始游戏" ||
+    !report.quickstart.finalPage.nextCornerHidden ||
+    !report.quickstart.finalPage.allImagesLoaded ||
+    report.quickstart.completion.stored !== "seen" ||
+    report.quickstart.completion.entryAction !== "重新查看" ||
+    !report.quickstart.completion.selectedProtocolFocused ||
+    !report.quickstart.rulesRoute.rulesOpen ||
+    !report.quickstart.rulesRoute.handsActive ||
+    !report.quickstart.rulesRoute.tutorialClosed
+  ) {
+    failures.push("quickstart tutorial flow failed");
+  }
   if (report.staticButtons.missingType || report.staticButtons.nested || report.staticButtons.unnamed) {
     failures.push("button DOM contract failed");
   }
@@ -523,8 +599,8 @@ async function main() {
   }
   if (
     !report.allin.functionAvailable ||
-    !report.allin.visibleAfter1800ms ||
-    !report.allin.hiddenAfter2600ms ||
+    !report.allin.visibleAfter1500ms ||
+    !report.allin.hiddenAfter2200ms ||
     report.allin.visibleText !== "ALL IN" ||
     !allInStyles.includes(report.allin.style)
   ) {

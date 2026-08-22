@@ -8,9 +8,12 @@ const OUTPUT = path.resolve(process.env.UI_REVIEW_DIR || "artifacts/ui-review");
 const LOADOUT = ["DEEP_BREATH", "RECYCLE", "BLOOD_BATTLE", "DEFENSE"];
 
 async function primeLoadout(page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("overlimit_quickstart_v1", "seen");
+  });
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
   await page.evaluate((loadout) => {
-    localStorage.setItem("abyss_skill_loadout_v1", JSON.stringify(loadout));
+    localStorage.setItem("abyss_skill_loadout_v2", JSON.stringify(loadout));
   }, LOADOUT);
   await page.reload({ waitUntil: "networkidle" });
 }

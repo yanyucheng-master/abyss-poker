@@ -30,6 +30,10 @@ const SKILL_FX_BLOOD_HAPTICS = Object.freeze([40, 28, 72]);
 const SKILL_FX_SECRET_HAPTICS = Object.freeze([18, 16, 28]);
 const ALL_IN_STYLES = Object.freeze(["abyss", "verdict", "royal", "singularity"]);
 const PRO_FONT_STYLES = Object.freeze(["broadcast", "neonrail", "chrome", "classic"]);
+const QUICKSTART_PAGE_COUNT = 4;
+const RULEBOOK_DATA = window.OVERLIMIT_RULEBOOK_V1 || Object.freeze({ sections: [], skills: [], protocols: [] });
+const RULEBOOK_HIGHLIGHT_MS = 2600;
+const RULEBOOK_MAX_SEARCH_RESULTS = 24;
 const STORAGE = Object.freeze({
   playerId: "abyss_player_id",
   reconnectToken: "abyss_reconnect_token",
@@ -41,6 +45,7 @@ const STORAGE = Object.freeze({
   inferredEnergy: "abyss_inferred_energy_v1",
   inferredEnergyHand: "abyss_inferred_energy_hand_v1",
   commitments: "abyss_hand_commitments_v1",
+  quickStart: "overlimit_quickstart_v1",
 });
 
 function safeStorageGet(storageName, key, fallback = "") {
@@ -242,6 +247,8 @@ const state = {
   pendingMatchInvite: null,
   matchInviteRaf: 0,
   matchSource: null,
+  quickStartPage: 1,
+  quickStartSeen: safeStorageGet("localStorage", STORAGE.quickStart) === "seen",
 };
 
 function byId(id) {
@@ -277,13 +284,37 @@ const el = {
   btnSettingsLobby: byId("btn-settings-lobby"),
   btnOpenRules: byId("btn-open-rules"),
   btnSettingsRules: byId("btn-settings-rules"),
+  btnOpenQuickStart: byId("btn-open-quickstart"),
+  quickStartEntry: document.querySelector(".quickstart-entry"),
+  quickStartEntryState: byId("quickstart-entry-state"),
+  quickStartEntryAction: byId("quickstart-entry-action"),
+  quickStartModal: byId("quickstart-modal"),
+  quickStartViewport: byId("quickstart-viewport"),
+  quickStartTrack: byId("quickstart-track"),
+  quickStartPages: [...document.querySelectorAll("[data-quickstart-page]")],
+  quickStartDots: byId("quickstart-dots"),
+  quickStartPageStatus: byId("quickstart-page-status"),
+  btnCloseQuickStart: byId("btn-close-quickstart"),
+  btnQuickStartPrev: byId("btn-quickstart-prev"),
+  btnQuickStartNext: byId("btn-quickstart-next"),
+  btnQuickStartCornerPrev: byId("btn-quickstart-corner-prev"),
+  btnQuickStartCornerNext: byId("btn-quickstart-corner-next"),
+  btnQuickStartHands: byId("btn-quickstart-hands"),
+  btnQuickStartRules: byId("btn-quickstart-rules"),
+  btnQuickStartSkills: byId("btn-quickstart-skills"),
   rulesModal: byId("rules-handbook-modal"),
   btnCloseRules: byId("btn-close-rules"),
   rulesSearch: byId("rules-search"),
   rulesSearchStatus: byId("rules-search-status"),
+  rulesSearchResults: byId("rules-search-results"),
+  rulesSearchResultsCount: byId("rules-search-results-count"),
+  rulesSearchResultsList: byId("rules-search-results-list"),
+  btnRulesMenu: byId("btn-rules-menu"),
+  rulesTocBackdrop: byId("rules-toc-backdrop"),
   rulesToc: byId("rules-toc"),
   rulesArticle: byId("rules-article"),
   rulesEmpty: byId("rules-empty"),
+  btnRulesTop: byId("btn-rules-top"),
   settingAnimation: byId("setting-animation"),
   settingAllInStyles: [...document.querySelectorAll('input[name="allin-style"]')],
   btnPreviewAllIn: byId("btn-preview-allin"),
@@ -514,6 +545,7 @@ function syncModalIsolation() {
   const visible = visibleModalLayers();
   const hasModal = visible.length > 0;
   const top = visible.at(-1);
+  document.documentElement.classList.toggle("has-modal-layer", hasModal);
   if (mainContent) mainContent.inert = hasModal;
   if (el.btnSettings) el.btnSettings.inert = hasModal;
   modalLayers.forEach((modal) => {
@@ -600,6 +632,13 @@ let skillPreviewReturnFocus = null;
 let previewingSkill = null;
 let rulesHandbookReturnFocus = null;
 let rulesHandbookFromSettings = false;
+let rulesHandbookRendered = false;
+let rulesSearchIndex = [];
+let rulesScrollFrame = 0;
+let rulesHighlightTimer = 0;
+let rulesReadingAnchorId = "rule-overview";
+let quickStartReturnFocus = null;
+let quickStartPointer = null;
 let skillCatalogPromise = null;
 const uiPendingTimers = new Map();
 const boardPulseTimers = new Map();
@@ -3483,6 +3522,183 @@ el.btnRematchNo.addEventListener("click", () => {
   socket.emit("rematch_response", { accepted: false });
 });
 
+function isQuickStartOpen() {
+  return Boolean(el.quickStartModal && !el.quickStartModal.classList.contains("hidden"));
+}
+
+function updateQuickStartEntryState() {
+  if (!el.quickStartEntry) return;
+  el.quickStartEntry.classList.toggle("is-read", state.quickStartSeen);
+  if (el.quickStartEntryState) {
+    el.quickStartEntryState.textContent = state.quickStartSeen ? "可随时重看" : "约 45 秒";
+  }
+  if (el.quickStartEntryAction) {
+    el.quickStartEntryAction.textContent = state.quickStartSeen ? "重新查看" : "开始阅读";
+  }
+}
+
+function rememberQuickStart() {
+  state.quickStartSeen = true;
+  safeStorageSet("localStorage", STORAGE.quickStart, "seen");
+  updateQuickStartEntryState();
+}
+
+function renderQuickStartPage(pageNumber) {
+  const nextPage = Math.max(1, Math.min(QUICKSTART_PAGE_COUNT, Number(pageNumber) || 1));
+  state.quickStartPage = nextPage;
+  if (el.quickStartTrack) {
+    el.quickStartTrack.style.setProperty("--quickstart-page-index", String(nextPage - 1));
+  }
+  el.quickStartPages.forEach((page) => {
+    const active = Number(page.dataset.quickstartPage) === nextPage;
+    page.inert = !active;
+    page.setAttribute("aria-hidden", active ? "false" : "true");
+  });
+  const firstPage = nextPage === 1;
+  const lastPage = nextPage === QUICKSTART_PAGE_COUNT;
+  [el.btnQuickStartPrev, el.btnQuickStartCornerPrev].forEach((button) => {
+    if (!button) return;
+    button.disabled = firstPage;
+    button.classList.toggle("is-hidden", firstPage);
+    button.setAttribute("aria-hidden", firstPage ? "true" : "false");
+  });
+  if (el.btnQuickStartCornerNext) {
+    el.btnQuickStartCornerNext.classList.toggle("is-hidden", lastPage);
+    el.btnQuickStartCornerNext.disabled = lastPage;
+    el.btnQuickStartCornerNext.setAttribute("aria-hidden", lastPage ? "true" : "false");
+  }
+  if (el.btnQuickStartNext) {
+    el.btnQuickStartNext.textContent = lastPage ? "开始游戏" : "下一页";
+    el.btnQuickStartNext.classList.toggle("is-finish", lastPage);
+  }
+  if (el.quickStartPageStatus) {
+    el.quickStartPageStatus.textContent = String(nextPage).padStart(2, "0") + " / 04";
+  }
+  el.quickStartDots?.querySelectorAll("[data-quickstart-target]").forEach((dot) => {
+    const active = Number(dot.dataset.quickstartTarget) === nextPage;
+    if (active) dot.setAttribute("aria-current", "page");
+    else dot.removeAttribute("aria-current");
+  });
+}
+
+function openQuickStart({ page = 1, returnFocus = document.activeElement } = {}) {
+  if (!el.quickStartModal || isQuickStartOpen()) return false;
+  quickStartReturnFocus = returnFocus && document.contains(returnFocus) ? returnFocus : el.btnOpenQuickStart;
+  renderQuickStartPage(page);
+  el.quickStartModal.classList.remove("hidden");
+  requestAnimationFrame(() => el.btnCloseQuickStart?.focus());
+  return true;
+}
+
+function closeQuickStart({ remember = true, restoreFocus = true } = {}) {
+  if (!isQuickStartOpen()) return false;
+  if (remember) rememberQuickStart();
+  quickStartPointer = null;
+  el.quickStartViewport?.classList.remove("is-dragging");
+  el.quickStartModal.classList.add("hidden");
+  const target = quickStartReturnFocus && document.contains(quickStartReturnFocus)
+    ? quickStartReturnFocus
+    : el.btnOpenQuickStart;
+  quickStartReturnFocus = null;
+  if (restoreFocus) requestAnimationFrame(() => target?.focus?.());
+  return true;
+}
+
+function changeQuickStartPage(delta) {
+  if (!isQuickStartOpen()) return false;
+  const nextPage = state.quickStartPage + Number(delta || 0);
+  if (nextPage < 1 || nextPage > QUICKSTART_PAGE_COUNT) return false;
+  renderQuickStartPage(nextPage);
+  return true;
+}
+
+function finishQuickStart() {
+  closeQuickStart({ remember: true, restoreFocus: false });
+  requestAnimationFrame(() => {
+    const selected = [...(el.protocolCards || [])].find((card) => card.classList.contains("selected"));
+    (selected || el.protocolCards?.[0] || el.btnOpenQuickStart)?.focus?.();
+  });
+}
+
+function openRulesFromQuickStart(sectionId) {
+  closeQuickStart({ remember: true, restoreFocus: false });
+  el.btnOpenQuickStart?.focus();
+  openRulesHandbook();
+  requestAnimationFrame(() => showRulesSection(sectionId, { scroll: true }));
+}
+
+async function openSkillsFromQuickStart() {
+  closeQuickStart({ remember: true, restoreFocus: false });
+  el.btnOpenQuickStart?.focus();
+  if (el.btnQuickStartSkills) el.btnQuickStartSkills.disabled = true;
+  try {
+    const catalog = await ensureSkillCatalog();
+    if (catalog.length) openSkillLab(null);
+  } finally {
+    if (el.btnQuickStartSkills) el.btnQuickStartSkills.disabled = false;
+  }
+}
+
+function releaseQuickStartPointer(event) {
+  if (!quickStartPointer || event.pointerId !== quickStartPointer.pointerId) return;
+  const gesture = quickStartPointer;
+  quickStartPointer = null;
+  try {
+    if (el.quickStartViewport?.hasPointerCapture?.(event.pointerId)) {
+      el.quickStartViewport.releasePointerCapture(event.pointerId);
+    }
+  } catch (_error) {
+    // Losing capture during a browser gesture must not block page navigation.
+  }
+  el.quickStartViewport?.classList.remove("is-dragging");
+  const deltaX = event.clientX - gesture.x;
+  const deltaY = event.clientY - gesture.y;
+  if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return;
+  changeQuickStartPage(deltaX < 0 ? 1 : -1);
+}
+
+el.btnOpenQuickStart?.addEventListener("click", () => openQuickStart({ page: 1 }));
+el.btnCloseQuickStart?.addEventListener("click", () => closeQuickStart());
+el.btnQuickStartPrev?.addEventListener("click", () => changeQuickStartPage(-1));
+el.btnQuickStartCornerPrev?.addEventListener("click", () => changeQuickStartPage(-1));
+el.btnQuickStartCornerNext?.addEventListener("click", () => changeQuickStartPage(1));
+el.btnQuickStartNext?.addEventListener("click", () => {
+  if (state.quickStartPage === QUICKSTART_PAGE_COUNT) finishQuickStart();
+  else changeQuickStartPage(1);
+});
+el.quickStartDots?.addEventListener("click", (event) => {
+  const dot = event.target.closest("[data-quickstart-target]");
+  if (dot) renderQuickStartPage(Number(dot.dataset.quickstartTarget));
+});
+el.btnQuickStartHands?.addEventListener("click", () => openRulesFromQuickStart("rule-hands"));
+el.btnQuickStartRules?.addEventListener("click", () => openRulesFromQuickStart("rule-overview"));
+el.btnQuickStartSkills?.addEventListener("click", openSkillsFromQuickStart);
+el.quickStartModal?.addEventListener("click", (event) => {
+  if (event.target === el.quickStartModal) closeQuickStart();
+});
+el.quickStartViewport?.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || event.target.closest("button, a, input, select, textarea")) return;
+  quickStartPointer = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  try {
+    el.quickStartViewport.setPointerCapture(event.pointerId);
+  } catch (_error) {
+    // Pointer capture is an enhancement; older embedded browsers can still swipe in bounds.
+  }
+  el.quickStartViewport.classList.add("is-dragging");
+});
+el.quickStartViewport?.addEventListener("pointerup", releaseQuickStartPointer);
+el.quickStartViewport?.addEventListener("pointercancel", (event) => {
+  try {
+    if (el.quickStartViewport?.hasPointerCapture?.(event.pointerId)) {
+      el.quickStartViewport.releasePointerCapture(event.pointerId);
+    }
+  } catch (_error) {
+    // Ignore capture cleanup failures from interrupted OS gestures.
+  }
+  quickStartPointer = null;
+  el.quickStartViewport?.classList.remove("is-dragging");
+});
+
 function rulesSections() {
   return [...(el.rulesArticle?.querySelectorAll("[data-rule-section]") || [])];
 }
@@ -3491,72 +3707,450 @@ function isRulesHandbookOpen() {
   return Boolean(el.rulesModal && !el.rulesModal.classList.contains("hidden"));
 }
 
+function escapeRulesText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character]);
+}
+
+function normalizeRulesText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[‐‑‒–—-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rulebookSkillMarkup(skill) {
+  const title = `${skill.number} ${skill.name} / ${skill.english}`;
+  return `
+    <section
+      id="${escapeRulesText(skill.id)}"
+      class="rules-skill-entry"
+      data-rule-entry
+      data-rule-entry-title="${escapeRulesText(skill.name + " / " + skill.english)}"
+      data-rule-keywords="${escapeRulesText(skill.keywords || "")}"
+    >
+      <header class="rules-skill-heading">
+        <span class="rules-skill-number">${escapeRulesText(skill.number)}</span>
+        <div>
+          <h4>${escapeRulesText(skill.name)} <span>/ ${escapeRulesText(skill.english)}</span></h4>
+          <p>${escapeRulesText(title)}</p>
+        </div>
+      </header>
+      <div class="rules-skill-meta">
+        ${(skill.meta || []).map((item) => `<span>${escapeRulesText(item)}</span>`).join("")}
+      </div>
+      <div class="rules-skill-copy">${skill.content || ""}</div>
+    </section>
+  `;
+}
+
+function rulebookProtocolMarkup(protocol, index) {
+  return `
+    <section
+      id="${escapeRulesText(protocol.id)}"
+      class="rules-protocol-entry"
+      data-rule-entry
+      data-rule-entry-title="${escapeRulesText(protocol.name + " / " + protocol.english)}"
+      data-rule-keywords="${escapeRulesText(protocol.hand)}"
+    >
+      <span class="rules-protocol-number">${String(index + 1).padStart(2, "0")}</span>
+      <div>
+        <h4>${escapeRulesText(protocol.name)}</h4>
+        <p>${escapeRulesText(protocol.english)}</p>
+      </div>
+      <strong>${escapeRulesText(protocol.hand)}</strong>
+    </section>
+  `;
+}
+
+function rulebookSectionMarkup(section) {
+  let content = section.content || "";
+  if (section.kind === "skills") {
+    content = `
+      <p>以下为首发 24 个主体技能的正式规则。使用索引可直接定位；负载、能量、类型、可见性、次数与阶段均按现行实现列出。</p>
+      <nav class="rules-subnav rules-skill-index" aria-label="主体技能索引">
+        ${RULEBOOK_DATA.skills.map((skill) => `
+          <button type="button" data-rule-anchor-target="${escapeRulesText(skill.id)}">
+            <span>${escapeRulesText(skill.number)}</span>${escapeRulesText(skill.name)}
+          </button>
+        `).join("")}
+      </nav>
+      <div class="rules-skill-list">
+        ${RULEBOOK_DATA.skills.map(rulebookSkillMarkup).join("")}
+      </div>
+    `;
+  } else if (section.kind === "protocols") {
+    content = `
+      <p>首发共有 9 个协议。所有协议均为<strong>负载 1、能量 0、被动、秘密、摊牌结算</strong>。</p>
+      <ol class="rules-steps rules-numbered-steps">
+        <li>必须进入摊牌并赢得该手；弃牌获胜不触发。</li>
+        <li>最终最佳 5 张须恰好属于协议指定牌型。</li>
+        <li>若本手已有本人其他技能产生的筹码倍率，本人的协议不触发。</li>
+        <li>对手技能产生的倍率不阻止本人的协议。</li>
+        <li>触发后，标准净收益 ×2。</li>
+      </ol>
+      <div class="rules-protocol-grid">
+        ${RULEBOOK_DATA.protocols.map(rulebookProtocolMarkup).join("")}
+      </div>
+      <aside class="rules-note">皇家同花顺在牌型比较与终局处决中仍是高于普通同花顺的独立等级；仅在协议归属上与同花顺共用「协议--同花顺」。</aside>
+    `;
+  }
+  return `
+    <article
+      id="${escapeRulesText(section.id)}"
+      class="rules-section"
+      data-rule-section
+      data-rule-entry
+      data-rule-entry-title="${escapeRulesText(section.title)}"
+      data-rule-keywords="${escapeRulesText(section.keywords || "")}"
+    >
+      <header class="rules-chapter-heading">
+        <span>CHAPTER ${escapeRulesText(section.number)}</span>
+        <h3>${escapeRulesText(section.number)} · ${escapeRulesText(section.title)}</h3>
+      </header>
+      ${content}
+    </article>
+  `;
+}
+
+function rebuildRulesSearchIndex() {
+  rulesSearchIndex = [];
+  rulesSections().forEach((section) => {
+    const data = RULEBOOK_DATA.sections.find((item) => item.id === section.id);
+    const nestedEntries = [...section.querySelectorAll("[data-rule-entry]")].filter((entry) => entry !== section);
+    const chapterTitle = data?.title || section.dataset.ruleEntryTitle || "";
+    const addEntry = (entry, title, text, keywords = "") => {
+      const normalizedTitle = normalizeRulesText(title);
+      const normalizedText = normalizeRulesText(text);
+      const normalizedKeywords = normalizeRulesText(keywords);
+      rulesSearchIndex.push({
+        anchorId: entry.id || section.id,
+        sectionId: section.id,
+        chapterNumber: data?.number || "",
+        chapterTitle,
+        title,
+        text: String(text || "").replace(/\s+/g, " ").trim(),
+        normalizedTitle,
+        normalizedText,
+        normalizedKeywords,
+        compact: (normalizedTitle + " " + normalizedText + " " + normalizedKeywords).replace(/\s+/g, ""),
+      });
+    };
+
+    addEntry(
+      section,
+      chapterTitle,
+      nestedEntries.length ? chapterTitle : section.textContent,
+      data?.keywords || section.dataset.ruleKeywords || ""
+    );
+    nestedEntries.forEach((entry) => {
+      addEntry(
+        entry,
+        entry.dataset.ruleEntryTitle || entry.querySelector("h4, h5, dt, th")?.textContent || chapterTitle,
+        entry.textContent,
+        entry.dataset.ruleKeywords || ""
+      );
+    });
+  });
+}
+
+function renderRulesHandbook() {
+  if (rulesHandbookRendered || !el.rulesToc || !el.rulesArticle) return;
+  if (RULEBOOK_DATA.sections.length !== 18 || RULEBOOK_DATA.skills.length !== 24 || RULEBOOK_DATA.protocols.length !== 9) {
+    console.error("规则手册数据不完整，无法载入 V1.0");
+    return;
+  }
+  el.rulesToc.innerHTML = RULEBOOK_DATA.sections.map((section, index) => `
+    <button
+      type="button"
+      class="${index === 0 ? "is-active" : ""}"
+      data-rule-target="${escapeRulesText(section.id)}"
+      ${index === 0 ? 'aria-current="true"' : ""}
+    >
+      <span>${escapeRulesText(section.number)}</span>
+      ${escapeRulesText(section.shortTitle || section.title)}
+    </button>
+  `).join("");
+  el.rulesArticle.innerHTML = `
+    <p id="rules-empty" class="rules-empty hidden">没有匹配的规则。可尝试「摊牌」「能量」「全下」或清空搜索。</p>
+    ${RULEBOOK_DATA.sections.map(rulebookSectionMarkup).join("")}
+  `;
+  el.rulesEmpty = byId("rules-empty");
+  rulesHandbookRendered = true;
+  rebuildRulesSearchIndex();
+}
+
 function setActiveRulesToc(sectionId) {
+  let activeButton = null;
   el.rulesToc?.querySelectorAll("button[data-rule-target]").forEach((button) => {
     const active = button.dataset.ruleTarget === sectionId;
     button.classList.toggle("is-active", active);
-    if (active) button.setAttribute("aria-current", "true");
-    else button.removeAttribute("aria-current");
-  });
-}
-
-function showRulesSection(sectionId, { scroll = false } = {}) {
-  const section = byId(sectionId);
-  if (!section || section.hasAttribute("hidden")) return;
-  setActiveRulesToc(sectionId);
-  if (scroll) {
-    section.scrollIntoView({ block: "start", behavior: state.settings.reduceMotion ? "auto" : "smooth" });
-  }
-}
-
-function filterRulesHandbook(rawQuery) {
-  const query = String(rawQuery || "").trim().toLowerCase();
-  const sections = rulesSections();
-  let visible = 0;
-  let firstId = "";
-  sections.forEach((section) => {
-    const haystack = (
-      (section.dataset.search || "") + " " + (section.textContent || "")
-    ).toLowerCase();
-    const match = !query || haystack.includes(query);
-    section.toggleAttribute("hidden", !match);
-    if (match) {
-      visible += 1;
-      if (!firstId) firstId = section.id;
-    }
-  });
-  el.rulesToc?.querySelectorAll("button[data-rule-target]").forEach((button) => {
-    const target = byId(button.dataset.ruleTarget);
-    const match = Boolean(target && !target.hasAttribute("hidden"));
-    button.hidden = !match;
-    if (!match) {
-      button.classList.remove("is-active");
+    if (active) {
+      button.setAttribute("aria-current", "true");
+      activeButton = button;
+    } else {
       button.removeAttribute("aria-current");
     }
   });
-  el.rulesEmpty?.classList.toggle("hidden", visible > 0);
-  if (el.rulesSearchStatus) {
-    el.rulesSearchStatus.textContent = query
-      ? visible ? "找到 " + visible + " 个章节" : "未找到匹配规则"
-      : "15 个章节";
+  if (activeButton && el.rulesToc) {
+    const tocRect = el.rulesToc.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+    if (buttonRect.top < tocRect.top + 4) {
+      el.rulesToc.scrollTop -= tocRect.top + 4 - buttonRect.top;
+    } else if (buttonRect.bottom > tocRect.bottom - 4) {
+      el.rulesToc.scrollTop += buttonRect.bottom - tocRect.bottom + 4;
+    }
   }
-  if (firstId) setActiveRulesToc(firstId);
 }
 
-function openRulesHandbook({ fromSettings = false } = {}) {
+function isRulesMobileLayout() {
+  return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
+}
+
+function setRulesTocOpen(open) {
+  const next = Boolean(open && isRulesMobileLayout());
+  el.rulesToc?.classList.toggle("is-open", next);
+  el.rulesTocBackdrop?.classList.toggle("is-open", next);
+  if (el.btnRulesMenu) el.btnRulesMenu.setAttribute("aria-expanded", next ? "true" : "false");
+  if (el.rulesTocBackdrop) el.rulesTocBackdrop.tabIndex = next ? 0 : -1;
+}
+
+function removeRulesHighlights() {
+  if (rulesHighlightTimer) {
+    clearTimeout(rulesHighlightTimer);
+    rulesHighlightTimer = 0;
+  }
+  el.rulesArticle?.querySelectorAll("mark[data-rule-highlight]").forEach((mark) => {
+    mark.replaceWith(document.createTextNode(mark.textContent || ""));
+  });
+  el.rulesArticle?.querySelectorAll(".is-rule-target-flash").forEach((target) => {
+    target.classList.remove("is-rule-target-flash");
+  });
+}
+
+function highlightRulesTarget(target, rawQuery) {
+  if (!target) return;
+  removeRulesHighlights();
+  target.classList.add("is-rule-target-flash");
+  const query = String(rawQuery || "").trim();
+  let marked = false;
+  if (query) {
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const parent = node.parentElement;
+      const value = node.nodeValue || "";
+      const index = value.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+      if (index >= 0 && parent && !parent.closest("button, mark, script, style")) {
+        const before = document.createTextNode(value.slice(0, index));
+        const hit = document.createElement("mark");
+        hit.dataset.ruleHighlight = "true";
+        hit.textContent = value.slice(index, index + query.length);
+        const after = document.createTextNode(value.slice(index + query.length));
+        node.replaceWith(before, hit, after);
+        marked = true;
+        break;
+      }
+      node = walker.nextNode();
+    }
+    if (!marked) {
+      const heading = target.matches("h3, h4, h5") ? target : target.querySelector("h3, h4, h5, dt, th");
+      const headingText = [...(heading?.childNodes || [])].find((child) => child.nodeType === Node.TEXT_NODE && child.nodeValue.trim());
+      if (headingText) {
+        const fallback = document.createElement("mark");
+        fallback.dataset.ruleHighlight = "true";
+        fallback.textContent = headingText.nodeValue;
+        headingText.replaceWith(fallback);
+      }
+    }
+  }
+  rulesHighlightTimer = window.setTimeout(() => removeRulesHighlights(), RULEBOOK_HIGHLIGHT_MS);
+}
+
+function scrollToRulesTarget(anchorId, { behavior = "auto", query = "", highlight = true } = {}) {
+  renderRulesHandbook();
+  const target = byId(anchorId);
+  if (!target || !el.rulesArticle) return false;
+  const section = target.matches("[data-rule-section]")
+    ? target
+    : target.closest("[data-rule-section]");
+  if (section) setActiveRulesToc(section.id);
+  rulesReadingAnchorId = target.id || section?.id || rulesReadingAnchorId;
+  let top = 0;
+  let offsetNode = target;
+  while (offsetNode && offsetNode !== el.rulesArticle) {
+    top += offsetNode.offsetTop || 0;
+    offsetNode = offsetNode.offsetParent;
+  }
+  if (offsetNode !== el.rulesArticle) {
+    const articleRect = el.rulesArticle.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    top = el.rulesArticle.scrollTop + targetRect.top - articleRect.top;
+  }
+  el.rulesArticle.scrollTo({
+    top: Math.max(0, top - 12),
+    behavior: state.settings.reduceMotion ? "auto" : behavior,
+  });
+  if (highlight) highlightRulesTarget(target, query);
+  setRulesTocOpen(false);
+  return true;
+}
+
+function showRulesSection(sectionId, { scroll = false, query = "" } = {}) {
+  renderRulesHandbook();
+  const section = byId(sectionId);
+  if (!section) return false;
+  setActiveRulesToc(sectionId);
+  if (scroll) scrollToRulesTarget(sectionId, { query });
+  return true;
+}
+
+function makeRulesSnippet(entry, rawQuery) {
+  const text = String(entry.text || entry.title || "").replace(/\s+/g, " ").trim();
+  const query = String(rawQuery || "").trim();
+  if (!text) return "";
+  const lowerText = text.toLocaleLowerCase();
+  const lowerQuery = query.toLocaleLowerCase();
+  let index = lowerQuery ? lowerText.indexOf(lowerQuery) : 0;
+  if (index < 0) index = 0;
+  const start = Math.max(0, index - 42);
+  const end = Math.min(text.length, Math.max(index + query.length + 58, start + 112));
+  return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
+}
+
+function scoreRulesSearchEntry(entry, normalizedQuery, compactQuery) {
+  const titleExact = entry.normalizedTitle === normalizedQuery;
+  const titleStarts = entry.normalizedTitle.startsWith(normalizedQuery);
+  const titleIncludes = entry.normalizedTitle.includes(normalizedQuery);
+  const keywordIncludes = entry.normalizedKeywords.includes(normalizedQuery);
+  const textIncludes = entry.normalizedText.includes(normalizedQuery);
+  const compactIncludes = compactQuery && entry.compact.includes(compactQuery);
+  if (!titleIncludes && !keywordIncludes && !textIncludes && !compactIncludes) return 0;
+  if (titleExact) return 120;
+  if (titleStarts) return 100;
+  if (titleIncludes) return 80;
+  if (keywordIncludes) return 55;
+  return 30;
+}
+
+function renderRulesSearchResults(matches, rawQuery) {
+  if (!el.rulesSearchResults || !el.rulesSearchResultsList) return;
+  const hasQuery = Boolean(String(rawQuery || "").trim());
+  el.rulesSearchResults.classList.toggle("hidden", !hasQuery);
+  if (!hasQuery) {
+    el.rulesSearchResultsList.innerHTML = "";
+    if (el.rulesSearchResultsCount) el.rulesSearchResultsCount.textContent = "0 条";
+    return;
+  }
+  if (el.rulesSearchResultsCount) {
+    el.rulesSearchResultsCount.textContent = matches.length ? `${matches.length} 条` : "0 条";
+  }
+  el.rulesSearchResultsList.innerHTML = matches.length
+    ? matches.map((entry) => `
+        <button
+          type="button"
+          class="rules-search-result"
+          data-rule-search-target="${escapeRulesText(entry.anchorId)}"
+          data-rule-search-query="${escapeRulesText(rawQuery)}"
+        >
+          <span class="rules-search-result-chapter">${escapeRulesText(entry.chapterNumber)} · ${escapeRulesText(entry.chapterTitle)}</span>
+          <strong>${escapeRulesText(entry.title)}</strong>
+          <span class="rules-search-result-snippet">${escapeRulesText(makeRulesSnippet(entry, rawQuery))}</span>
+        </button>
+      `).join("")
+    : '<p class="rules-search-no-results">没有找到匹配规则。可尝试中文技能名、英文术语或更短的关键词。</p>';
+}
+
+function filterRulesHandbook(rawQuery) {
+  renderRulesHandbook();
+  const query = String(rawQuery || "").trim();
+  const normalizedQuery = normalizeRulesText(query);
+  if (!normalizedQuery) {
+    renderRulesSearchResults([], "");
+    el.rulesEmpty?.classList.add("hidden");
+    if (el.rulesSearchStatus) el.rulesSearchStatus.textContent = "18 个章节";
+    return [];
+  }
+
+  const compactQuery = normalizedQuery.replace(/\s+/g, "");
+  const matches = rulesSearchIndex
+    .map((entry) => ({ ...entry, score: scoreRulesSearchEntry(entry, normalizedQuery, compactQuery) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.chapterNumber.localeCompare(b.chapterNumber) || a.title.localeCompare(b.title))
+    .filter((entry, index, list) => list.findIndex((candidate) => candidate.anchorId === entry.anchorId) === index)
+    .slice(0, RULEBOOK_MAX_SEARCH_RESULTS);
+
+  const chapterCount = new Set(matches.map((entry) => entry.sectionId)).size;
+  if (el.rulesSearchStatus) {
+    el.rulesSearchStatus.textContent = matches.length
+      ? `${matches.length} 条匹配 · ${chapterCount} 个章节`
+      : "未找到匹配规则";
+  }
+  el.rulesEmpty?.classList.toggle("hidden", matches.length > 0);
+  renderRulesSearchResults(matches, query);
+  return matches;
+}
+
+function updateRulesScrollState() {
+  if (!el.rulesArticle || !isRulesHandbookOpen()) return;
+  const sections = rulesSections();
+  if (!sections.length) return;
+  const articleTop = el.rulesArticle.getBoundingClientRect().top;
+  let active = sections[0];
+  sections.forEach((section) => {
+    if (section.getBoundingClientRect().top <= articleTop + 34) active = section;
+  });
+  const entries = [...el.rulesArticle.querySelectorAll("[data-rule-entry][id]")];
+  let readingAnchor = active;
+  entries.forEach((entry) => {
+    if (entry.getBoundingClientRect().top <= articleTop + 40) readingAnchor = entry;
+  });
+  rulesReadingAnchorId = readingAnchor?.id || active.id;
+  setActiveRulesToc(active.id);
+  el.btnRulesTop?.classList.toggle("hidden", el.rulesArticle.scrollTop < 420);
+}
+
+function scheduleRulesScrollState() {
+  if (rulesScrollFrame) return;
+  rulesScrollFrame = requestAnimationFrame(() => {
+    rulesScrollFrame = 0;
+    updateRulesScrollState();
+  });
+}
+
+function openRulesHandbook({ fromSettings = false, sectionId = "rule-overview" } = {}) {
+  renderRulesHandbook();
+  if (!RULEBOOK_DATA.sections.length) {
+    showToast("规则手册暂时无法载入", "error");
+    return false;
+  }
   rulesHandbookFromSettings = Boolean(fromSettings);
   rulesHandbookReturnFocus = document.activeElement;
   if (fromSettings) el.settingsModal?.classList.add("hidden");
   if (el.rulesSearch) el.rulesSearch.value = "";
   filterRulesHandbook("");
+  setRulesTocOpen(false);
+  el.rulesModal.scrollTop = 0;
   el.rulesModal?.classList.remove("hidden");
-  el.rulesArticle?.scrollTo(0, 0);
-  setActiveRulesToc("rule-overview");
-  el.rulesSearch?.focus();
+  requestAnimationFrame(() => {
+    scrollToRulesTarget(sectionId, { behavior: "auto" });
+    el.rulesSearch?.focus();
+  });
+  return true;
 }
 
 function closeRulesHandbook() {
   if (!isRulesHandbookOpen()) return false;
+  removeRulesHighlights();
+  setRulesTocOpen(false);
+  renderRulesSearchResults([], "");
   el.rulesModal.classList.add("hidden");
   const fromSettings = rulesHandbookFromSettings;
   const previous = rulesHandbookReturnFocus;
@@ -3595,11 +4189,52 @@ el.rulesModal?.addEventListener("click", (event) => {
 el.rulesSearch?.addEventListener("input", () => {
   filterRulesHandbook(el.rulesSearch.value);
 });
+el.rulesSearch?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const first = el.rulesSearchResultsList?.querySelector("[data-rule-search-target]");
+  if (!first) return;
+  event.preventDefault();
+  const targetId = first.dataset.ruleSearchTarget;
+  const query = first.dataset.ruleSearchQuery || el.rulesSearch.value;
+  el.rulesSearchResults?.classList.add("hidden");
+  requestAnimationFrame(() => scrollToRulesTarget(targetId, { query }));
+});
 el.rulesToc?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-rule-target]");
   if (!button) return;
   showRulesSection(button.dataset.ruleTarget, { scroll: true });
 });
+el.btnRulesMenu?.addEventListener("click", () => {
+  setRulesTocOpen(!el.rulesToc?.classList.contains("is-open"));
+});
+el.rulesTocBackdrop?.addEventListener("click", () => setRulesTocOpen(false));
+el.rulesSearchResultsList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-rule-search-target]");
+  if (!button) return;
+  const targetId = button.dataset.ruleSearchTarget;
+  const query = button.dataset.ruleSearchQuery || el.rulesSearch?.value || "";
+  el.rulesSearchResults?.classList.add("hidden");
+  requestAnimationFrame(() => scrollToRulesTarget(targetId, { query }));
+});
+el.rulesArticle?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-rule-anchor-target]");
+  if (!button) return;
+  scrollToRulesTarget(button.dataset.ruleAnchorTarget);
+});
+el.rulesArticle?.addEventListener("scroll", scheduleRulesScrollState, { passive: true });
+el.btnRulesTop?.addEventListener("click", () => {
+  scrollToRulesTarget("rule-overview", { behavior: "auto" });
+});
+window.addEventListener("resize", () => {
+  if (!isRulesMobileLayout()) setRulesTocOpen(false);
+  const anchorId = rulesReadingAnchorId;
+  requestAnimationFrame(() => {
+    if (isRulesHandbookOpen()) {
+      scrollToRulesTarget(anchorId, { behavior: "auto", highlight: false });
+    }
+    scheduleRulesScrollState();
+  });
+}, { passive: true });
 el.btnCloseSkillPreview?.addEventListener("click", closeSkillPreview);
 el.btnSkillPreviewDone?.addEventListener("click", closeSkillPreview);
 el.btnSkillPreviewNovice?.addEventListener("click", () => {
@@ -3668,14 +4303,24 @@ el.settingLowPerformance.addEventListener("change", () => {
   applySettings();
 });
 document.addEventListener("keydown", (event) => {
+  const top = visibleModalLayers().at(-1);
+  if (top === el.quickStartModal && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    if (event.key === "ArrowLeft") changeQuickStartPage(-1);
+    else if (event.key === "ArrowRight") changeQuickStartPage(1);
+    else if (event.key === "Home") renderQuickStartPage(1);
+    else renderQuickStartPage(QUICKSTART_PAGE_COUNT);
+    return;
+  }
   if (event.key !== "Escape") return;
   setRaiseExpanded(false);
-  const top = visibleModalLayers().at(-1);
   if (!top) {
     if (isNullifyTargeting()) cancelNullifyTargeting();
     return;
   }
-  if (top === el.skillPreviewModal) {
+  if (top === el.quickStartModal) {
+    closeQuickStart();
+  } else if (top === el.skillPreviewModal) {
     closeSkillPreview();
   } else if (top === el.rulesModal) {
     closeRulesHandbook();
@@ -4203,6 +4848,7 @@ state.selectedLoadout = [...state.savedLoadout];
 setMode(GAME_MODE.STANDARD);
 setSkillMode("off");
 applySettings();
+updateQuickStartEntryState();
 updateSkillPrepUi();
 ensureSkillCatalog().then(() => {
   const validation = validateLoadoutIds(state.savedLoadout);
@@ -4219,6 +4865,9 @@ if (hasPendingReconnect) showScreen("wait");
 renderState();
 syncTableRailAccessibility();
 window.addEventListener("resize", syncTableRailAccessibility, { passive: true });
+if (!hasPendingReconnect && !state.quickStartSeen) {
+  requestAnimationFrame(() => openQuickStart({ page: 1, returnFocus: el.btnOpenQuickStart }));
+}
 
 /* ========== 深渊技能 UI ========== */
 function setSkillMode(mode) {

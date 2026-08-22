@@ -15,8 +15,9 @@
     "simulate:skills": "node scripts/simulate-skills.js 1000",
     "validate:fortune-perception": "node scripts/validate-fortune-perception-v1.js",
     "validate:fortune-debt": "node scripts/validate-fortune-debt.js",
-    "verify:ui": "node scripts/verify-mobile-onescreen.js && node scripts/verify-ui-onescreen.mjs",
+    "verify:ui": "node scripts/verify-mobile-onescreen.js && node scripts/verify-ui-onescreen.mjs && node scripts/verify-rulebook.mjs",
     "verify:interactions": "node scripts/verify-ui-interactions.mjs",
+    "verify:rulebook": "node scripts/verify-rulebook.mjs",
     "capture:ui": "node scripts/capture-ui-review.mjs",
     "verify:online": "node scripts/verify-online-sync.js"
   },

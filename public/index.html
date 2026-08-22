@@ -287,13 +287,173 @@
       </section>
     </div>
 
+    <div
+      id="quickstart-modal"
+      class="modal-layer quickstart-layer hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quickstart-modal-title"
+      aria-describedby="quickstart-page-status"
+    >
+      <section class="modal-panel quickstart-book" tabindex="-1">
+        <header class="quickstart-book-header">
+          <div class="quickstart-book-brand">
+            <span>FIELD MANUAL · 01—04</span>
+            <strong id="quickstart-modal-title">快速入门</strong>
+          </div>
+          <button id="btn-close-quickstart" class="icon-button quickstart-close" type="button" aria-label="关闭快速入门">×</button>
+        </header>
+
+        <div id="quickstart-viewport" class="quickstart-viewport">
+          <button
+            id="btn-quickstart-corner-prev"
+            class="quickstart-corner quickstart-corner-prev is-hidden"
+            type="button"
+            aria-label="上一页"
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+
+          <div id="quickstart-track" class="quickstart-track" style="--quickstart-page-index: 0">
+            <article class="quickstart-page quickstart-page-objective" data-quickstart-page="1" aria-labelledby="quickstart-page-title-1">
+              <div class="quickstart-copy">
+                <p class="quickstart-chapter">01 · MATCH OBJECTIVE</p>
+                <h2 id="quickstart-page-title-1">赢下比赛</h2>
+                <p class="quickstart-lead">《超限德州》是一场 1 对 1 的德州扑克对决。双方以 1000 筹码开始，每手通过弃牌或摊牌决定筹码归属。</p>
+                <div class="quickstart-versus" aria-label="双方起始筹码均为一千">
+                  <strong>1000</strong><span>VS</span><strong>1000</strong>
+                </div>
+                <div class="quickstart-facts" aria-label="基础盲注">
+                  <span><small>小盲注</small><strong>25</strong></span>
+                  <span><small>大盲注</small><strong>50</strong></span>
+                </div>
+                <p class="quickstart-rule-key">对手筹码归零 = 获得比赛胜利</p>
+              </div>
+              <figure class="quickstart-shot quickstart-shot-table quickstart-shot-objective">
+                <img src="./assets/tutorial/shot-01-preflop.png" alt="真实牌桌翻牌前画面，显示双方筹码、底牌、公共牌区和底池" width="1440" height="797" decoding="async" />
+                <figcaption>
+                  <span class="quickstart-callout callout-opponent">对手筹码</span>
+                  <span class="quickstart-callout callout-self">你的筹码</span>
+                </figcaption>
+              </figure>
+              <p class="quickstart-page-foot">筹码归零的一方输掉比赛。</p>
+            </article>
+
+            <article class="quickstart-page quickstart-page-hand" data-quickstart-page="2" aria-labelledby="quickstart-page-title-2" aria-hidden="true" inert>
+              <div class="quickstart-copy">
+                <p class="quickstart-chapter">02 · ONE HAND</p>
+                <h2 id="quickstart-page-title-2">打一手德州</h2>
+                <p class="quickstart-lead">每名玩家获得 <strong>2 张底牌</strong>，桌面最多发出 <strong>5 张公共牌</strong>。轮到你时，可过牌、跟注、下注 / 加注、弃牌或全下。</p>
+                <ol class="quickstart-flow" aria-label="一手牌流程">
+                  <li>翻牌前</li><li>翻牌</li><li>转牌</li><li>河牌</li><li>摊牌</li>
+                </ol>
+                <p class="quickstart-combine"><strong>2 张底牌 + 5 张公共牌</strong><span>组成最强的 5 张牌</span></p>
+              </div>
+              <figure class="quickstart-shot quickstart-shot-table quickstart-shot-hand">
+                <img src="./assets/tutorial/shot-02-flop.png" alt="真实翻牌阶段牌桌，显示自己的两张底牌、三张公共牌和操作区" width="1440" height="797" loading="lazy" decoding="async" />
+                <figcaption>
+                  <span class="quickstart-callout callout-hole">你的底牌</span>
+                  <span class="quickstart-callout callout-board">公共牌</span>
+                  <span class="quickstart-callout callout-actions">可执行操作</span>
+                </figcaption>
+              </figure>
+              <div class="quickstart-rank-strip">
+                <span>皇家同花顺</span><i>›</i><span>同花顺</span><i>›</i><span>四条</span><i>›</i><span>葫芦</span><i>›</i><span>同花</span><i>›</i><span>顺子</span><i>›</i><span>三条</span><i>›</i><span>两对</span><i>›</i><span>一对</span><i>›</i><span>高牌</span>
+              </div>
+              <div class="quickstart-page-foot quickstart-page-foot-action">
+                <span>对手弃牌，或摊牌时组成更强牌型，即可赢下这一手。</span>
+                <button id="btn-quickstart-hands" class="quickstart-text-button" type="button">查看牌型说明</button>
+              </div>
+            </article>
+
+            <article class="quickstart-page quickstart-page-bonus" data-quickstart-page="3" aria-labelledby="quickstart-page-title-3" aria-hidden="true" inert>
+              <div class="quickstart-copy">
+                <p class="quickstart-chapter">03 · HAND BONUS</p>
+                <h2 id="quickstart-page-title-3">强牌获得额外收益</h2>
+                <p class="quickstart-lead">只有通过摊牌获胜时，才会根据最终牌型获得额外筹码。高牌、一对、两对、普通弃牌获胜与平局均无牌型奖励。</p>
+                <div class="quickstart-bonus-ladder" aria-label="牌型奖励阶梯">
+                  <div><span>三条</span><strong>+25</strong></div>
+                  <div><span>顺子</span><strong>+50</strong></div>
+                  <div><span>同花</span><strong>+75</strong></div>
+                  <div><span>葫芦</span><strong>+100</strong></div>
+                  <div><span>四条</span><strong>+250</strong></div>
+                  <div><span>同花顺</span><strong>+400</strong></div>
+                  <div class="is-peak"><span>皇家同花顺</span><strong>+500</strong></div>
+                </div>
+              </div>
+              <figure class="quickstart-shot quickstart-shot-settlement">
+                <img src="./assets/tutorial/shot-03-showdown.png" alt="真实摊牌结算画面，显示双方底牌、公共牌、获胜牌型和筹码结算" width="1440" height="797" loading="lazy" decoding="async" />
+                <figcaption>真实摊牌结算</figcaption>
+              </figure>
+              <p class="quickstart-page-foot">牌型奖励适用于所有游戏模式。</p>
+            </article>
+
+            <article class="quickstart-page quickstart-page-build" data-quickstart-page="4" aria-labelledby="quickstart-page-title-4" aria-hidden="true" inert>
+              <div class="quickstart-copy">
+                <p class="quickstart-chapter">04 · SKILL LOADOUT</p>
+                <h2 id="quickstart-page-title-4">构筑你的打法</h2>
+                <p class="quickstart-lead">启用技能模式时，每场比赛开始前装备技能。大多数技能消耗能量，可影响信息、筹码、能量、牌面、牌堆、行动与结算。</p>
+                <div class="quickstart-build-metrics">
+                  <span><strong>1—4</strong><small>个技能</small></span>
+                  <span><strong>≤ 8</strong><small>总负载</small></span>
+                  <span><strong>4</strong><small>初始能量</small></span>
+                  <span><strong>8</strong><small>普通上限</small></span>
+                </div>
+                <p class="quickstart-build-note">每手失败后通常恢复 1 点能量。完整构筑不会在开局时公开给对手。</p>
+              </div>
+              <div class="quickstart-build-shots" aria-label="真实技能构筑和实战界面">
+                <figure class="quickstart-shot quickstart-shot-loadout">
+                  <img src="./assets/tutorial/shot-04-loadout.png" alt="真实技能构筑界面，显示已选技能和总负载" width="1440" height="797" loading="lazy" decoding="async" />
+                  <figcaption>构筑 · 技能与负载</figcaption>
+                </figure>
+                <figure class="quickstart-shot quickstart-shot-skillhud">
+                  <img src="./assets/tutorial/shot-05-skill-table.png" alt="真实技能牌桌，显示当前能量、技能按钮和未知对手构筑" width="1440" height="797" loading="lazy" decoding="async" />
+                  <figcaption>实战 · 能量与发动窗口</figcaption>
+                </figure>
+              </div>
+              <div class="quickstart-page-foot quickstart-build-foot">
+                <strong>牌力决定基础，技能改变局面。</strong>
+                <div>
+                  <button id="btn-quickstart-rules" class="quickstart-text-button" type="button">查看完整规则</button>
+                  <button id="btn-quickstart-skills" class="quickstart-text-button" type="button">技能图鉴</button>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <button
+            id="btn-quickstart-corner-next"
+            class="quickstart-corner quickstart-corner-next"
+            type="button"
+            aria-label="下一页"
+          >
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
+
+        <footer class="quickstart-controls">
+          <button id="btn-quickstart-prev" class="button button-ghost quickstart-prev is-hidden" type="button">上一页</button>
+          <div class="quickstart-progress">
+            <strong id="quickstart-page-status" aria-live="polite">01 / 04</strong>
+            <div id="quickstart-dots" class="quickstart-dots" aria-label="教程页码">
+              <button type="button" data-quickstart-target="1" aria-label="第 1 页" aria-current="page"></button>
+              <button type="button" data-quickstart-target="2" aria-label="第 2 页"></button>
+              <button type="button" data-quickstart-target="3" aria-label="第 3 页"></button>
+              <button type="button" data-quickstart-target="4" aria-label="第 4 页"></button>
+            </div>
+          </div>
+          <button id="btn-quickstart-next" class="button button-primary quickstart-next" type="button">下一页</button>
+        </footer>
+      </section>
+    </div>
+
     <div id="rules-handbook-modal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="rules-handbook-title">
       <section class="modal-panel rules-handbook-panel glass-panel" tabindex="-1">
         <header class="modal-header rules-handbook-header">
           <div>
             <p class="eyebrow">OFFICIAL RULEBOOK</p>
             <h2 id="rules-handbook-title">超限德州规则手册</h2>
-            <p class="rules-handbook-lead">双人对局核心规则。技能数值与发动条件以技能档案为准。</p>
+            <p class="rules-handbook-lead">完整 V1.0 · 标准牌局、技能、协议与关键交互的正式裁定。</p>
           </div>
           <button id="btn-close-rules" class="icon-button" type="button" aria-label="关闭规则手册">×</button>
         </header>
@@ -310,276 +470,33 @@
               placeholder="搜索规则、术语或章节，例如：摊牌、能量、全下"
             />
           </label>
-          <p id="rules-search-status" class="rules-search-status" aria-live="polite">15 个章节</p>
+          <div class="rules-toolbar-actions">
+            <p id="rules-search-status" class="rules-search-status" aria-live="polite">18 个章节</p>
+            <button
+              id="btn-rules-menu"
+              class="rules-menu-button"
+              type="button"
+              aria-controls="rules-toc"
+              aria-expanded="false"
+            >章节</button>
+          </div>
         </div>
 
-        <div class="rules-handbook-body">
-          <nav id="rules-toc" class="rules-toc" aria-label="规则目录">
-            <button type="button" class="is-active" data-rule-target="rule-overview">01 概述</button>
-            <button type="button" data-rule-target="rule-flow">02 流程</button>
-            <button type="button" data-rule-target="rule-actions">03 行动</button>
-            <button type="button" data-rule-target="rule-showdown">04 胜负</button>
-            <button type="button" data-rule-target="rule-hands">05 牌型</button>
-            <button type="button" data-rule-target="rule-bonus">06 奖励</button>
-            <button type="button" data-rule-target="rule-loadout">07 构筑</button>
-            <button type="button" data-rule-target="rule-energy">08 能量</button>
-            <button type="button" data-rule-target="rule-energy-intel">09 公开能量</button>
-            <button type="button" data-rule-target="rule-settlement">10 结算</button>
-            <button type="button" data-rule-target="rule-direct">11 直接转移</button>
-            <button type="button" data-rule-target="rule-allin">12 全下</button>
-            <button type="button" data-rule-target="rule-tie">13 平局</button>
-            <button type="button" data-rule-target="rule-state">14 特殊状态</button>
-            <button type="button" data-rule-target="rule-priority">15 优先级</button>
-          </nav>
+        <section id="rules-search-results" class="rules-search-results hidden" aria-label="规则搜索结果">
+          <div class="rules-search-results-head">
+            <strong>搜索结果</strong>
+            <span id="rules-search-results-count">0 条</span>
+          </div>
+          <div id="rules-search-results-list" class="rules-search-results-list"></div>
+        </section>
 
+        <div class="rules-handbook-body">
+          <button id="rules-toc-backdrop" class="rules-toc-backdrop" type="button" aria-label="关闭章节目录" tabindex="-1"></button>
+          <nav id="rules-toc" class="rules-toc" aria-label="规则目录"></nav>
           <div id="rules-article" class="rules-article" tabindex="0">
             <p id="rules-empty" class="rules-empty hidden">没有匹配的规则。可尝试「摊牌」「能量」「全下」或清空搜索。</p>
-
-            <article id="rule-overview" class="rules-section" data-rule-section data-search="概述 人数 盲注 筹码 能量 对战 overlimit holdem 无限注 1000 25 50 heads-up">
-              <h3>一、游戏概述</h3>
-              <p><strong>《超限德州 / OVERLIMIT: HOLD'EM》</strong>是以无限注德州扑克为基础的双人对战。两名玩家通过下注、弃牌与摊牌争夺筹码；启用技能系统时，还可使用赛前装备的技能影响资源、信息、牌面和结算。</p>
-              <p>任意一方筹码归零后，比赛结束，另一方获得本场胜利。</p>
-              <table class="rules-table">
-                <caption>基础参数</caption>
-                <tbody>
-                  <tr><th scope="row">对局人数</th><td>2 人</td></tr>
-                  <tr><th scope="row">起始筹码</th><td>每人 1000</td></tr>
-                  <tr><th scope="row">小盲注</th><td>25</td></tr>
-                  <tr><th scope="row">大盲注</th><td>50</td></tr>
-                  <tr><th scope="row">起始能量</th><td>4</td></tr>
-                  <tr><th scope="row">普通能量上限</th><td>8</td></tr>
-                </tbody>
-              </table>
-              <aside class="rules-note">牌型基础奖励与基础筹码经济属于《超限德州》的固定规则，适用于全部游戏模式，与技能系统是否开启无关。</aside>
-            </article>
-
-            <article id="rule-flow" class="rules-section" data-rule-section data-search="流程 庄家 小盲 大盲 翻牌前 翻牌 flop 转牌 turn 河牌 river 摊牌 showdown 底牌 公共牌 preflop 发牌">
-              <h3>二、牌局流程</h3>
-              <p>每手开始时，一名玩家位于庄家位并支付小盲注，另一名玩家支付大盲注。每手结束后，庄家位置互换。</p>
-              <ul>
-                <li>翻牌前由庄家位（小盲位）首先行动；</li>
-                <li>翻牌后由大盲位首先行动。</li>
-              </ul>
-              <p>每名玩家获得两张仅本人可见的底牌。随后按以下街道进行：</p>
-              <ol class="rules-steps">
-                <li><strong>翻牌前 Pre-Flop</strong>：仅持有底牌，进行第一轮下注。</li>
-                <li><strong>翻牌 Flop</strong>：发出三张公共牌，再进行下注。</li>
-                <li><strong>转牌 Turn</strong>：发出第四张公共牌，再进行下注。</li>
-                <li><strong>河牌 River</strong>：发出第五张公共牌，再进行下注。</li>
-                <li><strong>摊牌 Showdown</strong>：双方均未弃牌时，比较最终牌型。</li>
-              </ol>
-              <p>当前街道下注结束后进入下一街道。若双方已无后续下注行动，系统直接发出剩余公共牌并进入摊牌。</p>
-            </article>
-
-            <article id="rule-actions" class="rules-section" data-rule-section data-search="行动 过牌 check 下注 bet 跟注 call 加注 raise 弃牌 fold 全下 all in allin 最小加注">
-              <h3>三、玩家行动</h3>
-              <p>系统只提供当前牌局状态允许的行动。玩家只能执行界面给出的合法选项。</p>
-              <dl class="rules-dl">
-                <div>
-                  <dt>过牌 Check</dt>
-                  <dd>当前无需跟注时，不增加投入并结束本次行动。</dd>
-                </div>
-                <div>
-                  <dt>下注 Bet</dt>
-                  <dd>本街道尚无人下注时，投入一定数量的筹码。</dd>
-                </div>
-                <div>
-                  <dt>跟注 Call</dt>
-                  <dd>补足差额，使自己的本轮投入与对手当前下注匹配。</dd>
-                </div>
-                <div>
-                  <dt>加注 Raise</dt>
-                  <dd>在已有下注上提高金额。须满足当前最小加注，且不超过可投入上限。</dd>
-                </div>
-                <div>
-                  <dt>弃牌 Fold</dt>
-                  <dd>放弃本手。对手立即赢得该手，不比较牌型。</dd>
-                </div>
-                <div>
-                  <dt>全下 All In</dt>
-                  <dd>投入当前规则允许的最大筹码。后续处理以牌局状态及特殊技能为准。</dd>
-                </div>
-              </dl>
-            </article>
-
-            <article id="rule-showdown" class="rules-section" data-rule-section data-search="胜负 弃牌 摊牌 最佳五张 七张 花色 平局 底牌 公共牌 kicker 踢脚">
-              <h3>四、手牌胜负</h3>
-              <p>一手牌以弃牌或摊牌结束。</p>
-              <h4>弃牌</h4>
-              <p>一名玩家弃牌后，对手立即赢得该手。弃牌结束的手牌不比较牌型，也不发放牌型基础奖励。</p>
-              <h4>摊牌</h4>
-              <p>双方均未弃牌并完成最后一轮下注后进入摊牌。每名玩家从七张牌中组成最高的五张牌：</p>
-              <ul>
-                <li>本人两张底牌；</li>
-                <li>五张公共牌。</li>
-              </ul>
-              <p>可以使用零张、一张或两张底牌。牌型较高的一方获胜；类别相同时，按标准德州扑克规则比较该牌型中的点数。双方最终五张完全相同则为平局。</p>
-              <aside class="rules-note">所有花色地位相同，不存在花色高低。</aside>
-            </article>
-
-            <article id="rule-hands" class="rules-section" data-rule-section data-search="牌型 皇家同花顺 同花顺 四条 葫芦 同花 顺子 三条 两对 一对 高牌 royal flush straight flush full house 轮子 A2345">
-              <h3>五、牌型等级</h3>
-              <p>由高到低如下。皇家同花顺在本系统中为独立等级，高于普通同花顺。</p>
-              <table class="rules-table">
-                <caption>牌型顺序</caption>
-                <thead>
-                  <tr><th>顺位</th><th>牌型</th><th>说明</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td>1</td><th scope="row">皇家同花顺</th><td>同一花色的 A、K、Q、J、10。</td></tr>
-                  <tr><td>2</td><th scope="row">同花顺</th><td>五张同花且点数连续。</td></tr>
-                  <tr><td>3</td><th scope="row">四条</th><td>四张同点。平手时比较第五张踢脚。</td></tr>
-                  <tr><td>4</td><th scope="row">葫芦</th><td>三条加一对。先比三条，再比对子。</td></tr>
-                  <tr><td>5</td><th scope="row">同花</th><td>五张同花但不成同花顺。由高到低比单张。</td></tr>
-                  <tr><td>6</td><th scope="row">顺子</th><td>五张连续，花色不限。A 可作最高，也可在 A-2-3-4-5 中作最低。</td></tr>
-                  <tr><td>7</td><th scope="row">三条</th><td>三张同点，其余为踢脚。</td></tr>
-                  <tr><td>8</td><th scope="row">两对</th><td>两组对子。先比大对，再比小对，再比踢脚。</td></tr>
-                  <tr><td>9</td><th scope="row">一对</th><td>两张同点，其余由高到低作踢脚。</td></tr>
-                  <tr><td>10</td><th scope="row">高牌</th><td>未组成以上牌型时，由高到低比较五张。</td></tr>
-                </tbody>
-              </table>
-            </article>
-
-            <article id="rule-bonus" class="rules-section" data-rule-section data-search="牌型奖励 基础奖励 三条 顺子 同花 葫芦 四条 同花顺 皇家 +25 +50 +75 +100 +250 +400 +500 倍率">
-              <h3>六、牌型基础奖励</h3>
-              <p>牌型基础奖励属于基础规则，适用于全部模式。仅在摊牌产生唯一胜者时，按胜者最终牌型发放。</p>
-              <table class="rules-table">
-                <caption>获胜牌型奖励</caption>
-                <thead>
-                  <tr><th>获胜牌型</th><th>奖励</th></tr>
-                </thead>
-                <tbody>
-                  <tr><th scope="row">高牌 / 一对 / 两对</th><td>+0</td></tr>
-                  <tr><th scope="row">三条</th><td>+25</td></tr>
-                  <tr><th scope="row">顺子</th><td>+50</td></tr>
-                  <tr><th scope="row">同花</th><td>+75</td></tr>
-                  <tr><th scope="row">葫芦</th><td>+100</td></tr>
-                  <tr><th scope="row">四条</th><td>+250</td></tr>
-                  <tr><th scope="row">同花顺</th><td>+400</td></tr>
-                  <tr><th scope="row">皇家同花顺</th><td>+500</td></tr>
-                </tbody>
-              </table>
-              <p>普通弃牌、撤退弃牌与平局均不获得该奖励。奖励是玩家之间的额外筹码转移，不会增加比赛筹码总量。</p>
-              <div class="rules-formula" aria-label="结算示例">
-                <p>示例：标准净转移 500，胜者以三条获胜：</p>
-                <code>500 + 25 = 525</code>
-                <p>若同时存在合法的 ×2 结算倍率：</p>
-                <code>525 × 2 = 1050</code>
-                <p>实际转移不得超过败方能够支付的筹码。</p>
-              </div>
-            </article>
-
-            <article id="rule-loadout" class="rules-section" data-rule-section data-search="技能构筑 负载 装备 公开 秘密 1至4 上限8 档案 loadout">
-              <h3>七、技能构筑</h3>
-              <p>启用技能系统时，须在开赛前完成构筑，且本场不可更换。</p>
-              <ul>
-                <li>装备 1 至 4 个技能；</li>
-                <li>总负载不超过 8；</li>
-                <li>同一技能不得重复装备。</li>
-              </ul>
-              <p>开赛时，对手不会获知你的装备数量、总负载或完整技能列表。</p>
-              <p>技能分为公开与秘密。公开技能发动后按规则向双方展示相关信息；秘密技能通常仅发动者知晓，直到被公开发动、被侦察、产生可观察效果，或满足其他揭露条件。</p>
-              <aside class="rules-note">负载、费用、可用阶段、次数与具体效果以技能档案中的对应说明为准。</aside>
-            </article>
-
-            <article id="rule-energy" class="rules-section" data-rule-section data-search="能量 上限 天命 10 恢复 获胜 失败 弃牌 平局 撤退 负能量">
-              <h3>八、能量</h3>
-              <p>能量用于支付主动技能及部分特殊效果。普通情况下起始为 4，上限为 8。装备「天命」的玩家，真实能量上限提高至 10。</p>
-              <table class="rules-table">
-                <caption>手牌结束后的自然恢复</caption>
-                <thead>
-                  <tr><th>结果</th><th>能量变化</th></tr>
-                </thead>
-                <tbody>
-                  <tr><th scope="row">获胜</th><td>+0</td></tr>
-                  <tr><th scope="row">失败</th><td>+1</td></tr>
-                  <tr><th scope="row">普通弃牌</th><td>+1</td></tr>
-                  <tr><th scope="row">平局</th><td>+0</td></tr>
-                  <tr><th scope="row">撤退弃牌</th><td>+0</td></tr>
-                </tbody>
-              </table>
-              <p>技能造成的额外恢复、消耗、借贷或负能量，按对应技能规则另行结算。</p>
-            </article>
-
-            <article id="rule-energy-intel" class="rules-section" data-rule-section data-search="公开能量 对手能量 0到8 显示 cap 灵视 侦察 真实能量">
-              <h3>九、对手能量信息</h3>
-              <p>对手的真实能量默认不实时公开。每手全部资源结算完成后，系统更新一次对手公开能量；该值在下一手进行期间保持不变，直到下一次手牌结束。</p>
-              <p>普通公开能量范围为 0 至 8：</p>
-              <ul>
-                <li>真实能量低于 0 时，公开显示为 0；</li>
-                <li>真实能量为 0 至 8 时，按实际值显示；</li>
-                <li>真实能量为 9 或 10 时，公开显示为 8。</li>
-              </ul>
-              <p>你始终可以查看自己的真实当前能量。具有明确资源侦察效果的技能，可按技能说明读取对手真实能量。</p>
-            </article>
-
-            <article id="rule-settlement" class="rules-section" data-rule-section data-search="结算 筹码 整数 零和 倍率 防守 损失修正 净转移">
-              <h3>十、筹码与标准结算</h3>
-              <p>筹码最小单位为 1。所有正式筹码状态均按整数结算。</p>
-              <p>标准筹码结算依次考虑：</p>
-              <ol>
-                <li>标准德州扑克产生的净筹码转移；</li>
-                <li>牌型基础奖励；</li>
-                <li>其他合法的基础加值；</li>
-                <li>合法的筹码倍率；</li>
-                <li>防守及其他最终损失修正；</li>
-                <li>败方实际可支付筹码上限。</li>
-              </ol>
-              <p>若计算产生非整数，按相应规则整数化。同一笔玩家间转移始终以相同整数从支付方扣除并计入接收方，因此比赛筹码总量保持不变。</p>
-            </article>
-
-            <article id="rule-direct" class="rules-section" data-rule-section data-search="直接转移 贷款 偿还 终局 没收 倍率 退款">
-              <h3>十一、标准筹码与直接技能转移</h3>
-              <p>部分技能造成的筹码变化属于直接技能转移：不计入标准德州扑克净收益，也不参与普通筹码倍率。</p>
-              <p>包括但不限于：「贷款」直接取得的筹码、贷款偿还，以及「终局」对未匹配投入的没收。</p>
-              <aside class="rules-note">除技能明确规定外，直接技能转移不会因标准结算倍率再次放大，也不会因普通下注退款而自动撤销。</aside>
-            </article>
-
-            <article id="rule-allin" class="rules-section" data-rule-section data-search="全下 all in 未匹配 边池 双人 摊牌 剩余公共牌">
-              <h3>十二、全下与未匹配投入</h3>
-              <p>玩家全下后，如双方均已无合法后续下注行动，系统将依次发出剩余公共牌并进入摊牌。</p>
-              <p>在双人牌局中，标准下注只有双方能够匹配的部分参与正常争夺。一方超出对手可匹配范围的未匹配投入，按当前牌局规则处理；若特殊技能明确改变处理方式，则以该技能为准。</p>
-              <aside class="rules-note">《超限德州》为双人对战，不采用多人德州扑克中的多重边池体系。</aside>
-            </article>
-
-            <article id="rule-tie" class="rules-section" data-rule-section data-search="平局 tie split 返还 平均 能量 倍率 奖励">
-              <h3>十三、平局</h3>
-              <p>摊牌时双方最终最佳五张完全相同，该手判定为平局。</p>
-              <ul>
-                <li>双方不获得牌型基础奖励；</li>
-                <li>胜利倍率不触发；</li>
-                <li>标准争夺筹码按规则返还或平均分配；</li>
-                <li>双方均不获得普通失败能量恢复。</li>
-              </ul>
-              <p>特殊技能另有规定的除外。</p>
-            </article>
-
-            <article id="rule-state" class="rules-section" data-rule-section data-search="持续状态 回滚 公平 已完成 交换 牌堆 信息 清除">
-              <h3>十四、特殊状态与已完成效果</h3>
-              <p>部分技能可建立持续状态、修改牌面、改变牌堆、限制行动或影响最终结算。</p>
-              <p>除技能明确规定外：</p>
-              <ul>
-                <li>已经完成的牌张交换不会自动恢复；</li>
-                <li>已经完成的牌堆修改不会自动恢复；</li>
-                <li>已经获得的信息不会被遗忘；</li>
-                <li>已经完成的直接筹码转移不会自动撤销。</li>
-              </ul>
-              <aside class="rules-note">清除持续技能状态，不等同于回滚已经完成的游戏事实。</aside>
-            </article>
-
-            <article id="rule-priority" class="rules-section" data-rule-section data-search="优先级 冲突 例外 技能规则 基础规则 德州扑克 合法行动">
-              <h3>十五、规则优先级</h3>
-              <p>标准德州扑克规则构成《超限德州》的基础牌局规则。当技能或特殊状态明确修改基础规则时，以对应的具体规则为准。</p>
-              <p>不同层级发生直接冲突时，按以下顺序适用：</p>
-              <ol class="rules-priority">
-                <li>特殊状态或明确例外规则</li>
-                <li>具体技能规则</li>
-                <li>《超限德州》基础规则</li>
-                <li>标准德州扑克通用规则</li>
-              </ol>
-              <p>系统依据当前牌局状态确定可执行的合法行动与可发动的技能。玩家只能执行当前规则允许的操作。</p>
-            </article>
           </div>
+          <button id="btn-rules-top" class="rules-top-button hidden" type="button" aria-label="返回规则手册顶部">返回顶部</button>
         </div>
       </section>
     </div>
@@ -795,6 +712,26 @@
             </div>
             <p id="protocol-summary" class="protocol-summary">标准局 · 无技能</p>
           </div>
+
+          <aside class="quickstart-entry" aria-labelledby="quickstart-entry-title">
+            <span class="quickstart-entry-index" aria-hidden="true">01—04</span>
+            <div class="quickstart-entry-copy">
+              <p>NEW PLAYER FIELD MANUAL</p>
+              <h3 id="quickstart-entry-title">快速入门</h3>
+              <span>4 页了解胜负、牌局、牌型奖励与技能构筑</span>
+            </div>
+            <span id="quickstart-entry-state" class="quickstart-entry-state">约 45 秒</span>
+            <button
+              id="btn-open-quickstart"
+              class="button quickstart-entry-button"
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="quickstart-modal"
+            >
+              <span id="quickstart-entry-action">开始阅读</span>
+              <b aria-hidden="true">→</b>
+            </button>
+          </aside>
 
           <div class="protocol-grid" role="list">
             <article class="protocol-card selected" data-game-mode="standard" data-skill-mode="off" role="listitem" tabindex="0" aria-current="true">
@@ -1318,6 +1255,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="./rulebook-data.js"></script>
     <script src="./client.js"></script>
   </body>
 </html>

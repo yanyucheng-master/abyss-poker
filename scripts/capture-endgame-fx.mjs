@@ -76,6 +76,9 @@ async function main() {
     deviceScaleFactor: 2,
   });
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem("overlimit_quickstart_v1", "seen");
+  });
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     document.body.classList.add("reduce-motion");
@@ -102,6 +105,9 @@ async function main() {
     hasTouch: true,
   });
   const mobilePage = await mobile.newPage();
+  await mobilePage.addInitScript(() => {
+    localStorage.setItem("overlimit_quickstart_v1", "seen");
+  });
   await mobilePage.goto(BASE, { waitUntil: "networkidle" });
   await mobilePage.evaluate(() => {
     const shell = document.querySelector(".app-shell");

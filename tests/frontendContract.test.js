@@ -12,6 +12,7 @@ function collectMatches(text, regex) {
 describe("frontend DOM contract", () => {
   const html = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
   const client = fs.readFileSync(path.join(publicDir, "client.js"), "utf8");
+  const rulebookData = fs.readFileSync(path.join(publicDir, "rulebook-data.js"), "utf8");
   const style = fs.readFileSync(path.join(publicDir, "style.css"), "utf8");
   const salon = fs.readFileSync(path.join(publicDir, "salon.css"), "utf8");
   const tableV2 = fs.readFileSync(path.join(publicDir, "table-v2.css"), "utf8");
@@ -106,6 +107,67 @@ describe("frontend DOM contract", () => {
     expect(client).not.toMatch(/\b(?:localStorage|sessionStorage)\.(?:getItem|setItem|removeItem)/);
     expect(client).toContain("mainContent.inert = hasModal");
     expect(client).toContain('event.key !== "Tab"');
+  });
+
+  test("四页快速入门复用大厅、规则与技能入口，并只使用实机素材", () => {
+    const start = html.indexOf('id="quickstart-modal"');
+    const end = html.indexOf('id="rules-handbook-modal"', start);
+    const markup = html.slice(start, end);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect((markup.match(/data-quickstart-page="[1-4]"/g) || []).length).toBe(4);
+    expect(html).toContain('id="btn-open-quickstart"');
+    expect(html).toContain('id="quickstart-page-status"');
+    expect(client).toContain('quickStart: "overlimit_quickstart_v1"');
+    expect(client).toContain("function renderQuickStartPage");
+    expect(client).toContain("function releaseQuickStartPointer");
+    expect(client).toContain('openRulesFromQuickStart("rule-hands")');
+    expect(client).toContain("openSkillsFromQuickStart");
+    expect(salon).toContain(".salon-ui .quickstart-entry");
+    expect(salon).toContain(".salon-ui .quickstart-track");
+    expect(salon).toContain("touch-action: pan-y");
+    [
+      "shot-01-preflop.png",
+      "shot-02-flop.png",
+      "shot-03-showdown.png",
+      "shot-04-loadout.png",
+      "shot-05-skill-table.png",
+    ].forEach((filename) => {
+      const asset = path.join(publicDir, "assets", "tutorial", filename);
+      expect(fs.existsSync(asset)).toBe(true);
+      expect(fs.statSync(asset).size).toBeGreaterThan(20_000);
+      expect(markup).toContain(`./assets/tutorial/${filename}`);
+    });
+    ["+25", "+50", "+75", "+100", "+250", "+400", "+500"].forEach((bonus) => {
+      expect(markup).toContain(`<strong>${bonus}</strong>`);
+    });
+  });
+
+  test("完整规则 V1.0 接入结构化数据、全文搜索与移动目录", () => {
+    const dataScript = html.indexOf('<script src="./rulebook-data.js"></script>');
+    const clientScript = html.indexOf('<script src="./client.js"></script>');
+    expect(dataScript).toBeGreaterThan(-1);
+    expect(dataScript).toBeLessThan(clientScript);
+    [
+      "rules-search-results",
+      "rules-search-results-list",
+      "btn-rules-menu",
+      "rules-toc-backdrop",
+      "btn-rules-top",
+    ].forEach((id) => expect(html).toContain(`id="${id}"`));
+    expect(client).toContain("function renderRulesHandbook");
+    expect(client).toContain("function rebuildRulesSearchIndex");
+    expect(client).toContain("function scrollToRulesTarget");
+    expect(client).toContain("function highlightRulesTarget");
+    expect(client).toContain("function setRulesTocOpen");
+    expect(client).toContain("RULEBOOK_DATA.sections.length !== 18");
+    expect(rulebookData).toContain('id: "rule-skills"');
+    expect(rulebookData).toContain('id: "rule-protocols"');
+    expect(salon).toContain(".salon-ui .rules-search-results-list");
+    expect(salon).toContain(".salon-ui .rules-toc.is-open");
+    expect(salon).toContain(".salon-ui .rules-table-wrap");
+    expect(salon).toContain(".salon-ui .rules-skill-index");
+    expect(salon).toContain('html.has-modal-layer');
   });
 
   test("按钮装饰层不拦截邻近按钮点击", () => {

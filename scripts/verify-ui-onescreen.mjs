@@ -167,6 +167,7 @@ async function main() {
 
   await page.goto(BASE + "/?verify=1", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
+    localStorage.setItem("overlimit_quickstart_v1", "seen");
     localStorage.setItem(
       "abyss_skill_loadout_v2",
       JSON.stringify(["DEEP_BREATH", "RECYCLE"])
@@ -288,6 +289,7 @@ async function main() {
 
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mobilePage = await mobileContext.newPage();
+  await mobilePage.addInitScript(() => localStorage.setItem("overlimit_quickstart_v1", "seen"));
   await mobilePage.goto(BASE + "/?mobile=1", { waitUntil: "networkidle" });
   await mobilePage.waitForSelector("#screen-auth.active", { timeout: 5000 });
   await mobilePage.waitForTimeout(400);

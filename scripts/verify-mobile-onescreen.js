@@ -205,7 +205,7 @@ async function skillSoloPass(page, vpName) {
       ),
       phase: document.getElementById("phase-text")?.textContent,
       prep: document.getElementById("skill-prep-status")?.textContent,
-      loadout: localStorage.getItem("abyss_skill_loadout_v1"),
+      loadout: localStorage.getItem("abyss_skill_loadout_v2"),
       draftStatus: document.getElementById("draft-status")?.textContent,
       toast: document.body.innerText.includes("请先完成") ? "need-loadout" : null,
     }));
@@ -235,6 +235,9 @@ async function runViewport(browser, vp) {
     hasTouch: true,
   });
   const page = await context.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem("overlimit_quickstart_v1", "seen");
+  });
   await page.goto(BASE, { waitUntil: "networkidle" });
   await page.waitForSelector("#screen-auth.active");
 
