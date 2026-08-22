@@ -2038,6 +2038,19 @@ body:has(#screen-auth.lobby-screen.active) .app-shell {
   margin-bottom: 0;
 }
 
+#screen-skill-lab .skill-lab-bar {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+#screen-skill-lab .skill-lab-bar-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  justify-self: start;
+}
+
 .skill-lab-panel {
   flex: 1 1 auto;
   min-height: 0;

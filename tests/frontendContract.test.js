@@ -300,6 +300,11 @@ describe("frontend DOM contract", () => {
     expect(client).toContain("function filterRulesHandbook");
     expect(html).toContain('id="screen-skill-lab"');
     expect(html).toContain('id="skill-lab-catalog"');
+    expect(html).toContain('id="skill-lab-filters"');
+    expect(client).toContain("function compareSkillLabOrder");
+    expect(client).toContain("function visibleSkillLabCatalog");
+    expect(client).toContain('label: "情报"');
+    expect(client).toContain('label: "协议"');
     expect(html).toContain('data-raise-preset="max"');
     expect(html).toContain('id="skill-draft-panel"');
     expect(html).toContain('id="skill-hud"');

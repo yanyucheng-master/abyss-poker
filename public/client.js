@@ -163,6 +163,7 @@ const state = {
   skillCatalogStatus: "idle",
   selectedLoadout: [],
   savedLoadout: [],
+  skillLabFilter: "all",
   suspectedSkillProfiles: loadSuspectedSkillProfiles(),
   suspectedSkillIds: [],
   inferredEnergyProfiles: loadInferredEnergyProfiles(),
@@ -354,6 +355,7 @@ const el = {
   btnClearLoadout: byId("btn-clear-loadout"),
   skillPrepStatus: byId("skill-prep-status"),
   skillLabCatalog: byId("skill-lab-catalog"),
+  skillLabFilters: byId("skill-lab-filters"),
   skillLabStatus: byId("skill-lab-status"),
   labLoadMeter: byId("lab-load-meter"),
   lobbyConnection: byId("lobby-connection"),
@@ -2936,8 +2938,84 @@ function createSkillCatalogCard(skill, { selected = false, disabled = false, onS
   return card;
 }
 
+const SKILL_LAB_FILTERS = Object.freeze([
+  { id: "all", label: "全部" },
+  { id: "intel", label: "情报", tags: ["INFORMATION"] },
+  {
+    id: "attack",
+    label: "攻击",
+    ids: ["BLOOD_BATTLE", "DESPERATION", "DEAD_END", "ENDGAME", "PROBE", "INTIMIDATION"],
+  },
+  {
+    id: "defense",
+    label: "防御",
+    tags: ["DEFENSE"],
+    ids: ["COUNTER", "FAIRNESS", "DISGUISE"],
+  },
+  { id: "resource", label: "资源", tags: ["RESOURCE"] },
+  { id: "edit", label: "改牌", tags: ["HOLE_EDIT", "DECK_EDIT", "BOARD_EDIT"] },
+  { id: "protocol", label: "协议", tags: ["PROTOCOL"] },
+]);
+
+function isProtocolCatalogSkill(skill) {
+  return Boolean(
+    skill?.tags?.includes("PROTOCOL") || String(skill?.id || "").startsWith("PROTOCOL_")
+  );
+}
+
+function compareSkillLabOrder(a, b) {
+  const protocolDelta = Number(isProtocolCatalogSkill(a)) - Number(isProtocolCatalogSkill(b));
+  if (protocolDelta) return protocolDelta;
+  const loadDelta = Number(a?.load || 0) - Number(b?.load || 0);
+  if (loadDelta) return loadDelta;
+  return String(a?.name || a?.id || "").localeCompare(String(b?.name || b?.id || ""), "zh-CN");
+}
+
+function skillMatchesLabFilter(skill, filterId) {
+  const filter = SKILL_LAB_FILTERS.find((entry) => entry.id === filterId) || SKILL_LAB_FILTERS[0];
+  if (!filter || filter.id === "all") return true;
+  const tags = new Set(skill?.tags || []);
+  if ((filter.tags || []).some((tag) => tags.has(tag))) return true;
+  return (filter.ids || []).includes(skill?.id);
+}
+
+function visibleSkillLabCatalog(catalog = state.skillCatalog) {
+  return [...(Array.isArray(catalog) ? catalog : [])]
+    .filter((skill) => skillMatchesLabFilter(skill, state.skillLabFilter || "all"))
+    .sort(compareSkillLabOrder);
+}
+
+function renderSkillLabFilters() {
+  if (!el.skillLabFilters) return;
+  const active = state.skillLabFilter || "all";
+  if (el.skillLabFilters.dataset.ready !== "1") {
+    el.skillLabFilters.textContent = "";
+    SKILL_LAB_FILTERS.forEach((filter) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "skill-lab-filter";
+      button.dataset.skillFilter = filter.id;
+      button.textContent = filter.label;
+      button.setAttribute("aria-label", "筛选" + filter.label + "技能");
+      button.addEventListener("click", () => {
+        if (state.skillLabFilter === filter.id) return;
+        state.skillLabFilter = filter.id;
+        renderSkillLab();
+      });
+      el.skillLabFilters.appendChild(button);
+    });
+    el.skillLabFilters.dataset.ready = "1";
+  }
+  el.skillLabFilters.querySelectorAll("[data-skill-filter]").forEach((button) => {
+    const on = button.dataset.skillFilter === active;
+    button.classList.toggle("is-active", on);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
 function renderSkillLab() {
   if (!el.skillLabCatalog) return;
+  renderSkillLabFilters();
   const validation = validateLoadoutIds(state.selectedLoadout);
   const load = state.selectedLoadout.reduce((sum, id) => {
     const def = state.skillCatalog.find((skill) => skill.id === id);
@@ -2960,7 +3038,17 @@ function renderSkillLab() {
   }
   if (el.btnSaveLoadout) el.btnSaveLoadout.disabled = !validation.ok;
   el.skillLabCatalog.textContent = "";
-  state.skillCatalog.forEach((skill) => {
+  const catalog = visibleSkillLabCatalog();
+  if (!catalog.length) {
+    if (state.skillCatalog.length) {
+      const empty = document.createElement("p");
+      empty.className = "skill-lab-filter-empty";
+      empty.textContent = "该标签下没有技能";
+      el.skillLabCatalog.appendChild(empty);
+    }
+    return;
+  }
+  catalog.forEach((skill) => {
     const card = createSkillCatalogCard(skill, {
       selected: state.selectedLoadout.includes(skill.id),
       onSelect: () => {

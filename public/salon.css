@@ -799,6 +799,79 @@
   color: var(--gold);
 }
 
+.salon-ui #screen-skill-lab .skill-lab-bar {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-bar-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  grid-column: 1;
+  justify-self: start;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-bar .screen-brand {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-bar #lab-load-meter {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-filter {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1px solid rgba(212, 181, 106, 0.22);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(8, 10, 13, 0.35);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.salon-ui #screen-skill-lab .skill-lab-filter:hover,
+.salon-ui #screen-skill-lab .skill-lab-filter:focus-visible {
+  border-color: rgba(212, 181, 106, 0.55);
+  color: var(--bone, #f4efe4);
+}
+
+.salon-ui #screen-skill-lab .skill-lab-filter.is-active {
+  color: #101217;
+  background: var(--gold-soft, #d4b56a);
+  border-color: transparent;
+}
+
+.salon-ui #skill-lab-catalog .skill-lab-filter-empty {
+  grid-column: 1 / -1;
+  margin: 24px 0;
+  color: var(--muted);
+  text-align: center;
+}
+
 .salon-ui .skill-lab-panel {
   min-height: 0;
   display: flex;
@@ -1571,9 +1644,20 @@
 
   .salon-ui #screen-skill-lab .screen-bar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     min-height: 52px;
     padding: 6px 8px;
+  }
+
+  .salon-ui #screen-skill-lab .skill-lab-bar-start {
+    gap: 6px;
+    max-width: 100%;
+  }
+
+  .salon-ui #screen-skill-lab .skill-lab-filter {
+    min-height: 26px;
+    padding: 2px 8px;
+    font-size: 0.62rem;
   }
 
   .salon-ui #screen-skill-lab .screen-brand {
